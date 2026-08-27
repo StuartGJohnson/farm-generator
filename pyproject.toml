@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "farm-generator"
+version = "0.1.0"
+description = "Procedural farm generation IR for robotics simulation (perception/planning/control on an autonomous electric tractor)."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { file = "LICENSE" }
+dependencies = [
+    "numpy>=1.24",
+    "shapely>=2.0",
+    "networkx>=3.0",
+    "scipy>=1.10",
+    "matplotlib>=3.5",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.0"]
+
+[tool.setuptools.packages.find]
+include = ["farm_ir*", "generation*", "visualization*", "export*"]
