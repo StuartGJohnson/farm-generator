@@ -1,6 +1,5 @@
 __pycache__/
 *.pyc
-debug_out/
 *.egg-info/
 .pytest_cache/
 venv/
