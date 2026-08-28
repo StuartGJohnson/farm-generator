@@ -92,12 +92,21 @@ class FarmGenerationConfig:
                                                  # floating-point noise floor, not "looks small enough"
 
     # --- crops / weeds ---
+    # row_spacing/tree_spacing/headland_width are kept small by default so
+    # a 60-100m test domain still shows several rows per parcel -- see
+    # CLAUDE_update1.md. Row angle is no longer a config input: each
+    # parcel picks its own row alignment from its own geometry (see
+    # generation/crops.py._pick_row_and_col_dirs). headland_width trims
+    # each ROW's ends (turning space, measured along the row direction);
+    # sideland_width trims each COLUMN's ends (measured along the column
+    # direction) -- see generation/crops.py for the oblique-coordinate
+    # trim this drives.
     crop_type: str = "orchard"
     irrigation_type: IrrigationType = IrrigationType.SUB_IRRIGATION
-    headland_width: float = 3.0
-    row_spacing: float = 5.0
-    tree_spacing: float = 4.0
-    row_angle_deg: float = 0.0
+    headland_width: float = 2.0
+    sideland_width: float = 2.0
+    row_spacing: float = 1.5
+    tree_spacing: float = 1.0
     species_mix: dict[str, float] = field(default_factory=lambda: {"almond": 1.0})
     canopy_radius: float = 1.5
     trunk_dbh: float = 0.15

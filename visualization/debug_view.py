@@ -75,12 +75,25 @@ def plot_scene(scene: FarmScene, layers: set[str] | None = None, title: str | No
 
 
 def save_scene_png(scene: FarmScene, out_path: str, layers: set[str] | None = None,
-                    title: str | None = None) -> None:
+                    title: str | None = None, dpi: int = 300) -> None:
+    """
+    dpi defaults to 300, not matplotlib's 100-150 norm, because this tool
+    is used to eyeball tree-level detail (see module docstring): at
+    dpi=150 a 100m-wide domain renders at only ~15 px/m, and a ~6px tree
+    marker's center can only be placed to ~0.2m precision on that pixel
+    grid -- since rows follow each parcel's own (generally oblique) edge
+    angle rather than the pixel grid, that sub-pixel rounding shows up as
+    a visible wobble along rows. Confirmed by re-rendering the same scene
+    at 600 dpi and comparing an identical crop: the wobble disappeared,
+    while the underlying tree position data was already full float64
+    precision either way -- this was a rasterization artifact, not a
+    generation bug.
+    """
     fig, ax = plot_scene(scene, layers=layers, title=title)
     out_dir = os.path.dirname(out_path)
     if out_dir:
         os.makedirs(out_dir, exist_ok=True)
-    fig.savefig(out_path, dpi=150, bbox_inches="tight")
+    fig.savefig(out_path, dpi=dpi, bbox_inches="tight")
     plt.close(fig)
 
 

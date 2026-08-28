@@ -262,7 +262,11 @@ class PlantingSpec:
     row_spacing: float
     tree_spacing: float
     row_angle_deg: float
-    headland_width: float
+    headland_width: float     # clearance at each ROW end, measured along the row direction --
+                                 # turning space for the tractor at the row ends
+    sideland_width: float     # clearance at each COLUMN end, measured along the column
+                                 # direction -- clearance of the outermost row of trees from
+                                 # the parcel edge
     species_mix: dict[str, float]   # species name -> fraction, sums to 1.0
     seed: int
 
