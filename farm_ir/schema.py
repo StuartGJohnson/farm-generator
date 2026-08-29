@@ -4,11 +4,15 @@ farm_ir_schema.py
 Core intermediate representation (IR) for procedurally generated farms.
 
 Design principles:
-  - Vector-first: nearly everything is authored/generated as points, polylines,
-    or polygons with parameters. Rasterization (heightfields, material grids)
-    happens only at bake/export time, per-simulator, per-resolution.
+  - Vector-first: everything is authored/generated as points, polylines,
+    or polygons with parameters -- no rasters in the IR at all. Any
+    rasterization (e.g. material grids) happens only at simulator-export
+    bake time, per-simulator, per-resolution. There is no terrain/
+    elevation model in this IR -- see CLAUDE.md "Elevation / terrain:
+    removed": every feature derives directly from the road and hydrology
+    networks.
   - Networks (hydrology, roads) are explicit graphs, not embedded geometry,
-    so parcels/crossings/terrain can reference edges rather than duplicate them.
+    so parcels/crossings can reference edges rather than duplicate them.
   - Every feature is spatially queryable and taggable, supporting both
     procedural generation and (later) extraction from real imagery/lidar
     without a schema change -- just a different `source`.
@@ -364,41 +368,6 @@ class MaterialPatch(SpatialFeature):
 
 
 # ---------------------------------------------------------------------------
-# Elevation / terrain
-# ---------------------------------------------------------------------------
-
-class ElevationSource(str, Enum):
-    DERIVED_FROM_HYDROLOGY = "derived_from_hydrology"
-    GENERATED_TERRAIN = "generated_terrain"
-    DERIVED_FROM_TERRAIN_FLOW_ROUTING = "derived_from_terrain_flow_routing"
-    MEASURED = "measured"   # future: lidar bare-earth DEM
-
-
-@dataclass
-class ElevationField:
-    """
-    Baked, resolution-fixed elevation raster. Generated from vector sources
-    (hydrology breaklines, terrain generators) -- this is the one part of the
-    IR that is raster-native by necessity, since heightfields are what
-    simulators actually consume. Treat it as a cached bake product, not the
-    authored source of truth.
-    """
-    resolution: float                 # meters per cell
-    origin: Point2                    # world position of grid cell (0,0)
-    width_cells: int
-    height_cells: int
-    values: list[list[float]]         # [row][col] elevation, meters
-    source: ElevationSource = ElevationSource.DERIVED_FROM_HYDROLOGY
-
-
-@dataclass
-class TerrainModel:
-    elevation: Optional[ElevationField] = None
-    breakline_edge_ids: list[str] = field(default_factory=list)   # road/hydrology edges
-    # enforced as hard constraints when (re)baking `elevation`
-
-
-# ---------------------------------------------------------------------------
 # Top-level scene container
 # ---------------------------------------------------------------------------
 
@@ -421,5 +390,4 @@ class FarmScene:
     weed_zones: dict[str, WeedZone] = field(default_factory=dict)
     material_patches: dict[str, MaterialPatch] = field(default_factory=dict)
     buildings: dict[str, Building] = field(default_factory=dict)
-    terrain: TerrainModel = field(default_factory=TerrainModel)
     provenance: GenerationProvenance = field(default_factory=GenerationProvenance)

@@ -21,15 +21,14 @@ dependency of this one and nothing here should assume its presence.
 
 ## Core architectural principles
 
-1. **Vector-first.** Nearly everything is authored/generated as points,
-   polylines, or polygons with parameters — not rasters. The one exception
-   is `ElevationField`, which is raster-native by necessity (simulators
-   consume heightfields directly) but is treated as a *baked cache product*
-   derived from vector sources, not a source of truth in itself. Material/
-   traction variation is also vector (`MaterialPatch` polygons + semantic
-   `material_class`), rasterized only at simulator-export bake time, so the
-   IR stays resolution-independent and re-bakeable at different simulator
-   grid resolutions without re-authoring.
+1. **Vector-first.** Everything is authored/generated as points,
+   polylines, or polygons with parameters — no rasters in the IR at all.
+   (An earlier iteration included a raster `ElevationField`/`TerrainModel`
+   baked cache product; removed — see "Elevation / terrain: removed"
+   below.) Material/traction variation is vector (`MaterialPatch` polygons
+   + semantic `material_class`), rasterized only at simulator-export bake
+   time, so the IR stays resolution-independent and re-bakeable at
+   different simulator grid resolutions without re-authoring.
 
 2. **Networks are explicit graphs, but DERIVED from tessellation, not
    authored first.** An earlier design iteration generated the hydrology
@@ -57,25 +56,30 @@ dependency of this one and nothing here should assume its presence.
    DEM) without a schema migration. Don't remove these fields even though
    they're inert today.
 
-5. **Elevation is derived, with the derivation strategy explicit and
-   swappable.** For this (flat Delta) phase, `ElevationField.source =
-   derived_from_hydrology`. A future vineyard/topographic phase would
-   generate terrain first and derive hydrology from it via flow-routing —
-   the *interface* (`ElevationField` consumed by everything downstream) is
-   designed to support that without consumers caring which direction the
-   dependency ran. Never let downstream code (tree placement, road
-   profiles, exporters) read elevation from anywhere but `ElevationField`.
-   With no distinguished trunk this phase (see below), there is no real
-   macro gradient source either — treat the whole domain as flat/uniform
-   for now; a gradient-driving feature returns with the trunk.
-
-6. **Prefer established libraries over hand-rolled computational geometry
+5. **Prefer established libraries over hand-rolled computational geometry
    and graph algorithms.** See "Library usage" below — this is not a
    generic aspiration, it's backed by a specific, repeated experience
    during prototyping (see "Key lessons"), including a case where
    hand-rolling was tried hard, from two different directions, and still
    couldn't reliably solve the problem (see "Trunk / main channel:
    deferred").
+
+## Elevation / terrain: removed
+
+**There is no `ElevationField`/`TerrainModel` in the IR.** An earlier
+iteration included a raster elevation field (baked from hydrology/road
+breaklines, `source = derived_from_hydrology`) as a deliberate exception
+to the vector-first design, with the stated intent that a future
+trunk/topographic phase could swap its derivation strategy without
+downstream consumers caring. It was removed instead: for this (flat
+Delta, no-trunk) phase, every feature — road geometry, hydrology channel
+depth, tree placement — derives directly from the road and hydrology
+networks, and a baked heightfield added no information a consumer
+couldn't already get from those directly. Don't reintroduce it casually
+— if a future digital-twin phase brings back the trunk (see below) and a
+genuine macro elevation gradient, that's the right time to design an
+elevation representation deliberately against that real requirement, not
+before.
 
 ## Trunk / main channel: deferred to later digital-twin work
 
@@ -164,7 +168,6 @@ farm-gen/
   generation/
     tessellation.py          # T-tessellation over the domain -> parcels
     hydrology.py               # HydrologyNetwork derived from parcel boundaries
-    elevation.py
     roads.py                    # full-perimeter erosion-based road generation
     crossings.py                  # strict collinear vertex-to-vertex crossings
     crops.py                       # trees + weeds
@@ -192,7 +195,8 @@ deliberately. Key shapes to know before writing generation code:
   (`HydrologyNetwork`), `roads` (`RoadNetwork`), `crossings`, `parcels`
   (dict, holds `CropArea`/plain `Parcel` — see "Farmstead: deferred"
   below), `trees`, `weed_zones`, `material_patches`, `buildings`,
-  `terrain`, `provenance`.
+  `provenance`. No terrain/elevation field — see "Elevation / terrain:
+  removed" above.
 - `HydrologyEdge.connection_type`: this phase, every generated edge is
   `PIPED` (locally-maintained, not hydraulically continuous with
   anything). `GRAVITY_SURFACE` is not produced this phase — it's reserved
@@ -220,10 +224,9 @@ with ad hoc dicts in generation code.
 1. tessellation      (T-tessellation over the whole domain rectangle)
 2. vertex cleanup     (degenerate + near-collinear -- see Key Lessons on merging vs deleting)
 3. hydrology graph     (derived from parcel adjacency: edges + nodes from boundaries)
-4. elevation            (flat/uniform this phase -- see principle 5 above)
-5. roads                 (full perimeter per parcel, via erosion)
-6. crossings              (strict collinear vertex-to-vertex, not MST-minimized)
-7. crops/weeds             (per CropArea, ports existing grid generator)
+4. roads                 (full perimeter per parcel, via erosion)
+5. crossings              (strict collinear vertex-to-vertex, not MST-minimized)
+6. crops/weeds             (per CropArea, ports existing grid generator)
 [deferred] trunk/main channel (see above)
 [deferred] farmstead        (see below)
 [later]    material patches
@@ -313,15 +316,7 @@ Build `HydrologyNetwork` from the cleaned tessellation output: every
 parcel boundary edge becomes a `HydrologyEdge` (`connection_type = PIPED`
 this phase — see above), every shared vertex a `HydrologyNode`.
 
-### 4. Elevation
-
-`ElevationField.source = derived_from_hydrology`, baked as a raster with
-breaklines enforced from hydrology + road edges. With no trunk this
-phase, there's no macro gradient source — treat the domain as flat/
-uniform; every channel is a shallow, locally-flat depression at roughly
-constant relative depth.
-
-### 5. Roads — full perimeter per parcel
+### 4. Roads — full perimeter per parcel
 
 Every parcel's road is its own complete eroded perimeter
 (`polygon.buffer(-standoff)`), not a selectively-one-sided pick via
@@ -346,7 +341,7 @@ pulling the point back along the same direction rather than a true bevel)
 is used for robustness — see Key Lessons on why a true bevel was tried
 and rejected.
 
-### 6. Crossings — strict collinearity, vertex-to-vertex only, no new points
+### 5. Crossings — strict collinearity, vertex-to-vertex only, no new points
 
 **Every crossing connects two EXISTING within-parcel road vertices, never
 a constructed point — and must be collinear with a real road edge on
@@ -423,7 +418,7 @@ if that changes later.
 Headland turning space (`PlantingSpec.headland_width`) is **not** a
 road — open field inside the parcel polygon, never a `RoadEdge`.
 
-### 7. Crops / weeds
+### 6. Crops / weeds
 
 Per `CropArea`: consume `PlantingSpec`, inset the boundary by
 `headland_width`, generate the row/tree grid inside the inset region,
@@ -723,7 +718,8 @@ failure wrapper's seed perturbation on the rare cases it triggers on).
 - Real imagery/lidar extraction pipeline (schema's `source`/`confidence`
   fields anticipate it; no extraction code this phase).
 - Topography-first / vineyard-style generation (would derive hydrology
-  from generated terrain via flow-routing — a second `ElevationField`
-  source strategy implementing the same interface, not needed now).
+  from generated terrain via flow-routing — would need a real elevation
+  representation designed deliberately first; see "Elevation / terrain:
+  removed").
 - Polygon holes (e.g. a farmstead cutout inside a larger crop parcel —
   revisit when farmstead returns).

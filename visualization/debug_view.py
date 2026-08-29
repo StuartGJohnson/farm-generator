@@ -98,7 +98,7 @@ def save_scene_png(scene: FarmScene, out_path: str, layers: set[str] | None = No
 
 
 if __name__ == "__main__":
-    from generation.orchestrator import FarmGenerationConfig, generate_validated
+    from generation.orchestrator import FarmGenerationConfig, generate_validated, save_farm
 
     out_dir = os.path.join(os.path.dirname(__file__), "..", "debug_out", "farm_scenes")
     bounds = (0.0, 0.0, 100.0, 100.0)
@@ -118,3 +118,4 @@ if __name__ == "__main__":
 
         save_scene_png(scene, os.path.join(out_dir, f"farm_seed_{seed}.png"),
                         title=f"farm-gen debug view\nseed={seed}")
+        save_farm(scene, config, os.path.join(out_dir, f"farm_seed_{seed}.yaml"))

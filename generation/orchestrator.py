@@ -7,13 +7,16 @@ CLAUDE.md "Generation order"):
 
     1. tessellation      (T-tessellation + vertex cleanup -> parcels)
     2. hydrology          (HydrologyNetwork derived from parcel boundaries)
-    3. elevation          (flat/uniform this phase)
-    4. roads              (full perimeter per parcel, via erosion)
-    5. crossings          (strict collinear vertex-to-vertex)
-    6. crops/weeds        (per CropArea)
+    3. roads              (full perimeter per parcel, via erosion)
+    4. crossings          (strict collinear vertex-to-vertex)
+    5. crops/weeds        (per CropArea)
 
 `generation/material.py` is deliberately NOT called -- material patches
 are out of scope this phase (see CLAUDE.md "Explicitly out of scope").
+There is no elevation/terrain stage -- see CLAUDE.md "Elevation / terrain:
+removed": all features derive directly from the road and hydrology
+networks, and a baked heightfield added no information downstream
+consumers couldn't already get from those.
 
 Also provides `validate(scene, config) -> list[str]` and
 `generate_validated(config) -> (scene, issues, used_seed)`, the
@@ -22,6 +25,12 @@ retry-on-validation-failure wrapper described in CLAUDE.md
 seeds) produces one sharp-angled face or one disconnected parcel from an
 inherent, small tension in the pipeline that isn't worth chasing further
 by hand -- retrying with seed+1000, +2000, ... is the pragmatic fix.
+
+`save_farm`/`load_farm` write/read a scene TOGETHER WITH the config that
+produced it, per CLAUDE.md "Config": "Serialize a FarmGenerationConfig
+instance alongside a generated FarmScene for reproducibility". This is
+the module that composes them (farm_ir/serialize.py itself knows nothing
+about FarmGenerationConfig -- it's generic over any dataclass).
 """
 
 from __future__ import annotations
@@ -35,8 +44,9 @@ import numpy as np
 from shapely.geometry import Polygon
 
 from farm_ir.schema import FarmScene, GenerationProvenance, IrrigationType, RoadSurface, SceneOrigin
+from farm_ir.serialize import from_plain, read, write
 
-from generation import crops, crossings, elevation, hydrology, roads, tessellation
+from generation import crops, crossings, hydrology, roads, tessellation
 from generation.tessellation import min_interior_angle_deg
 
 GENERATOR_VERSION = "farm-gen-0.1.0"
@@ -82,10 +92,6 @@ class FarmGenerationConfig:
     hydrology_bottom_width: float = 1.0
     hydrology_depth: float = 0.8
 
-    # --- elevation ---
-    elevation_resolution: float = 2.0        # meters per raster cell
-    base_elevation: float = 0.0              # flat/uniform this phase -- no trunk gradient
-
     # --- crossings ---
     connect_radius: Optional[float] = None    # defaults to standoff * 2.5
     crossing_angle_tol_deg: float = 1e-3      # see CLAUDE.md "Key lessons" -- must stay near the
@@ -127,7 +133,7 @@ def generate_farm(config: FarmGenerationConfig) -> FarmScene:
     regeneration doesn't reshuffle another's.
     """
     parent_rng = np.random.default_rng(config.seed)
-    tess_rng, hydro_rng, elev_rng, road_rng, crossing_rng, crop_rng = parent_rng.spawn(6)
+    tess_rng, hydro_rng, road_rng, crossing_rng, crop_rng = parent_rng.spawn(5)
 
     scene = FarmScene(
         origin=SceneOrigin(
@@ -144,7 +150,6 @@ def generate_farm(config: FarmGenerationConfig) -> FarmScene:
 
     scene = tessellation.run(scene, config, tess_rng)
     scene = hydrology.run(scene, config, hydro_rng)
-    scene = elevation.run(scene, config, elev_rng)
     scene = roads.run(scene, config, road_rng)
     scene = crossings.run(scene, config, crossing_rng)
     scene = crops.run(scene, config, crop_rng)
@@ -231,3 +236,23 @@ def generate_validated(config: FarmGenerationConfig, max_seed_tries: int = 10):
         if not issues:
             return scene, issues, trial_seed
     return scene, issues, trial_seed
+
+
+def save_farm(scene: FarmScene, config: FarmGenerationConfig, path: str) -> None:
+    """
+    Write `scene` and the `config` that produced it to a single
+    human-readable YAML or JSON file (chosen by `path`'s extension --
+    see farm_ir/serialize.py). This is the IR's on-disk form: what
+    debug tooling (visualization/debug_view.py) emits for inspection,
+    and eventually what USD/Gazebo exporters will read as input.
+    """
+    write({"config": config, "scene": scene}, path)
+
+
+def load_farm(path: str) -> tuple[FarmScene, FarmGenerationConfig]:
+    """Inverse of save_farm: read a scene + its generating config back
+    from `path`."""
+    doc = read(path)
+    scene = from_plain(doc["scene"], FarmScene)
+    config = from_plain(doc["config"], FarmGenerationConfig)
+    return scene, config

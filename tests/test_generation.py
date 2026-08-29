@@ -3,7 +3,7 @@ tests/test_generation.py
 
 Smoke tests for the full generation DAG (generation/orchestrator.py).
 Uses small parcel counts for speed, but still exercises tessellation ->
-hydrology -> elevation -> roads -> crossings -> crops end to end.
+hydrology -> roads -> crossings -> crops end to end.
 """
 
 from farm_ir.schema import CropArea, HydrologyEdge, RoadEdge
@@ -26,9 +26,7 @@ def test_generate_farm_produces_all_layers():
     assert len(scene.hydrology.edges) > 0
     assert all(isinstance(e, HydrologyEdge) for e in scene.hydrology.edges.values())
 
-    assert scene.terrain.elevation is not None
-    assert scene.terrain.elevation.width_cells > 0
-    assert scene.terrain.elevation.height_cells > 0
+    assert not hasattr(scene, "terrain")  # removed -- see CLAUDE.md "Elevation / terrain: removed"
 
     assert len(scene.roads.edges) > 0
     assert all(isinstance(e, RoadEdge) for e in scene.roads.edges.values())
