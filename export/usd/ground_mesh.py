@@ -8,6 +8,8 @@ unconstrained regions before constrained Delaunay triangulation.
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
+import hashlib
+import math
 import os
 
 import condeltri
@@ -15,7 +17,7 @@ import numpy as np
 from scipy.stats import qmc
 from shapely import node, segmentize, set_precision
 from shapely.geometry import LineString, MultiLineString, Point, Polygon, box
-from shapely.ops import unary_union
+from shapely.ops import substring, unary_union
 
 from farm_ir.schema import FarmScene, HydrologyEdge
 
@@ -32,6 +34,34 @@ class PlanarStraightLineGraph:
     """Triangulator-independent PSLG in the scene's ENU coordinates."""
     vertices: list[tuple[float, float]]
     segments: list[tuple[int, int]]
+
+
+@dataclass(frozen=True)
+class ChannelUndulationConfig:
+    """Exporter-side lateral perturbation; the vector IR stays unchanged."""
+    max_amplitude: float = 0.10
+    min_wavelength: float = 1.0
+    sample_spacing: float = 0.20
+    seed_offset: int = 0
+
+    def __post_init__(self):
+        if self.max_amplitude < 0:
+            raise ValueError("max_amplitude must be non-negative")
+        if self.min_wavelength <= 0:
+            raise ValueError("min_wavelength must be positive")
+        if self.sample_spacing <= 0:
+            raise ValueError("sample_spacing must be positive")
+
+
+@dataclass(frozen=True)
+class ChannelFace:
+    """One fully known sloped surface patch on one parcel side."""
+    id: str
+    parcel_id: str
+    hydrology_edge_id: str
+    shoulder: list[tuple[float, float]]
+    bottom: list[tuple[float, float]]
+    depth: float
 
 
 def _line_segments(geometry):
@@ -79,42 +109,250 @@ def _canonical_edges(scene: FarmScene) -> list[HydrologyEdge]:
     return list(unique.values())
 
 
-def _parcel_channel_geometry(scene, bounds):
-    """Derive channel regions and breaklines from parcel-side IR edges."""
+def _logical_edge_key(edge: HydrologyEdge) -> tuple[str, str]:
+    return tuple(sorted((edge.node_a, edge.node_b)))
+
+
+def _edge_rng(scene: FarmScene, edge: HydrologyEdge, config: ChannelUndulationConfig):
+    global_seed = scene.provenance.global_seed if scene.provenance is not None else 0
+    pair = _logical_edge_key(edge)
+    payload = f"{global_seed + config.seed_offset}:{pair[0]}:{pair[1]}".encode()
+    seed = int.from_bytes(hashlib.blake2b(payload, digest_size=8).digest(), "little")
+    return np.random.default_rng(seed)
+
+
+def _undulate_edge(
+    scene: FarmScene,
+    edge: HydrologyEdge,
+    config: ChannelUndulationConfig,
+) -> list[tuple[float, float]]:
+    """Return one bounded, band-limited curve in canonical node order."""
+    forward = edge.node_a <= edge.node_b
+    source = edge.polyline if forward else list(reversed(edge.polyline))
+    line = LineString(source)
+    length = line.length
+    if config.max_amplitude == 0 or length <= config.min_wavelength * 0.5:
+        return [(float(x), float(y)) for x, y in source]
+
+    # 1-cos(2*pi*k*s/L) has both zero displacement and zero derivative at
+    # the endpoints, preserving the IR's authored corner position and tangent.
+    # Its wavelength is L/k; strict truncation keeps wavelengths > the limit.
+    max_mode = int(math.ceil(length / config.min_wavelength) - 1)
+    if max_mode < 1:
+        return [(float(x), float(y)) for x, y in source]
+    modes = np.arange(1, max_mode + 1, dtype=float)
+    rng = _edge_rng(scene, edge, config)
+    coefficients = rng.normal(size=max_mode) / modes**2
+
+    dense_s = np.linspace(0.0, length, max(256, max_mode * 32 + 1))
+    dense_wave = (1.0 - np.cos(2.0 * np.pi * np.outer(dense_s / length, modes))) @ coefficients
+    peak = float(np.max(np.abs(dense_wave)))
+    if peak <= 1e-15:
+        return [(float(x), float(y)) for x, y in source]
+    target_amplitude = config.max_amplitude * rng.uniform(0.6, 1.0)
+    coefficients *= target_amplitude / peak
+
+    spacing = min(config.sample_spacing, config.min_wavelength / 5.0)
+    sample_count = max(2, int(math.ceil(length / spacing)))
+    distances = np.linspace(0.0, length, sample_count + 1)
+    offsets = (1.0 - np.cos(2.0 * np.pi * np.outer(distances / length, modes))) @ coefficients
+    # Keep the first/last sampled segment exactly tangent to the authored IR
+    # edge. The continuous basis already has zero endpoint derivative, but a
+    # polyline represents that derivative with its first finite chord.
+    if len(offsets) >= 4:
+        offsets[1] = 0.0
+        offsets[-2] = 0.0
+    result = []
+    tangent_step = min(1e-3, length * 1e-4)
+    for distance, offset in zip(distances, offsets):
+        point = line.interpolate(float(distance))
+        before = line.interpolate(max(0.0, float(distance) - tangent_step))
+        after = line.interpolate(min(length, float(distance) + tangent_step))
+        tx, ty = after.x - before.x, after.y - before.y
+        norm = math.hypot(tx, ty)
+        nx, ny = -ty / norm, tx / norm
+        result.append((point.x + float(offset) * nx, point.y + float(offset) * ny))
+    # Preserve graph junctions exactly, independent of floating-point sine.
+    result[0] = (float(source[0][0]), float(source[0][1]))
+    result[-1] = (float(source[-1][0]), float(source[-1][1]))
+    return result
+
+
+def build_undulated_hydrology_edges(
+    scene: FarmScene,
+    config: ChannelUndulationConfig,
+) -> dict[tuple[str, str], HydrologyEdge]:
+    """Create perturbed export copies, keyed by logical edge; never mutate IR."""
+    result = {}
+    for edge in _canonical_edges(scene):
+        result[_logical_edge_key(edge)] = replace(
+            edge, polyline=_undulate_edge(scene, edge, config)
+        )
+    return result
+
+
+def _cross(a, b):
+    return a[0] * b[1] - a[1] * b[0]
+
+
+def _miter_offset(previous, point, following, distance, side):
+    incoming = (point[0] - previous[0], point[1] - previous[1])
+    outgoing = (following[0] - point[0], following[1] - point[1])
+    in_len, out_len = math.hypot(*incoming), math.hypot(*outgoing)
+    incoming = (incoming[0] / in_len, incoming[1] / in_len)
+    outgoing = (outgoing[0] / out_len, outgoing[1] / out_len)
+    in_normal = (-side * incoming[1], side * incoming[0])
+    out_normal = (-side * outgoing[1], side * outgoing[0])
+    a = (point[0] + distance * in_normal[0], point[1] + distance * in_normal[1])
+    b = (point[0] + distance * out_normal[0], point[1] + distance * out_normal[1])
+    denominator = _cross(incoming, outgoing)
+    if abs(denominator) < 1e-10:
+        return ((a[0] + b[0]) * 0.5, (a[1] + b[1]) * 0.5)
+    delta = (b[0] - a[0], b[1] - a[1])
+    t = _cross(delta, outgoing) / denominator
+    return (a[0] + t * incoming[0], a[1] + t * incoming[1])
+
+
+def _split_offset_ring(ring, corner_candidates, curves):
+    """Split a closed GEOS offset at corners and map each arc to an IR edge."""
+    stations = sorted({ring.project(Point(point)) for point in corner_candidates})
+    arcs = []
+    for i, start in enumerate(stations):
+        end = stations[(i + 1) % len(stations)]
+        if end > start:
+            coords = list(substring(ring, start, end).coords)
+        else:
+            tail = list(substring(ring, start, ring.length).coords)
+            head = list(substring(ring, 0.0, end).coords)
+            coords = tail + head[1:]
+        arc = LineString(coords)
+        midpoint = arc.interpolate(0.5, normalized=True)
+        edge_index = min(
+            range(len(curves)), key=lambda j: LineString(curves[j]).distance(midpoint)
+        )
+        arcs.append((edge_index, coords))
+    if len({edge_index for edge_index, _ in arcs}) != len(curves):
+        raise ValueError("could not map offset contour arcs one-to-one to hydrology edges")
+    return {edge_index: coords for edge_index, coords in arcs}
+
+
+def _build_channel_faces(scene, undulated_edges=None) -> list[ChannelFace]:
+    """Build paired longitudinal boundaries and endpoint ribs directly."""
+    faces = []
+    for parcel_id, parcel in scene.parcels.items():
+        area2 = sum(
+            parcel.polygon[i][0] * parcel.polygon[(i + 1) % len(parcel.polygon)][1]
+            - parcel.polygon[(i + 1) % len(parcel.polygon)][0] * parcel.polygon[i][1]
+            for i in range(len(parcel.polygon))
+        )
+        side = 1.0 if area2 > 0 else -1.0
+        curves = []
+        edges = []
+        for i, ref in enumerate(parcel.boundary_refs):
+            edge = scene.hydrology.edges[ref.edge_id]
+            curve = (
+                list(undulated_edges[_logical_edge_key(edge)].polyline)
+                if undulated_edges is not None else list(edge.polyline)
+            )
+            if math.dist(parcel.polygon[i], curve[-1]) < math.dist(parcel.polygon[i], curve[0]):
+                curve.reverse()
+            curves.append(curve)
+            edges.append(edge)
+        top_widths = {edge.top_width for edge in edges}
+        bottom_widths = {edge.bottom_width for edge in edges}
+        depths = {edge.depth for edge in edges}
+        if len(top_widths) != 1 or len(bottom_widths) != 1 or len(depths) != 1:
+            raise ValueError("POC mesher requires uniform channel dimensions around each parcel")
+        top_distance = next(iter(top_widths)) * 0.5
+        bottom_distance = next(iter(bottom_widths)) * 0.5
+        polygon_ring = [point for curve in curves for point in curve[:-1]]
+        polygon = Polygon(polygon_ring)
+        shoulder_polygon = polygon.buffer(-top_distance, join_style="mitre")
+        bottom_polygon = polygon.buffer(-bottom_distance, join_style="mitre")
+        if shoulder_polygon.is_empty or bottom_polygon.is_empty:
+            continue
+        top_candidates, bottom_candidates = [], []
+        for i, curve in enumerate(curves):
+            previous_curve = curves[i - 1]
+            corner = curve[0]
+            top_candidates.append(_miter_offset(previous_curve[-2], corner, curve[1], top_distance, side))
+            bottom_candidates.append(_miter_offset(previous_curve[-2], corner, curve[1], bottom_distance, side))
+        shoulder_arcs = _split_offset_ring(shoulder_polygon.boundary, top_candidates, curves)
+        bottom_arcs = _split_offset_ring(bottom_polygon.boundary, bottom_candidates, curves)
+        for i, (curve, edge) in enumerate(zip(curves, edges)):
+            shoulder = shoulder_arcs[i]
+            bottom = bottom_arcs[i]
+            if math.dist(shoulder[0], curve[0]) > math.dist(shoulder[-1], curve[0]):
+                shoulder.reverse()
+            if math.dist(bottom[0], curve[0]) > math.dist(bottom[-1], curve[0]):
+                bottom.reverse()
+            # ChannelFace owns corner correspondence. GEOS supplies the valid
+            # interior arc, but its independently projected envelope endpoints
+            # must not redefine the paired analytical corner stations.
+            shoulder[0], shoulder[-1] = top_candidates[i], top_candidates[(i + 1) % len(curves)]
+            bottom[0], bottom[-1] = bottom_candidates[i], bottom_candidates[(i + 1) % len(curves)]
+            faces.append(ChannelFace(
+                id=f"channel_face_{parcel_id}_{i}",
+                parcel_id=parcel_id,
+                hydrology_edge_id=edge.id,
+                shoulder=shoulder,
+                bottom=bottom,
+                depth=next(iter(depths)),
+            ))
+    return faces
+
+
+def build_channel_faces(
+    scene: FarmScene,
+    undulation: ChannelUndulationConfig | None = None,
+) -> list[ChannelFace]:
+    """Build the complete known channel-slope patches without changing IR."""
+    edges = build_undulated_hydrology_edges(scene, undulation) if undulation else None
+    return _build_channel_faces(scene, edges)
+
+
+def _parcel_channel_geometry(scene, bounds, undulated_edges=None):
+    """Derive regions directly from first-class channel faces."""
     domain = box(*bounds)
-    shoulder_rings = []
-    bottom_rings = []
-    shoulder_interiors = []
-    bottom_interiors = []
-    for parcel in scene.parcels.values():
-        referenced = [
-            scene.hydrology.edges[ref.edge_id]
-            for ref in parcel.boundary_refs
-            if ref.network == "hydrology" and ref.edge_id in scene.hydrology.edges
-        ]
-        top_widths = {edge.top_width for edge in referenced}
-        bottom_widths = {edge.bottom_width for edge in referenced}
-        if len(top_widths) != 1 or len(bottom_widths) != 1:
-            raise ValueError("POC mesher requires uniform channel widths around each parcel")
-        polygon = Polygon(parcel.polygon)
-        shoulder = polygon.buffer(-next(iter(top_widths)) * 0.5, join_style="mitre")
-        bottom = polygon.buffer(-next(iter(bottom_widths)) * 0.5, join_style="mitre")
-        if not shoulder.is_empty:
-            shoulder_rings.append(shoulder.boundary)
-            shoulder_interiors.append(shoulder)
-        if not bottom.is_empty:
-            bottom_rings.append(bottom.boundary)
-            bottom_interiors.append(bottom)
+    faces = _build_channel_faces(scene, undulated_edges)
+    by_parcel = {}
+    for face in faces:
+        by_parcel.setdefault(face.parcel_id, []).append(face)
+    shoulder_rings, bottom_rings = [], []
+    shoulder_interiors, bottom_interiors = [], []
+    for parcel_faces in by_parcel.values():
+        shoulder = Polygon([p for face in parcel_faces for p in face.shoulder[:-1]])
+        bottom = Polygon([p for face in parcel_faces for p in face.bottom[:-1]])
+        shoulder_rings.append(shoulder.boundary)
+        bottom_rings.append(bottom.boundary)
+        shoulder_interiors.append(shoulder)
+        bottom_interiors.append(bottom)
     flat_area = unary_union(shoulder_interiors)
     non_bottom_area = unary_union(bottom_interiors)
     slope_area = non_bottom_area.difference(flat_area)
-    return domain, shoulder_rings, bottom_rings, slope_area
+    return domain, shoulder_rings, bottom_rings, slope_area, faces
 
 
-def _breaklines(scene, bounds, max_segment_length):
+def _breakline_elevation_overrides(scene, bounds, undulated_edges=None):
+    """Return authored elevation contours; these override distance sampling."""
+    shoulder_rings = []
+    bottom_levels = []
+    for face in _build_channel_faces(scene, undulated_edges):
+        shoulder_rings.append(LineString(face.shoulder))
+        bottom_levels.append((LineString(face.bottom), -face.depth))
+    return shoulder_rings, bottom_levels
+
+
+def _breaklines(scene, bounds, max_segment_length, undulated_edges=None):
     """Return noded shoulder, bottom, and domain breakline linework."""
-    domain, shoulder_rings, bottom_rings, _ = _parcel_channel_geometry(scene, bounds)
-    lines = [domain.boundary, *shoulder_rings, *bottom_rings]
+    domain, shoulder_rings, bottom_rings, _, faces = _parcel_channel_geometry(
+        scene, bounds, undulated_edges
+    )
+    transverse = [
+        LineString([face.shoulder[0], face.bottom[0]])
+        for face in faces
+    ]
+    lines = [domain.boundary, *shoulder_rings, *bottom_rings, *transverse]
     # GEOS overlay nodes intersections; explicit precision and a second
     # node pass ensure shared endpoints are bit-identical for PythonCDT.
     # A micrometre topology grid removes numerically distinct copies of an
@@ -129,11 +367,13 @@ def build_hydrology_pslg(
     scene: FarmScene,
     bounds: tuple[float, float, float, float],
     max_segment_length: float = 1.0,
+    undulation: ChannelUndulationConfig | None = None,
 ) -> PlanarStraightLineGraph:
     """Build the domain/channel PSLG before adding any free mesh vertices."""
     if max_segment_length <= 0:
         raise ValueError("max_segment_length must be positive")
-    linework = _breaklines(scene, bounds, max_segment_length)
+    undulated_edges = build_undulated_hydrology_edges(scene, undulation) if undulation else None
+    linework = _breaklines(scene, bounds, max_segment_length, undulated_edges)
     precision_scale = 1e8
 
     def key(point):
@@ -163,6 +403,7 @@ def build_ground_mesh(
     scene: FarmScene,
     bounds: tuple[float, float, float, float],
     flat_resolution: float = 1.0,
+    undulation: ChannelUndulationConfig | None = None,
 ) -> GroundMesh:
     """Create a breakline-constrained Delaunay mesh over ``bounds``."""
     if flat_resolution <= 0:
@@ -171,10 +412,11 @@ def build_ground_mesh(
     if not (minx < maxx and miny < maxy):
         raise ValueError("bounds must have positive width and height")
 
-    edges = _canonical_edges(scene)
-    linework = _breaklines(scene, bounds, flat_resolution)
-    pslg = build_hydrology_pslg(scene, bounds, flat_resolution)
-    _, _, _, slope_area = _parcel_channel_geometry(scene, bounds)
+    undulated_edges = build_undulated_hydrology_edges(scene, undulation) if undulation else None
+    edges = list(undulated_edges.values()) if undulated_edges else _canonical_edges(scene)
+    linework = _breaklines(scene, bounds, flat_resolution, undulated_edges)
+    pslg = build_hydrology_pslg(scene, bounds, flat_resolution, undulation)
+    _, _, _, slope_area, _ = _parcel_channel_geometry(scene, bounds, undulated_edges)
     precision_scale = 1e8
 
     def key(point):
@@ -218,7 +460,21 @@ def build_ground_mesh(
     triangulation.erase_super_triangle()
 
     xy = [(float(v.x), float(v.y)) for v in triangulation.vertices_iter()]
-    points = [(x, y, _profile_elevation(x, y, edges)) for x, y in xy]
+    shoulders, bottom_levels = _breakline_elevation_overrides(
+        scene, bounds, undulated_edges
+    )
+    points = []
+    for x, y in xy:
+        sample = Point(x, y)
+        z = _profile_elevation(x, y, edges)
+        for ring, bottom_z in bottom_levels:
+            if ring.distance(sample) <= 2e-6:
+                z = bottom_z
+                break
+        else:
+            if any(ring.distance(sample) <= 2e-6 for ring in shoulders):
+                z = 0.0
+        points.append((x, y, z))
     triangles = []
     for triangle in triangulation.triangles_iter():
         tri = tuple(int(i) for i in triangle.vertices)
@@ -238,6 +494,16 @@ def write_ground_mesh_usda(mesh: GroundMesh, path: str, prim_name: str = "Ground
     max_pt = tuple(max(p[i] for p in mesh.points) for i in range(3))
     colors = [(0.18, 0.38, 0.08) if p[2] >= -1e-9 else (0.34, 0.20, 0.08) for p in mesh.points]
 
+    normals = []
+    for ia, ib, ic in mesh.triangles:
+        a, b, c = mesh.points[ia], mesh.points[ib], mesh.points[ic]
+        ux, uy, uz = (b[i] - a[i] for i in range(3))
+        vx, vy, vz = (c[i] - a[i] for i in range(3))
+        normal = (uy * vz - uz * vy, uz * vx - ux * vz, ux * vy - uy * vx)
+        length = math.sqrt(sum(component * component for component in normal))
+        normal = tuple(component / length for component in normal)
+        normals.extend([normal, normal, normal])
+
     def vec(values):
         return ",\n        ".join(f"({a:.9g}, {b:.9g}, {c:.9g})" for a, b, c in values)
 
@@ -256,6 +522,12 @@ def Mesh "{prim_name}"
     float3[] extent = [({min_pt[0]:.9g}, {min_pt[1]:.9g}, {min_pt[2]:.9g}), ({max_pt[0]:.9g}, {max_pt[1]:.9g}, {max_pt[2]:.9g})]
     int[] faceVertexCounts = [{counts}]
     int[] faceVertexIndices = [{indices}]
+    normal3f[] normals = [
+        {vec(normals)}
+    ] (
+        interpolation = "faceVarying"
+    )
+    uniform token orientation = "rightHanded"
     point3f[] points = [
         {vec(mesh.points)}
     ]
@@ -291,18 +563,24 @@ def save_ground_mesh_wireframe(mesh: GroundMesh, path: str, title: str | None = 
         [(mesh.points[a][0], mesh.points[a][1]), (mesh.points[b][0], mesh.points[b][1])]
         for a, b in fixed
     ]
+    transverse_xy = [
+        [(mesh.points[a][0], mesh.points[a][1]), (mesh.points[b][0], mesh.points[b][1])]
+        for a, b in fixed
+        if abs(mesh.points[a][2] - mesh.points[b][2]) > 0.5
+    ]
 
     fig = plt.figure(figsize=(14, 6), constrained_layout=True)
     plan = fig.add_subplot(1, 2, 1)
     plan.add_collection(LineCollection(xy_segments, colors="0.55", linewidths=0.35))
     plan.add_collection(LineCollection(fixed_xy, colors="#e31a1c", linewidths=1.0))
+    plan.add_collection(LineCollection(transverse_xy, colors="#7a0177", linewidths=2.0))
     plan.scatter(
         [p[0] for p in mesh.points], [p[1] for p in mesh.points],
         s=4, c="#0868ac", zorder=3, linewidths=0,
     )
     plan.autoscale()
     plan.set_aspect("equal")
-    plan.set_title("plan: vertices, triangles, and breaklines (red)")
+    plan.set_title("plan: vertices, breaklines (red), and corner ribs (purple)")
     plan.set_xlabel("East [m]")
     plan.set_ylabel("North [m]")
 
@@ -340,7 +618,8 @@ def export_scene_ground(
     bounds: tuple[float, float, float, float],
     path: str,
     flat_resolution: float = 1.0,
+    undulation: ChannelUndulationConfig | None = None,
 ) -> GroundMesh:
-    mesh = build_ground_mesh(scene, bounds, flat_resolution)
+    mesh = build_ground_mesh(scene, bounds, flat_resolution, undulation)
     write_ground_mesh_usda(mesh, path)
     return mesh

@@ -2,7 +2,7 @@
 
 import os
 
-from export.usd import export_scene_ground, save_ground_mesh_wireframe
+from export.usd import ChannelUndulationConfig, export_scene_ground, save_ground_mesh_wireframe
 from generation.orchestrator import FarmGenerationConfig, generate_validated, save_farm
 from visualization.debug_view import save_scene_png
 
@@ -22,7 +22,16 @@ def main() -> None:
         print(f"seed={seed}{retry}: {len(scene.parcels)} parcels -- {status}")
         save_scene_png(scene, os.path.join(scene_dir, f"farm_seed_{seed}.png"), title=f"farm-gen debug view\nseed={seed}")
         save_farm(scene, config, os.path.join(scene_dir, f"farm_seed_{seed}.yaml"))
-        mesh = export_scene_ground(scene, bounds, os.path.join(mesh_dir, f"farm_seed_{seed}_ground.usda"))
+        mesh = export_scene_ground(
+            scene,
+            bounds,
+            os.path.join(mesh_dir, f"farm_seed_{seed}_ground.usda"),
+            undulation=ChannelUndulationConfig(
+                max_amplitude=0.10,
+                min_wavelength=1.0,
+                sample_spacing=0.20,
+            ),
+        )
         save_ground_mesh_wireframe(
             mesh,
             os.path.join(mesh_dir, f"farm_seed_{seed}_ground_wireframe.png"),
