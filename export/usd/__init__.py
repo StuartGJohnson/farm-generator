@@ -1,8 +1,21 @@
-"""
-export/usd/
+"""USD export and exporter-side terrain baking."""
 
-USD/IsaacSim export. Not built this phase -- see CLAUDE.md "Purpose" and
-"Explicitly out of scope this phase". Some asset-generation code will
-eventually be strategically ported in from an existing (simpler,
-grid-only orchard) repo, but that repo is not a dependency of this one.
-"""
+from .ground_mesh import (
+    GroundMesh,
+    PlanarStraightLineGraph,
+    build_ground_mesh,
+    build_hydrology_pslg,
+    export_scene_ground,
+    save_ground_mesh_wireframe,
+    write_ground_mesh_usda,
+)
+
+__all__ = [
+    "GroundMesh",
+    "PlanarStraightLineGraph",
+    "build_ground_mesh",
+    "build_hydrology_pslg",
+    "export_scene_ground",
+    "save_ground_mesh_wireframe",
+    "write_ground_mesh_usda",
+]

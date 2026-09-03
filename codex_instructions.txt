@@ -1,0 +1,39 @@
+We need to begin some POC work for converting a vector-based description of a farming scene (provided by code in this repo) into a mesh for robotics simulation. This (triangular) mesh will help define variations in elevation, material properties (e.g. friction), and appearance across the farm. This mesh does not need to be a full 3d mesh - it may have vertical sections (like the sides of road crossings over irrigation channels) but is generally "2.5d". Our first task is to convert a set of HydrologyEdge irrigation channels into an elevation mesh. See the file debug_out/farm_scenes/farm_seed_1.* for an example.
+
+Feel free to analyze the code present in the repo to comprehend the problems at hand.
+
+Another concern is the licensing of common python mesh packages. I wish to avoid GPL licensing, and after some research, a possible set of libraries to use are Shapely and PythonCDT. These are both installed in the conda env "usd2508", which is activated in this shell. PythonCDT is installed as "condeltri".
+
+Once the mesh is generated, it should be stored as a usda file for display and debugging. This output can be put in the debug_out directory (say in a mesh subdirectory of debug_out).
+
+Our mesh needs to not undersample flat regions of the farmland, nor introduce extreme variations in triangle shapes. The nominally flat regions will have, for example, variations in material friction to simulate variable soil characteristics, and these will have to be well sampled to be faithful to the variations being modelled. For the purposes of the current POC task, lets assume the flat regions (non irrigation channel) areas need to provide parameterization of the flat surface at a resolution of 1 meter.
+
+As a POC test, generate the intermediate representation (IR) of a small farm and produce the ground mesh based on the HydrologyEdge entries in the IR. The following python would generate 5 random farms (do this for our testing - the multiple random seeds helps in debugging):
+
+    from generation.orchestrator import FarmGenerationConfig, generate_validated, save_farm
+
+    out_dir = os.path.join(os.path.dirname(__file__), "..", "debug_out", "farm_scenes")
+    bounds = (0.0, 0.0, 16.0, 16.0)
+    seeds = [1, 2, 3, 4, 5]
+
+    for seed in seeds:
+        config = FarmGenerationConfig(bounds=bounds, seed=seed, max_faces=4)
+        scene, issues, used_seed = generate_validated(config)
+
+        status = "OK" if not issues else f"{len(issues)} ISSUE(S)"
+        retry_note = f" (used seed {used_seed} after retry)" if used_seed != seed else ""
+        print(f"seed={seed}{retry_note}: {len(scene.parcels)} parcels, "
+              f"{len(scene.roads.edges)} road edges, {len(scene.crossings)} crossings, "
+              f"{len(scene.trees)} trees -- {status}")
+        for issue in issues:
+            print(f"    ! {issue}")
+
+        save_scene_png(scene, os.path.join(out_dir, f"farm_seed_{seed}.png"),
+                        title=f"farm-gen debug view\nseed={seed}")
+        save_farm(scene, config, os.path.join(out_dir, f"farm_seed_{seed}.yaml"))
+
+
+Each of the "scenes" in this code is the IR for a very small farm. Our aim is to generate the USDA output corresponding to the ground mesh. You can generate any additional mesh visualizations which might be helpful - I will be viewing the USDA files with an online usd(a) viewer, and eventually with isaacsim. For now, just use the hydrology network to generate the mesh - along with the fact that flat mesh at ground level needs to be "meshed" at 1.0m.
+
+
+
