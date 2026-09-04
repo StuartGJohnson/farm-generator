@@ -12,10 +12,17 @@ def main() -> None:
     mesh_dir = os.path.join("debug_out", "mesh")
     os.makedirs(scene_dir, exist_ok=True)
     os.makedirs(mesh_dir, exist_ok=True)
-    bounds = (0.0, 0.0, 16.0, 16.0)
+    bounds = (0.0, 0.0, 50.0, 50.0)
 
     for seed in [1, 2, 3, 4, 5]:
-        config = FarmGenerationConfig(bounds=bounds, seed=seed, max_faces=4)
+        config = FarmGenerationConfig(
+            bounds=bounds,
+            seed=seed,
+            max_faces=4,
+            standoff=3.5,
+            headland_width=7.5,
+            sideland_width=6.5,
+        )
         scene, issues, used_seed = generate_validated(config)
         status = "OK" if not issues else f"{len(issues)} ISSUE(S)"
         retry = f" (used seed {used_seed} after retry)" if used_seed != seed else ""
@@ -29,7 +36,7 @@ def main() -> None:
             undulation=ChannelUndulationConfig(
                 max_amplitude=0.10,
                 min_wavelength=1.0,
-                sample_spacing=0.20,
+                sample_spacing=1.0,
             ),
         )
         save_ground_mesh_wireframe(

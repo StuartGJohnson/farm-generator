@@ -67,16 +67,17 @@ It generates and validates 5 seeds and saves plots to
 
 ## Generating hydrology ground meshes
 
-Run `python examples/generate_ground_meshes.py` to generate five 16 m by
-16 m farm IRs and corresponding USDA ground meshes in `debug_out/mesh/`.
+Run `python examples/generate_ground_meshes.py` to generate five 50 m by
+50 m farm IRs and corresponding USDA ground meshes in `debug_out/mesh/`.
 The exporter uses deterministic Poisson-disc (blue-noise) points, producing
 an amorphous Delaunay/Voronoi-dual mesh, plus exact constrained breaklines at
 the shoulders and flat bottoms of the trapezoidal irrigation channels.
 Each seed also produces a wireframe PNG showing all vertices, triangle edges,
-and the constrained breaklines highlighted in red.
+and constrained breaklines classified by source: road boundaries in red,
+channel contours in orange, and crossing/channel-slope intersections in purple.
 
 The example enables exporter-side lateral channel undulation with a 10 cm
-maximum amplitude, wavelengths strictly greater than 1 m, and 20 cm curve
+maximum amplitude, wavelengths strictly greater than 1 m, and 1 m curve
 sampling. `ChannelUndulationConfig` controls these values and an optional seed
 offset. Perturbations are deterministic per farm seed and logical hydrology
 edge, taper to zero at network nodes, and are applied before deriving both the
@@ -90,10 +91,22 @@ are split at analytically determined corner stations and mapped one-to-one to
 their source hydrology edges. This avoids recovering corners by nearby-vertex
 indices and provides a reusable surface-patch representation for later roads
 and bridge approaches.
+
 At every authored parcel corner, a transverse PSLG breakline connects the
 shoulder to the bottom contour. This prevents constrained Delaunay from
 choosing its own miter across the channel slope and establishes a reusable
 surface-patch convention for later roads and structures.
+
+The example uses a 3.5 m road standoff, 7.5 m headlands, and 6.5 m sidelands.
+Straight 4 m-wide roads are represented as first-class `RoadSurfacePatch`
+footprints. Road boundaries are PSLG constraints, and their triangles are
+exported in the USD `RoadFaces` geometry subset for later material binding.
+
+Road footprints replace, rather than overlay, the underlying terrain mesh.
+Channel constraints are clipped out wherever a road exists, road-side boundary
+vertices are placed at road elevation, and explicit vertical triangles close
+the channel-facing solid fill sides. No crossing-specific constraints cut
+across the road top. Wall faces are exported in the `CrossingWalls` subset.
 
 ## Generating a farm programmatically
 

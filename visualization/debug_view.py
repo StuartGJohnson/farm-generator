@@ -101,11 +101,16 @@ if __name__ == "__main__":
     from generation.orchestrator import FarmGenerationConfig, generate_validated, save_farm
 
     out_dir = os.path.join(os.path.dirname(__file__), "..", "debug_out", "farm_scenes")
-    bounds = (0.0, 0.0, 100.0, 100.0)
+    bounds = (0.0, 0.0, 50.0, 50.0)
     seeds = [1, 2, 3, 4, 5]
 
     for seed in seeds:
-        config = FarmGenerationConfig(bounds=bounds, seed=seed)
+        config = FarmGenerationConfig(bounds=bounds,
+                                      seed=seed,
+                                      max_faces=4,
+                                      standoff=3.5,
+                                      headland_width=7.5,
+                                      sideland_width=6.5)
         scene, issues, used_seed = generate_validated(config)
 
         status = "OK" if not issues else f"{len(issues)} ISSUE(S)"

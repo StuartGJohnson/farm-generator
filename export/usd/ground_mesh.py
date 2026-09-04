@@ -17,9 +17,9 @@ import numpy as np
 from scipy.stats import qmc
 from shapely import node, segmentize, set_precision
 from shapely.geometry import LineString, MultiLineString, Point, Polygon, box
-from shapely.ops import substring, unary_union
+from shapely.ops import nearest_points, substring, unary_union
 
-from farm_ir.schema import FarmScene, HydrologyEdge
+from farm_ir.schema import FarmScene, HydrologyEdge, RoadClass
 
 
 @dataclass(frozen=True)
@@ -27,6 +27,9 @@ class GroundMesh:
     points: list[tuple[float, float, float]]
     triangles: list[tuple[int, int, int]]
     breakline_edges: list[tuple[int, int]]
+    road_breakline_edges: list[tuple[int, int]]
+    crossing_breakline_edges: list[tuple[int, int]]
+    face_classes: list[str]
 
 
 @dataclass(frozen=True)
@@ -41,7 +44,7 @@ class ChannelUndulationConfig:
     """Exporter-side lateral perturbation; the vector IR stays unchanged."""
     max_amplitude: float = 0.10
     min_wavelength: float = 1.0
-    sample_spacing: float = 0.20
+    sample_spacing: float = 1.0
     seed_offset: int = 0
 
     def __post_init__(self):
@@ -62,6 +65,15 @@ class ChannelFace:
     shoulder: list[tuple[float, float]]
     bottom: list[tuple[float, float]]
     depth: float
+
+
+@dataclass(frozen=True)
+class RoadSurfacePatch:
+    """Known planar road footprint used for constraints and face labeling."""
+    id: str
+    road_edge_ids: tuple[str, ...]
+    polygon: object
+    is_crossing: bool = False
 
 
 def _line_segments(geometry):
@@ -152,7 +164,7 @@ def _undulate_edge(
     target_amplitude = config.max_amplitude * rng.uniform(0.6, 1.0)
     coefficients *= target_amplitude / peak
 
-    spacing = min(config.sample_spacing, config.min_wavelength / 5.0)
+    spacing = config.sample_spacing
     sample_count = max(2, int(math.ceil(length / spacing)))
     distances = np.linspace(0.0, length, sample_count + 1)
     offsets = (1.0 - np.cos(2.0 * np.pi * np.outer(distances / length, modes))) @ coefficients
@@ -311,6 +323,65 @@ def build_channel_faces(
     return _build_channel_faces(scene, edges)
 
 
+def build_road_surface_patches(scene: FarmScene, bounds) -> list[RoadSurfacePatch]:
+    """Build joined frontage ribbons and flat-ended crossing connections."""
+    domain = box(*bounds)
+    road_ribbons = []
+    frontage_by_parcel = {}
+    for edge in scene.roads.edges.values():
+        if edge.road_class == RoadClass.FRONTAGE and edge.tags.get("parcel_id"):
+            frontage_by_parcel.setdefault(edge.tags["parcel_id"], []).append(edge)
+
+    # A parcel frontage is one closed road, not a collection of independently
+    # square-capped segments.  Buffering the segments separately lets every
+    # perpendicular segment's end cap protrude through the opposite road edge.
+    for parcel_id, edges in frontage_by_parcel.items():
+        nodes = [
+            node.position for node in scene.roads.nodes.values()
+            if node.tags.get("parcel_id") == parcel_id
+        ]
+        if len(nodes) >= 3:
+            width = edges[0].width
+            road_ribbons.append(
+                LineString([*nodes, nodes[0]]).buffer(
+                    width * 0.5, join_style="mitre"
+                )
+            )
+
+    for edge in scene.roads.edges.values():
+        if len(edge.polyline) < 2 or edge.width <= 0 or edge.road_class == RoadClass.FRONTAGE:
+            continue
+        # Crossing spurs terminate at the frontage centerline.  A flat cap is
+        # fully covered by the receiving frontage ribbon and cannot punch a
+        # rectangular notch through its far side.
+        cap_style = "flat" if edge.road_class == RoadClass.CROSSING_SPUR else "square"
+        road_ribbons.append(
+            LineString(edge.polyline).buffer(
+                edge.width * 0.5, cap_style=cap_style, join_style="mitre"
+            )
+        )
+    patches = []
+    if road_ribbons:
+        road_area = unary_union(road_ribbons).intersection(domain)
+        patches.append(RoadSurfacePatch(
+            id="roads", road_edge_ids=tuple(scene.roads.edges), polygon=road_area
+        ))
+    for crossing in scene.crossings.values():
+        edge = scene.roads.edges.get(crossing.road_edge_id)
+        if edge is None or len(edge.polyline) < 2:
+            continue
+        footprint = LineString(edge.polyline).buffer(
+            edge.width * 0.5, cap_style="flat", join_style="mitre"
+        ).intersection(domain)
+        patches.append(RoadSurfacePatch(
+            id=crossing.id,
+            road_edge_ids=(edge.id,),
+            polygon=footprint,
+            is_crossing=True,
+        ))
+    return patches
+
+
 def _parcel_channel_geometry(scene, bounds, undulated_edges=None):
     """Derive regions directly from first-class channel faces."""
     domain = box(*bounds)
@@ -352,7 +423,19 @@ def _breaklines(scene, bounds, max_segment_length, undulated_edges=None):
         LineString([face.shoulder[0], face.bottom[0]])
         for face in faces
     ]
-    lines = [domain.boundary, *shoulder_rings, *bottom_rings, *transverse]
+    road_patches = build_road_surface_patches(scene, bounds)
+    road_area = next(
+        (patch.polygon for patch in road_patches if not patch.is_crossing), None
+    )
+    channel_lines = [*shoulder_rings, *bottom_rings, *transverse]
+    if road_area is not None and not road_area.is_empty:
+        channel_lines = [line.difference(road_area) for line in channel_lines]
+        road_boundaries = [road_area.boundary]
+    else:
+        road_boundaries = []
+    # Crossing footprints are already part of the unioned road area. Their
+    # individual end/side boundaries must not cut across the road surface.
+    lines = [domain.boundary, *channel_lines, *road_boundaries]
     # GEOS overlay nodes intersections; explicit precision and a second
     # node pass ensure shared endpoints are bit-identical for PythonCDT.
     # A micrometre topology grid removes numerically distinct copies of an
@@ -374,14 +457,41 @@ def build_hydrology_pslg(
         raise ValueError("max_segment_length must be positive")
     undulated_edges = build_undulated_hydrology_edges(scene, undulation) if undulation else None
     linework = _breaklines(scene, bounds, max_segment_length, undulated_edges)
+    road_area = next(
+        (
+            patch.polygon for patch in build_road_surface_patches(scene, bounds)
+            if not patch.is_crossing
+        ),
+        None,
+    )
+    road_boundary = (
+        set_precision(road_area, 1e-6).boundary
+        if road_area is not None and not road_area.is_empty else None
+    )
     precision_scale = 1e8
+
+    def canonical_point(point):
+        result = (float(point[0]), float(point[1]))
+        sample = Point(result)
+        if road_boundary is not None and road_boundary.distance(sample) <= 2e-6:
+            projected = nearest_points(sample, road_boundary)[1]
+            result = (float(projected.x), float(projected.y))
+        return result
 
     def key(point):
         return (round(float(point[0]) * precision_scale), round(float(point[1]) * precision_scale))
 
     coords = {}
     segment_keys = []
-    for a, b in _line_segments(linework):
+    canonical_lines = [
+        LineString([canonical_point(a), canonical_point(b)])
+        for a, b in _line_segments(linework)
+    ]
+    # Projection can place a channel endpoint in the interior of an existing
+    # road segment.  Re-node after canonicalization so the PSLG contains only
+    # atomic, non-intersecting constraints.
+    canonical_linework = node(unary_union(canonical_lines))
+    for a, b in _line_segments(canonical_linework):
         ka, kb = key(a), key(b)
         coords.setdefault(ka, (float(a[0]), float(a[1])))
         coords.setdefault(kb, (float(b[0]), float(b[1])))
@@ -417,6 +527,19 @@ def build_ground_mesh(
     linework = _breaklines(scene, bounds, flat_resolution, undulated_edges)
     pslg = build_hydrology_pslg(scene, bounds, flat_resolution, undulation)
     _, _, _, slope_area, _ = _parcel_channel_geometry(scene, bounds, undulated_edges)
+    sampling_road_area = next(
+        (
+            patch.polygon for patch in build_road_surface_patches(scene, bounds)
+            if not patch.is_crossing
+        ),
+        None,
+    )
+    if sampling_road_area is not None and not sampling_road_area.is_empty:
+        # Roads replace the underlying channel surface.  Their crossing tops
+        # therefore belong to the same connected flat sampling region as the
+        # rest of the map, rather than to the excluded channel slopes.
+        slope_area = slope_area.difference(sampling_road_area)
+    flat_sampling_area = box(*bounds).difference(slope_area)
     precision_scale = 1e8
 
     def key(point):
@@ -438,7 +561,7 @@ def build_ground_mesh(
     )
     for x, y in sampler.fill_space():
         sample = Point(float(x), float(y))
-        if not slope_area.covers(sample) and linework.distance(sample) >= 0.15 * flat_resolution:
+        if flat_sampling_area.covers(sample) and linework.distance(sample) >= 0.15 * flat_resolution:
             coords.setdefault(key((x, y)), (float(x), float(y)))
 
     ordered_keys = list(coords)
@@ -484,7 +607,215 @@ def build_ground_mesh(
         if twice_area > 1e-12:
             triangles.append(tri)
     breakline_edges = [(int(edge.v1), int(edge.v2)) for edge in triangulation.fixed_edges_iter()]
-    return GroundMesh(points=points, triangles=triangles, breakline_edges=breakline_edges)
+
+    road_patches = build_road_surface_patches(scene, bounds)
+    road_area = next((patch.polygon for patch in road_patches if not patch.is_crossing), None)
+    if road_area is not None and not road_area.is_empty:
+        # Match the precision grid used to create the PSLG.  Classifying road
+        # faces against the unsnapped polygon can leave micron-scale terrain
+        # slivers beside a crossing, with no corresponding road-top vertex.
+        road_area = set_precision(road_area, 1e-6)
+    crossing_supports = []
+    for crossing in scene.crossings.values():
+        road_edge = scene.roads.edges.get(crossing.road_edge_id)
+        channel_edge = scene.hydrology.edges.get(crossing.hydrology_edge_id)
+        if road_edge is None or channel_edge is None:
+            continue
+        export_channel = (
+            undulated_edges[_logical_edge_key(channel_edge)]
+            if undulated_edges is not None else channel_edge
+        )
+        road_ribbon = LineString(road_edge.polyline).buffer(
+            road_edge.width * 0.5 + 2e-6,
+            cap_style="square",
+            join_style="mitre",
+        )
+        channel_ribbon = LineString(export_channel.polyline).buffer(
+            channel_edge.top_width * 0.5 + 2e-6,
+            cap_style="flat",
+            join_style="mitre",
+        )
+        support = road_ribbon.intersection(channel_ribbon)
+        if not support.is_empty:
+            crossing_supports.append(support)
+    crossing_support = unary_union(crossing_supports) if crossing_supports else None
+
+    def triangle_center(triangle):
+        return Point(
+            sum(points[i][0] for i in triangle) / 3.0,
+            sum(points[i][1] for i in triangle) / 3.0,
+        )
+
+    face_classes = ["ground"] * len(triangles)
+    road_index = {}
+    crossing_breakline_edges = []
+    if road_area is not None and not road_area.is_empty:
+        inside = [road_area.covers(triangle_center(tri)) for tri in triangles]
+        edge_sides = {}
+        for triangle_index, tri in enumerate(triangles):
+            for i in range(3):
+                edge = tuple(sorted((tri[i], tri[(i + 1) % 3])))
+                edge_sides.setdefault(edge, []).append(triangle_index)
+        boundary_edges = {
+            edge for edge, adjacent in edge_sides.items()
+            if any(inside[i] for i in adjacent) and not all(inside[i] for i in adjacent)
+        }
+        # The road boundary is itself a PSLG constraint.  Use those constraints
+        # as the authoritative wall footprint as well as topology transitions.
+        # In particular, a constrained edge can have only one retained planar
+        # neighbour after the road split, which made the old adjacency-only
+        # test omit a wall triangle in seed 3.
+        road_boundary_tolerance = road_area.boundary.buffer(2e-6)
+        for edge, adjacent in edge_sides.items():
+            a, b = edge
+            edge_line = LineString([xy[a], xy[b]])
+            if (
+                road_boundary_tolerance.covers(edge_line)
+                and any(not inside[i] for i in adjacent)
+            ):
+                boundary_edges.add(edge)
+        road_vertices = {
+            i for triangle_index, tri in enumerate(triangles)
+            if inside[triangle_index] for i in tri
+        }
+        # CDT may place a channel-profile vertex on a constrained road edge
+        # without using it in the triangle on the road side.  That legal 2-D
+        # T-junction becomes a hole once the road vertices are lifted.  Find
+        # every such terrain-side boundary vertex and split the road triangle
+        # edge at exactly the same station.
+        outside_vertices = {
+            i for triangle_index, tri in enumerate(triangles)
+            if not inside[triangle_index] for i in tri
+        }
+        boundary_candidates = [
+            i for i in outside_vertices
+            if road_area.boundary.distance(Point(xy[i])) <= 2e-6
+        ]
+        road_edge_splits = {}
+        for triangle_index, tri in enumerate(triangles):
+            if not inside[triangle_index]:
+                continue
+            for side_index in range(3):
+                a, b = tri[side_index], tri[(side_index + 1) % 3]
+                segment = LineString([xy[a], xy[b]])
+                if (
+                    not road_boundary_tolerance.covers(segment)
+                ):
+                    continue
+                split_vertices = [
+                    i for i in boundary_candidates
+                    if i not in (a, b)
+                    and segment.distance(Point(xy[i])) <= 2e-6
+                ]
+                if split_vertices:
+                    split_vertices.sort(key=lambda i: segment.project(Point(xy[i])))
+                    road_edge_splits[(triangle_index, side_index)] = split_vertices
+                    road_vertices.update(split_vertices)
+        for index in sorted(road_vertices):
+            road_index[index] = len(points)
+            x, y, _ = points[index]
+            points.append((x, y, 0.0))
+        # Replace, rather than overlay, every road-interior terrain face.
+        base_triangle_count = len(triangles)
+        original_triangles = triangles[:]
+        for triangle_index in range(base_triangle_count):
+            tri = triangles[triangle_index]
+            if inside[triangle_index]:
+                perimeter = []
+                for side_index in range(3):
+                    perimeter.append(tri[side_index])
+                    perimeter.extend(road_edge_splits.get((triangle_index, side_index), ()))
+                road_triangles = []
+                for i in range(1, len(perimeter) - 1):
+                    candidate = tuple(road_index[j] for j in (perimeter[0], perimeter[i], perimeter[i + 1]))
+                    pa, pb, pc = (points[j] for j in candidate)
+                    twice_area = abs(
+                        (pb[0] - pa[0]) * (pc[1] - pa[1])
+                        - (pc[0] - pa[0]) * (pb[1] - pa[1])
+                    )
+                    if twice_area > 1e-12:
+                        road_triangles.append(candidate)
+                triangles[triangle_index] = road_triangles[0]
+                face_classes[triangle_index] = "road"
+                triangles.extend(road_triangles[1:])
+                face_classes.extend(["road"] * (len(road_triangles) - 1))
+        for (triangle_index, side_index), split_vertices in road_edge_splits.items():
+            original = original_triangles[triangle_index]
+            a, b = original[side_index], original[(side_index + 1) % 3]
+            boundary_edges.discard(tuple(sorted((a, b))))
+            chain = [a, *split_vertices, b]
+            boundary_edges.update(
+                tuple(sorted((u, v))) for u, v in zip(chain, chain[1:])
+            )
+        for a, b in sorted(boundary_edges):
+            if a not in road_index or b not in road_index:
+                continue
+            ta, tb = road_index[a], road_index[b]
+            if points[a][2] < -1e-9 or points[b][2] < -1e-9:
+                # This terrain-side edge is the exact intersection between a
+                # vertical crossing face and a sloping channel face.
+                edge_midpoint = Point(
+                    (points[a][0] + points[b][0]) * 0.5,
+                    (points[a][1] + points[b][1]) * 0.5,
+                )
+                if (
+                    abs(points[a][2] - points[b][2]) > 1e-9
+                    and crossing_support is not None
+                    and crossing_support.covers(edge_midpoint)
+                ):
+                    crossing_breakline_edges.append((a, b))
+                for wall_triangle in ((a, b, tb), (a, tb, ta)):
+                    pa, pb, pc = (points[i] for i in wall_triangle)
+                    u = tuple(pb[i] - pa[i] for i in range(3))
+                    v = tuple(pc[i] - pa[i] for i in range(3))
+                    cross3 = (
+                        u[1] * v[2] - u[2] * v[1],
+                        u[2] * v[0] - u[0] * v[2],
+                        u[0] * v[1] - u[1] * v[0],
+                    )
+                    if sum(component * component for component in cross3) > 1e-20:
+                        triangles.append(wall_triangle)
+                        face_classes.append("crossing_wall")
+
+    final_edges = {
+        tuple(sorted((tri[i], tri[(i + 1) % 3])))
+        for tri in triangles for i in range(3)
+    }
+    surviving_breaklines = []
+    for a, b in breakline_edges:
+        edge = tuple(sorted((a, b)))
+        if edge in final_edges:
+            surviving_breaklines.append(edge)
+        elif a in road_index and b in road_index:
+            road_edge = tuple(sorted((road_index[a], road_index[b])))
+            if road_edge in final_edges:
+                surviving_breaklines.append(road_edge)
+
+    road_breakline_edges = []
+    if road_area is not None and not road_area.is_empty:
+        road_boundary = road_area.boundary.buffer(2e-6)
+        road_edge_counts = {}
+        for triangle, face_class in zip(triangles, face_classes):
+            if face_class != "road":
+                continue
+            for i in range(3):
+                edge = tuple(sorted((triangle[i], triangle[(i + 1) % 3])))
+                road_edge_counts[edge] = road_edge_counts.get(edge, 0) + 1
+        for (a, b), count in road_edge_counts.items():
+            if count != 1:
+                continue
+            segment = LineString([points[a][:2], points[b][:2]])
+            if road_boundary.covers(segment):
+                road_breakline_edges.append((a, b))
+
+    return GroundMesh(
+        points=points,
+        triangles=triangles,
+        breakline_edges=surviving_breaklines,
+        road_breakline_edges=road_breakline_edges,
+        crossing_breakline_edges=crossing_breakline_edges,
+        face_classes=face_classes,
+    )
 
 
 def write_ground_mesh_usda(mesh: GroundMesh, path: str, prim_name: str = "Ground") -> None:
@@ -492,7 +823,17 @@ def write_ground_mesh_usda(mesh: GroundMesh, path: str, prim_name: str = "Ground
     os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
     min_pt = tuple(min(p[i] for p in mesh.points) for i in range(3))
     max_pt = tuple(max(p[i] for p in mesh.points) for i in range(3))
-    colors = [(0.18, 0.38, 0.08) if p[2] >= -1e-9 else (0.34, 0.20, 0.08) for p in mesh.points]
+    face_colors = []
+    for face_class, triangle in zip(mesh.face_classes, mesh.triangles):
+        if face_class == "road":
+            color = (0.30, 0.24, 0.17)
+        elif face_class == "crossing_wall":
+            color = (0.24, 0.24, 0.22)
+        elif min(mesh.points[i][2] for i in triangle) < -1e-9:
+            color = (0.34, 0.20, 0.08)
+        else:
+            color = (0.18, 0.38, 0.08)
+        face_colors.extend([color, color, color])
 
     normals = []
     for ia, ib, ic in mesh.triangles:
@@ -509,6 +850,11 @@ def write_ground_mesh_usda(mesh: GroundMesh, path: str, prim_name: str = "Ground
 
     counts = ", ".join("3" for _ in mesh.triangles)
     indices = ", ".join(str(i) for tri in mesh.triangles for i in tri)
+    road_faces = ", ".join(
+        str(i) for i, kind in enumerate(mesh.face_classes)
+        if kind == "road"
+    )
+    wall_faces = ", ".join(str(i) for i, kind in enumerate(mesh.face_classes) if kind == "crossing_wall")
     text = f'''#usda 1.0
 (
     defaultPrim = "{prim_name}"
@@ -532,11 +878,23 @@ def Mesh "{prim_name}"
         {vec(mesh.points)}
     ]
     color3f[] primvars:displayColor = [
-        {vec(colors)}
+        {vec(face_colors)}
     ] (
-        interpolation = "vertex"
+        interpolation = "faceVarying"
     )
     uniform token subdivisionScheme = "none"
+
+    def GeomSubset "RoadFaces"
+    {{
+        uniform token elementType = "face"
+        int[] indices = [{road_faces}]
+    }}
+
+    def GeomSubset "CrossingWalls"
+    {{
+        uniform token elementType = "face"
+        int[] indices = [{wall_faces}]
+    }}
 }}
 '''
     with open(path, "w", encoding="utf-8") as stream:
@@ -559,28 +917,44 @@ def save_ground_mesh_wireframe(mesh: GroundMesh, path: str, title: str | None = 
         for a, b in triangle_edges
     ]
     fixed = {tuple(sorted(edge)) for edge in mesh.breakline_edges}
-    fixed_xy = [
+    road_fixed = {tuple(sorted(edge)) for edge in mesh.road_breakline_edges}
+    channel_fixed = fixed - road_fixed
+    channel_fixed_xy = [
         [(mesh.points[a][0], mesh.points[a][1]), (mesh.points[b][0], mesh.points[b][1])]
-        for a, b in fixed
+        for a, b in channel_fixed
+    ]
+    road_fixed_xy = [
+        [(mesh.points[a][0], mesh.points[a][1]), (mesh.points[b][0], mesh.points[b][1])]
+        for a, b in road_fixed
     ]
     transverse_xy = [
         [(mesh.points[a][0], mesh.points[a][1]), (mesh.points[b][0], mesh.points[b][1])]
         for a, b in fixed
         if abs(mesh.points[a][2] - mesh.points[b][2]) > 0.5
     ]
+    crossing_xy = [
+        [(mesh.points[a][0], mesh.points[a][1]), (mesh.points[b][0], mesh.points[b][1])]
+        for a, b in mesh.crossing_breakline_edges
+    ]
 
     fig = plt.figure(figsize=(14, 6), constrained_layout=True)
     plan = fig.add_subplot(1, 2, 1)
     plan.add_collection(LineCollection(xy_segments, colors="0.55", linewidths=0.35))
-    plan.add_collection(LineCollection(fixed_xy, colors="#e31a1c", linewidths=1.0))
+    plan.add_collection(LineCollection(channel_fixed_xy, colors="#ff8c00", linewidths=0.8))
+    plan.add_collection(LineCollection(road_fixed_xy, colors="#e31a1c", linewidths=1.2))
     plan.add_collection(LineCollection(transverse_xy, colors="#7a0177", linewidths=2.0))
+    plan.scatter(
+        [segment[0][0] for segment in crossing_xy],
+        [segment[0][1] for segment in crossing_xy],
+        s=22, c="#7a0177", zorder=5, linewidths=0,
+    )
     plan.scatter(
         [p[0] for p in mesh.points], [p[1] for p in mesh.points],
         s=4, c="#0868ac", zorder=3, linewidths=0,
     )
     plan.autoscale()
     plan.set_aspect("equal")
-    plan.set_title("plan: vertices, breaklines (red), and corner ribs (purple)")
+    plan.set_title("plan: roads (red), channels (orange), crossings (purple)")
     plan.set_xlabel("East [m]")
     plan.set_ylabel("North [m]")
 
@@ -593,6 +967,26 @@ def save_ground_mesh_wireframe(mesh: GroundMesh, path: str, title: str | None = 
         color="#b8d89b", edgecolor="0.25", linewidth=0.25,
         alpha=0.35, shade=False,
     )
+    road_triangles = [
+        tri for tri, kind in zip(mesh.triangles, mesh.face_classes)
+        if kind == "road"
+    ]
+    if road_triangles:
+        perspective.plot_trisurf(
+            [p[0] for p in mesh.points],
+            [p[1] for p in mesh.points],
+            [p[2] for p in mesh.points],
+            triangles=road_triangles,
+            color="#78634a", edgecolor="0.2", linewidth=0.2,
+            alpha=0.75, shade=False,
+        )
+    for a, b in mesh.crossing_breakline_edges:
+        perspective.plot(
+            [mesh.points[a][0], mesh.points[b][0]],
+            [mesh.points[a][1], mesh.points[b][1]],
+            [mesh.points[a][2], mesh.points[b][2]],
+            color="#7a0177", linewidth=2.5, zorder=6,
+        )
     perspective.scatter(
         [p[0] for p in mesh.points],
         [p[1] for p in mesh.points],

@@ -3,8 +3,8 @@ config:
   bounds:
   - 0.0
   - 0.0
-  - 16.0
-  - 16.0
+  - 50.0
+  - 50.0
   seed: 5
   origin_lat0: 38.2
   origin_lon0: -121.5
@@ -16,20 +16,20 @@ config:
   min_subarea_frac: 0.3
   angle_jitter_deg: 6.0
   corner_margin_frac: 0.12
-  standoff: 1.0
+  standoff: 3.5
   mitre_limit: 2.0
   road_width: 4.0
   road_surface: gravel
-  hydrology_node_merge_tol: 0.05
+  hydrology_node_merge_tol: 0.17500000000000002
   hydrology_top_width: 2.0
   hydrology_bottom_width: 1.0
   hydrology_depth: 0.8
-  connect_radius: 2.5
+  connect_radius: 8.75
   crossing_angle_tol_deg: 0.001
   crop_type: orchard
   irrigation_type: sub_irrigation
-  headland_width: 2.0
-  sideland_width: 2.0
+  headland_width: 7.5
+  sideland_width: 6.5
   row_spacing: 1.5
   tree_spacing: 1.0
   species_mix:
@@ -55,8 +55,8 @@ scene:
         __type__: HydrologyNode
         id: hnode_0000
         position:
-        - 6.682105741821316
-        - 16.0
+        - 20.881580443191613
+        - 50.0
         node_type: confluence
         elevation: null
         tags: {}
@@ -64,8 +64,8 @@ scene:
         __type__: HydrologyNode
         id: hnode_0001
         position:
-        - 16.0
-        - 16.0
+        - 50.0
+        - 50.0
         node_type: confluence
         elevation: null
         tags: {}
@@ -73,8 +73,8 @@ scene:
         __type__: HydrologyNode
         id: hnode_0002
         position:
-        - 16.0
-        - 5.979558263285173
+        - 50.0
+        - 18.686119572766167
         node_type: confluence
         elevation: null
         tags: {}
@@ -82,8 +82,8 @@ scene:
         __type__: HydrologyNode
         id: hnode_0003
         position:
-        - 6.979961079768094
-        - 5.526487521987371
+        - 21.81237837427529
+        - 17.270273506210536
         node_type: confluence
         elevation: null
         tags: {}
@@ -91,7 +91,7 @@ scene:
         __type__: HydrologyNode
         id: hnode_0004
         position:
-        - 16.0
+        - 50.0
         - 0.0
         node_type: confluence
         elevation: null
@@ -100,7 +100,7 @@ scene:
         __type__: HydrologyNode
         id: hnode_0005
         position:
-        - 7.137128392260048
+        - 22.303526225812647
         - 0.0
         node_type: confluence
         elevation: null
@@ -119,7 +119,7 @@ scene:
         id: hnode_0007
         position:
         - 0.0
-        - 7.049911667879847
+        - 22.030973962124524
         node_type: confluence
         elevation: null
         tags: {}
@@ -127,8 +127,8 @@ scene:
         __type__: HydrologyNode
         id: hnode_0008
         position:
-        - 6.9668550103740285
-        - 5.987337350238459
+        - 21.771421907418837
+        - 18.710429219495186
         node_type: confluence
         elevation: null
         tags: {}
@@ -137,7 +137,7 @@ scene:
         id: hnode_0009
         position:
         - 0.0
-        - 16.0
+        - 50.0
         node_type: confluence
         elevation: null
         tags: {}
@@ -148,10 +148,10 @@ scene:
         node_a: hnode_0000
         node_b: hnode_0001
         polyline:
-        - - 6.682105741821316
-          - 16.0
-        - - 16.0
-          - 16.0
+        - - 20.881580443191613
+          - 50.0
+        - - 50.0
+          - 50.0
         tags:
           parcel_id: parcel_000
         connection_type: piped
@@ -171,10 +171,10 @@ scene:
         node_a: hnode_0001
         node_b: hnode_0002
         polyline:
-        - - 16.0
-          - 16.0
-        - - 16.0
-          - 5.979558263285173
+        - - 50.0
+          - 50.0
+        - - 50.0
+          - 18.686119572766167
         tags:
           parcel_id: parcel_000
         connection_type: piped
@@ -194,10 +194,10 @@ scene:
         node_a: hnode_0002
         node_b: hnode_0003
         polyline:
-        - - 16.0
-          - 5.979558263285173
-        - - 6.979961079768094
-          - 5.526487521987371
+        - - 50.0
+          - 18.686119572766167
+        - - 21.81237837427529
+          - 17.270273506210536
         tags:
           parcel_id: parcel_000
         connection_type: piped
@@ -217,10 +217,10 @@ scene:
         node_a: hnode_0003
         node_b: hnode_0000
         polyline:
-        - - 6.979961079768094
-          - 5.526487521987371
-        - - 6.682105741821316
-          - 16.0
+        - - 21.81237837427529
+          - 17.270273506210536
+        - - 20.881580443191613
+          - 50.0
         tags:
           parcel_id: parcel_000
         connection_type: piped
@@ -240,9 +240,9 @@ scene:
         node_a: hnode_0002
         node_b: hnode_0004
         polyline:
-        - - 16.0
-          - 5.979558263285173
-        - - 16.0
+        - - 50.0
+          - 18.686119572766167
+        - - 50.0
           - 0.0
         tags:
           parcel_id: parcel_001
@@ -263,9 +263,9 @@ scene:
         node_a: hnode_0004
         node_b: hnode_0005
         polyline:
-        - - 16.0
+        - - 50.0
           - 0.0
-        - - 7.137128392260048
+        - - 22.303526225812647
           - 0.0
         tags:
           parcel_id: parcel_001
@@ -286,10 +286,10 @@ scene:
         node_a: hnode_0005
         node_b: hnode_0003
         polyline:
-        - - 7.137128392260048
+        - - 22.303526225812647
           - 0.0
-        - - 6.979961079768094
-          - 5.526487521987371
+        - - 21.81237837427529
+          - 17.270273506210536
         tags:
           parcel_id: parcel_001
         connection_type: piped
@@ -309,10 +309,10 @@ scene:
         node_a: hnode_0003
         node_b: hnode_0002
         polyline:
-        - - 6.979961079768094
-          - 5.526487521987371
-        - - 16.0
-          - 5.979558263285173
+        - - 21.81237837427529
+          - 17.270273506210536
+        - - 50.0
+          - 18.686119572766167
         tags:
           parcel_id: parcel_001
         connection_type: piped
@@ -332,7 +332,7 @@ scene:
         node_a: hnode_0005
         node_b: hnode_0006
         polyline:
-        - - 7.137128392260048
+        - - 22.303526225812647
           - 0.0
         - - 0.0
           - 0.0
@@ -358,7 +358,7 @@ scene:
         - - 0.0
           - 0.0
         - - 0.0
-          - 7.049911667879847
+          - 22.030973962124524
         tags:
           parcel_id: parcel_002
         connection_type: piped
@@ -379,9 +379,9 @@ scene:
         node_b: hnode_0008
         polyline:
         - - 0.0
-          - 7.049911667879847
-        - - 6.9668550103740285
-          - 5.987337350238459
+          - 22.030973962124524
+        - - 21.771421907418837
+          - 18.710429219495186
         tags:
           parcel_id: parcel_002
         connection_type: piped
@@ -401,9 +401,9 @@ scene:
         node_a: hnode_0008
         node_b: hnode_0005
         polyline:
-        - - 6.9668550103740285
-          - 5.987337350238459
-        - - 7.137128392260048
+        - - 21.771421907418837
+          - 18.710429219495186
+        - - 22.303526225812647
           - 0.0
         tags:
           parcel_id: parcel_002
@@ -425,9 +425,9 @@ scene:
         node_b: hnode_0009
         polyline:
         - - 0.0
-          - 7.049911667879847
+          - 22.030973962124524
         - - 0.0
-          - 16.0
+          - 50.0
         tags:
           parcel_id: parcel_003
         connection_type: piped
@@ -448,9 +448,9 @@ scene:
         node_b: hnode_0000
         polyline:
         - - 0.0
-          - 16.0
-        - - 6.682105741821316
-          - 16.0
+          - 50.0
+        - - 20.881580443191613
+          - 50.0
         tags:
           parcel_id: parcel_003
         connection_type: piped
@@ -470,10 +470,10 @@ scene:
         node_a: hnode_0000
         node_b: hnode_0008
         polyline:
-        - - 6.682105741821316
-          - 16.0
-        - - 6.9668550103740285
-          - 5.987337350238459
+        - - 20.881580443191613
+          - 50.0
+        - - 21.771421907418837
+          - 18.710429219495186
         tags:
           parcel_id: parcel_003
         connection_type: piped
@@ -493,10 +493,10 @@ scene:
         node_a: hnode_0008
         node_b: hnode_0007
         polyline:
-        - - 6.9668550103740285
-          - 5.987337350238459
+        - - 21.771421907418837
+          - 18.710429219495186
         - - 0.0
-          - 7.049911667879847
+          - 22.030973962124524
         tags:
           parcel_id: parcel_003
         connection_type: piped
@@ -517,8 +517,8 @@ scene:
         __type__: RoadNode
         id: rnode_0000
         position:
-        - 7.710948961704524
-        - 15.0
+        - 24.48253171278284
+        - 46.5
         node_type: intersection
         elevation: null
         tags:
@@ -527,8 +527,8 @@ scene:
         __type__: RoadNode
         id: rnode_0001
         position:
-        - 15.0
-        - 15.0
+        - 46.5
+        - 46.5
         node_type: intersection
         elevation: null
         tags:
@@ -537,8 +537,8 @@ scene:
         __type__: RoadNode
         id: rnode_0002
         position:
-        - 15.0
-        - 6.930589607207026
+        - 46.5
+        - 22.014729276492655
         node_type: intersection
         elevation: null
         tags:
@@ -547,8 +547,8 @@ scene:
         __type__: RoadNode
         id: rnode_0003
         position:
-        - 7.950504225205189
-        - 6.576497978034777
+        - 25.209279383305123
+        - 20.94531010237646
         node_type: intersection
         elevation: null
         tags:
@@ -557,8 +557,8 @@ scene:
         __type__: RoadNode
         id: rnode_0004
         position:
-        - 15.0
-        - 4.928068208418832
+        - 46.5
+        - 15.005904380733973
         node_type: intersection
         elevation: null
         tags:
@@ -567,8 +567,8 @@ scene:
         __type__: RoadNode
         id: rnode_0005
         position:
-        - 15.0
-        - 1.0
+        - 46.5
+        - 3.5
         node_type: intersection
         elevation: null
         tags:
@@ -577,8 +577,8 @@ scene:
         __type__: RoadNode
         id: rnode_0006
         position:
-        - 8.109093780838416
-        - 1.0
+        - 25.70540508583693
+        - 3.5
         node_type: intersection
         elevation: null
         tags:
@@ -587,8 +587,8 @@ scene:
         __type__: RoadNode
         id: rnode_0007
         position:
-        - 8.007372527784096
-        - 4.576833037431922
+        - 25.4083184423313
+        - 13.946482810266465
         node_type: intersection
         elevation: null
         tags:
@@ -597,8 +597,8 @@ scene:
         __type__: RoadNode
         id: rnode_0008
         position:
-        - 6.10828517237684
-        - 1.0
+        - 18.70257495622142
+        - 3.5
         node_type: intersection
         elevation: null
         tags:
@@ -607,8 +607,8 @@ scene:
         __type__: RoadNode
         id: rnode_0009
         position:
-        - 1.0
-        - 1.0
+        - 3.4999999999999996
+        - 3.5
         node_type: intersection
         elevation: null
         tags:
@@ -617,8 +617,8 @@ scene:
         __type__: RoadNode
         id: rnode_0010
         position:
-        - 1.0
-        - 5.885829078565005
+        - 3.4999999999999996
+        - 17.956684899522575
         node_type: intersection
         elevation: null
         tags:
@@ -627,8 +627,8 @@ scene:
         __type__: RoadNode
         id: rnode_0011
         position:
-        - 5.990985696767952
-        - 5.124611396669194
+        - 18.35587930979757
+        - 15.690888382002758
         node_type: intersection
         elevation: null
         tags:
@@ -637,8 +637,8 @@ scene:
         __type__: RoadNode
         id: rnode_0012
         position:
-        - 1.0
-        - 7.908957245211763
+        - 3.5
+        - 25.037633482786227
         node_type: intersection
         elevation: null
         tags:
@@ -647,8 +647,8 @@ scene:
         __type__: RoadNode
         id: rnode_0013
         position:
-        - 1.0
-        - 15.0
+        - 3.5
+        - 46.5
         node_type: intersection
         elevation: null
         tags:
@@ -657,8 +657,8 @@ scene:
         __type__: RoadNode
         id: rnode_0014
         position:
-        - 5.71014035324295
-        - 15.0
+        - 17.47970158316733
+        - 46.5
         node_type: intersection
         elevation: null
         tags:
@@ -667,8 +667,8 @@ scene:
         __type__: RoadNode
         id: rnode_0015
         position:
-        - 5.933199480025389
-        - 7.156553030760426
+        - 18.1536275511986
+        - 22.802684101322072
         node_type: intersection
         elevation: null
         tags:
@@ -680,10 +680,10 @@ scene:
         node_a: rnode_0000
         node_b: rnode_0001
         polyline:
-        - - 7.710948961704524
-          - 15.0
-        - - 15.0
-          - 15.0
+        - - 24.48253171278284
+          - 46.5
+        - - 46.5
+          - 46.5
         tags:
           parcel_id: parcel_000
         width: 4.0
@@ -695,10 +695,10 @@ scene:
         node_a: rnode_0001
         node_b: rnode_0002
         polyline:
-        - - 15.0
-          - 15.0
-        - - 15.0
-          - 6.930589607207026
+        - - 46.5
+          - 46.5
+        - - 46.5
+          - 22.014729276492655
         tags:
           parcel_id: parcel_000
         width: 4.0
@@ -710,10 +710,10 @@ scene:
         node_a: rnode_0002
         node_b: rnode_0003
         polyline:
-        - - 15.0
-          - 6.930589607207026
-        - - 7.950504225205189
-          - 6.576497978034777
+        - - 46.5
+          - 22.014729276492655
+        - - 25.209279383305123
+          - 20.94531010237646
         tags:
           parcel_id: parcel_000
         width: 4.0
@@ -725,10 +725,10 @@ scene:
         node_a: rnode_0003
         node_b: rnode_0000
         polyline:
-        - - 7.950504225205189
-          - 6.576497978034777
-        - - 7.710948961704524
-          - 15.0
+        - - 25.209279383305123
+          - 20.94531010237646
+        - - 24.48253171278284
+          - 46.5
         tags:
           parcel_id: parcel_000
         width: 4.0
@@ -740,10 +740,10 @@ scene:
         node_a: rnode_0004
         node_b: rnode_0005
         polyline:
-        - - 15.0
-          - 4.928068208418832
-        - - 15.0
-          - 1.0
+        - - 46.5
+          - 15.005904380733973
+        - - 46.5
+          - 3.5
         tags:
           parcel_id: parcel_001
         width: 4.0
@@ -755,10 +755,10 @@ scene:
         node_a: rnode_0005
         node_b: rnode_0006
         polyline:
-        - - 15.0
-          - 1.0
-        - - 8.109093780838416
-          - 1.0
+        - - 46.5
+          - 3.5
+        - - 25.70540508583693
+          - 3.5
         tags:
           parcel_id: parcel_001
         width: 4.0
@@ -770,10 +770,10 @@ scene:
         node_a: rnode_0006
         node_b: rnode_0007
         polyline:
-        - - 8.109093780838416
-          - 1.0
-        - - 8.007372527784096
-          - 4.576833037431922
+        - - 25.70540508583693
+          - 3.5
+        - - 25.4083184423313
+          - 13.946482810266465
         tags:
           parcel_id: parcel_001
         width: 4.0
@@ -785,10 +785,10 @@ scene:
         node_a: rnode_0007
         node_b: rnode_0004
         polyline:
-        - - 8.007372527784096
-          - 4.576833037431922
-        - - 15.0
-          - 4.928068208418832
+        - - 25.4083184423313
+          - 13.946482810266465
+        - - 46.5
+          - 15.005904380733973
         tags:
           parcel_id: parcel_001
         width: 4.0
@@ -800,10 +800,10 @@ scene:
         node_a: rnode_0008
         node_b: rnode_0009
         polyline:
-        - - 6.10828517237684
-          - 1.0
-        - - 1.0
-          - 1.0
+        - - 18.70257495622142
+          - 3.5
+        - - 3.4999999999999996
+          - 3.5
         tags:
           parcel_id: parcel_002
         width: 4.0
@@ -815,10 +815,10 @@ scene:
         node_a: rnode_0009
         node_b: rnode_0010
         polyline:
-        - - 1.0
-          - 1.0
-        - - 1.0
-          - 5.885829078565005
+        - - 3.4999999999999996
+          - 3.5
+        - - 3.4999999999999996
+          - 17.956684899522575
         tags:
           parcel_id: parcel_002
         width: 4.0
@@ -830,10 +830,10 @@ scene:
         node_a: rnode_0010
         node_b: rnode_0011
         polyline:
-        - - 1.0
-          - 5.885829078565005
-        - - 5.990985696767952
-          - 5.124611396669194
+        - - 3.4999999999999996
+          - 17.956684899522575
+        - - 18.35587930979757
+          - 15.690888382002758
         tags:
           parcel_id: parcel_002
         width: 4.0
@@ -845,10 +845,10 @@ scene:
         node_a: rnode_0011
         node_b: rnode_0008
         polyline:
-        - - 5.990985696767952
-          - 5.124611396669194
-        - - 6.10828517237684
-          - 1.0
+        - - 18.35587930979757
+          - 15.690888382002758
+        - - 18.70257495622142
+          - 3.5
         tags:
           parcel_id: parcel_002
         width: 4.0
@@ -860,10 +860,10 @@ scene:
         node_a: rnode_0012
         node_b: rnode_0013
         polyline:
-        - - 1.0
-          - 7.908957245211763
-        - - 1.0
-          - 15.0
+        - - 3.5
+          - 25.037633482786227
+        - - 3.5
+          - 46.5
         tags:
           parcel_id: parcel_003
         width: 4.0
@@ -875,10 +875,10 @@ scene:
         node_a: rnode_0013
         node_b: rnode_0014
         polyline:
-        - - 1.0
-          - 15.0
-        - - 5.71014035324295
-          - 15.0
+        - - 3.5
+          - 46.5
+        - - 17.47970158316733
+          - 46.5
         tags:
           parcel_id: parcel_003
         width: 4.0
@@ -890,10 +890,10 @@ scene:
         node_a: rnode_0014
         node_b: rnode_0015
         polyline:
-        - - 5.71014035324295
-          - 15.0
-        - - 5.933199480025389
-          - 7.156553030760426
+        - - 17.47970158316733
+          - 46.5
+        - - 18.1536275511986
+          - 22.802684101322072
         tags:
           parcel_id: parcel_003
         width: 4.0
@@ -905,10 +905,10 @@ scene:
         node_a: rnode_0015
         node_b: rnode_0012
         polyline:
-        - - 5.933199480025389
-          - 7.156553030760426
-        - - 1.0
-          - 7.908957245211763
+        - - 18.1536275511986
+          - 22.802684101322072
+        - - 3.5
+          - 25.037633482786227
         tags:
           parcel_id: parcel_003
         width: 4.0
@@ -920,10 +920,10 @@ scene:
         node_a: rnode_0002
         node_b: rnode_0004
         polyline:
-        - - 15.0
-          - 6.930589607207026
-        - - 15.0
-          - 4.928068208418832
+        - - 46.5
+          - 22.014729276492655
+        - - 46.5
+          - 15.005904380733973
         tags: {}
         width: 4.0
         surface: gravel
@@ -934,10 +934,10 @@ scene:
         node_a: rnode_0003
         node_b: rnode_0007
         polyline:
-        - - 7.950504225205189
-          - 6.576497978034777
-        - - 8.007372527784096
-          - 4.576833037431922
+        - - 25.209279383305123
+          - 20.94531010237646
+        - - 25.4083184423313
+          - 13.946482810266465
         tags: {}
         width: 4.0
         surface: gravel
@@ -948,10 +948,10 @@ scene:
         node_a: rnode_0006
         node_b: rnode_0008
         polyline:
-        - - 8.109093780838416
-          - 1.0
-        - - 6.10828517237684
-          - 1.0
+        - - 25.70540508583693
+          - 3.5
+        - - 18.70257495622142
+          - 3.5
         tags: {}
         width: 4.0
         surface: gravel
@@ -962,10 +962,10 @@ scene:
         node_a: rnode_0011
         node_b: rnode_0015
         polyline:
-        - - 5.990985696767952
-          - 5.124611396669194
-        - - 5.933199480025389
-          - 7.156553030760426
+        - - 18.35587930979757
+          - 15.690888382002758
+        - - 18.1536275511986
+          - 22.802684101322072
         tags: {}
         width: 4.0
         surface: gravel
@@ -976,10 +976,10 @@ scene:
         node_a: rnode_0010
         node_b: rnode_0012
         polyline:
-        - - 1.0
-          - 5.885829078565005
-        - - 1.0
-          - 7.908957245211763
+        - - 3.4999999999999996
+          - 17.956684899522575
+        - - 3.5
+          - 25.037633482786227
         tags: {}
         width: 4.0
         surface: gravel
@@ -990,10 +990,10 @@ scene:
         node_a: rnode_0000
         node_b: rnode_0014
         polyline:
-        - - 7.710948961704524
-          - 15.0
-        - - 5.71014035324295
-          - 15.0
+        - - 24.48253171278284
+          - 46.5
+        - - 17.47970158316733
+          - 46.5
         tags: {}
         width: 4.0
         surface: gravel
@@ -1012,8 +1012,8 @@ scene:
       road_edge_id: redge_0016
       hydrology_edge_id: hedge_0004
       location:
-      - 15.0
-      - 5.929328907812929
+      - 46.5
+      - 18.510316828613313
       crossing_type: culvert
       span_width: 2.0
       structure_params: {}
@@ -1030,8 +1030,8 @@ scene:
       road_edge_id: redge_0017
       hydrology_edge_id: hedge_0006
       location:
-      - 7.978938376494643
-      - 5.57666550773335
+      - 25.30879891281821
+      - 17.445896456321464
       crossing_type: culvert
       span_width: 2.0
       structure_params: {}
@@ -1048,8 +1048,8 @@ scene:
       road_edge_id: redge_0018
       hydrology_edge_id: hedge_0006
       location:
-      - 7.108689476607628
-      - 1.0
+      - 22.203990021029174
+      - 3.5
       crossing_type: culvert
       span_width: 2.0
       structure_params: {}
@@ -1066,8 +1066,8 @@ scene:
       road_edge_id: redge_0019
       hydrology_edge_id: hedge_0010
       location:
-      - 5.96209258839667
-      - 6.14058221371481
+      - 18.254753430498084
+      - 19.246786241662413
       crossing_type: culvert
       span_width: 2.0
       structure_params: {}
@@ -1084,8 +1084,8 @@ scene:
       road_edge_id: redge_0020
       hydrology_edge_id: hedge_0010
       location:
-      - 1.0
-      - 6.897393161888385
+      - 3.5
+      - 21.497159191154402
       crossing_type: culvert
       span_width: 2.0
       structure_params: {}
@@ -1102,8 +1102,8 @@ scene:
       road_edge_id: redge_0021
       hydrology_edge_id: hedge_0013
       location:
-      - 6.710544657473737
-      - 15.0
+      - 20.981116647975085
+      - 46.5
       crossing_type: culvert
       span_width: 2.0
       structure_params: {}
@@ -1144,17 +1144,169 @@ scene:
       - tree_00027
       - tree_00028
       - tree_00029
+      - tree_00030
+      - tree_00031
+      - tree_00032
+      - tree_00033
+      - tree_00034
+      - tree_00035
+      - tree_00036
+      - tree_00037
+      - tree_00038
+      - tree_00039
+      - tree_00040
+      - tree_00041
+      - tree_00042
+      - tree_00043
+      - tree_00044
+      - tree_00045
+      - tree_00046
+      - tree_00047
+      - tree_00048
+      - tree_00049
+      - tree_00050
+      - tree_00051
+      - tree_00052
+      - tree_00053
+      - tree_00054
+      - tree_00055
+      - tree_00056
+      - tree_00057
+      - tree_00058
+      - tree_00059
+      - tree_00060
+      - tree_00061
+      - tree_00062
+      - tree_00063
+      - tree_00064
+      - tree_00065
+      - tree_00066
+      - tree_00067
+      - tree_00068
+      - tree_00069
+      - tree_00070
+      - tree_00071
+      - tree_00072
+      - tree_00073
+      - tree_00074
+      - tree_00075
+      - tree_00076
+      - tree_00077
+      - tree_00078
+      - tree_00079
+      - tree_00080
+      - tree_00081
+      - tree_00082
+      - tree_00083
+      - tree_00084
+      - tree_00085
+      - tree_00086
+      - tree_00087
+      - tree_00088
+      - tree_00089
+      - tree_00090
+      - tree_00091
+      - tree_00092
+      - tree_00093
+      - tree_00094
+      - tree_00095
+      - tree_00096
+      - tree_00097
+      - tree_00098
+      - tree_00099
+      - tree_00100
+      - tree_00101
+      - tree_00102
+      - tree_00103
+      - tree_00104
+      - tree_00105
+      - tree_00106
+      - tree_00107
+      - tree_00108
+      - tree_00109
+      - tree_00110
+      - tree_00111
+      - tree_00112
+      - tree_00113
+      - tree_00114
+      - tree_00115
+      - tree_00116
+      - tree_00117
+      - tree_00118
+      - tree_00119
+      - tree_00120
+      - tree_00121
+      - tree_00122
+      - tree_00123
+      - tree_00124
+      - tree_00125
+      - tree_00126
+      - tree_00127
+      - tree_00128
+      - tree_00129
+      - tree_00130
+      - tree_00131
+      - tree_00132
+      - tree_00133
+      - tree_00134
+      - tree_00135
+      - tree_00136
+      - tree_00137
+      - tree_00138
+      - tree_00139
+      - tree_00140
+      - tree_00141
+      - tree_00142
+      - tree_00143
+      - tree_00144
+      - tree_00145
+      - tree_00146
+      - tree_00147
+      - tree_00148
+      - tree_00149
+      - tree_00150
+      - tree_00151
+      - tree_00152
+      - tree_00153
+      - tree_00154
+      - tree_00155
+      - tree_00156
+      - tree_00157
+      - tree_00158
+      - tree_00159
+      - tree_00160
+      - tree_00161
+      - tree_00162
+      - tree_00163
+      - tree_00164
+      - tree_00165
+      - tree_00166
+      - tree_00167
+      - tree_00168
+      - tree_00169
+      - tree_00170
+      - tree_00171
+      - tree_00172
+      - tree_00173
+      - tree_00174
+      - tree_00175
+      - tree_00176
+      - tree_00177
+      - tree_00178
+      - tree_00179
+      - tree_00180
+      - tree_00181
       source: procedural
       confidence: null
       polygon:
-      - - 6.682105741821316
-        - 16.0
-      - - 16.0
-        - 16.0
-      - - 16.0
-        - 5.979558263285173
-      - - 6.979961079768094
-        - 5.526487521987371
+      - - 20.881580443191613
+        - 50.0
+      - - 50.0
+        - 50.0
+      - - 50.0
+        - 18.686119572766167
+      - - 21.81237837427529
+        - 17.270273506210536
       parcel_type: crop
       boundary_refs:
       - __type__: BoundaryRef
@@ -1175,9 +1327,9 @@ scene:
         __type__: PlantingSpec
         row_spacing: 1.5
         tree_spacing: 1.0
-        row_angle_deg: 2.875513405679717
-        headland_width: 2.0
-        sideland_width: 2.0
+        row_angle_deg: 2.875513405679715
+        headland_width: 7.5
+        sideland_width: 6.5
         species_mix:
           almond: 1.0
         seed: 1519223331902288993
@@ -1195,27 +1347,70 @@ scene:
       layer: parcel
       tags: {}
       refs:
-      - tree_00030
-      - tree_00031
-      - tree_00032
-      - tree_00033
-      - tree_00034
-      - tree_00035
-      - tree_00036
-      - tree_00037
-      - tree_00038
-      - tree_00039
+      - tree_00182
+      - tree_00183
+      - tree_00184
+      - tree_00185
+      - tree_00186
+      - tree_00187
+      - tree_00188
+      - tree_00189
+      - tree_00190
+      - tree_00191
+      - tree_00192
+      - tree_00193
+      - tree_00194
+      - tree_00195
+      - tree_00196
+      - tree_00197
+      - tree_00198
+      - tree_00199
+      - tree_00200
+      - tree_00201
+      - tree_00202
+      - tree_00203
+      - tree_00204
+      - tree_00205
+      - tree_00206
+      - tree_00207
+      - tree_00208
+      - tree_00209
+      - tree_00210
+      - tree_00211
+      - tree_00212
+      - tree_00213
+      - tree_00214
+      - tree_00215
+      - tree_00216
+      - tree_00217
+      - tree_00218
+      - tree_00219
+      - tree_00220
+      - tree_00221
+      - tree_00222
+      - tree_00223
+      - tree_00224
+      - tree_00225
+      - tree_00226
+      - tree_00227
+      - tree_00228
+      - tree_00229
+      - tree_00230
+      - tree_00231
+      - tree_00232
+      - tree_00233
+      - tree_00234
       source: procedural
       confidence: null
       polygon:
-      - - 16.0
-        - 5.979558263285173
-      - - 16.0
+      - - 50.0
+        - 18.686119572766167
+      - - 50.0
         - 0.0
-      - - 7.137128392260048
+      - - 22.303526225812647
         - 0.0
-      - - 6.979961079768094
-        - 5.526487521987371
+      - - 21.81237837427529
+        - 17.270273506210536
       parcel_type: crop
       boundary_refs:
       - __type__: BoundaryRef
@@ -1237,8 +1432,8 @@ scene:
         row_spacing: 1.5
         tree_spacing: 1.0
         row_angle_deg: -177.12448659432027
-        headland_width: 2.0
-        sideland_width: 2.0
+        headland_width: 7.5
+        sideland_width: 6.5
         species_mix:
           almond: 1.0
         seed: 1735669241470237943
@@ -1256,26 +1451,58 @@ scene:
       layer: parcel
       tags: {}
       refs:
-      - tree_00040
-      - tree_00041
-      - tree_00042
-      - tree_00043
-      - tree_00044
-      - tree_00045
-      - tree_00046
-      - tree_00047
-      - tree_00048
+      - tree_00235
+      - tree_00236
+      - tree_00237
+      - tree_00238
+      - tree_00239
+      - tree_00240
+      - tree_00241
+      - tree_00242
+      - tree_00243
+      - tree_00244
+      - tree_00245
+      - tree_00246
+      - tree_00247
+      - tree_00248
+      - tree_00249
+      - tree_00250
+      - tree_00251
+      - tree_00252
+      - tree_00253
+      - tree_00254
+      - tree_00255
+      - tree_00256
+      - tree_00257
+      - tree_00258
+      - tree_00259
+      - tree_00260
+      - tree_00261
+      - tree_00262
+      - tree_00263
+      - tree_00264
+      - tree_00265
+      - tree_00266
+      - tree_00267
+      - tree_00268
+      - tree_00269
+      - tree_00270
+      - tree_00271
+      - tree_00272
+      - tree_00273
+      - tree_00274
+      - tree_00275
       source: procedural
       confidence: null
       polygon:
-      - - 7.137128392260048
+      - - 22.303526225812647
         - 0.0
       - - 0.0
         - 0.0
       - - 0.0
-        - 7.049911667879847
-      - - 6.9668550103740285
-        - 5.987337350238459
+        - 22.030973962124524
+      - - 21.771421907418837
+        - 18.710429219495186
       parcel_type: crop
       boundary_refs:
       - __type__: BoundaryRef
@@ -1297,8 +1524,8 @@ scene:
         row_spacing: 1.5
         tree_spacing: 1.0
         row_angle_deg: -90.0
-        headland_width: 2.0
-        sideland_width: 2.0
+        headland_width: 7.5
+        sideland_width: 6.5
         species_mix:
           almond: 1.0
         seed: 1942584946065343800
@@ -1316,29 +1543,109 @@ scene:
       layer: parcel
       tags: {}
       refs:
-      - tree_00049
-      - tree_00050
-      - tree_00051
-      - tree_00052
-      - tree_00053
-      - tree_00054
-      - tree_00055
-      - tree_00056
-      - tree_00057
-      - tree_00058
-      - tree_00059
-      - tree_00060
+      - tree_00276
+      - tree_00277
+      - tree_00278
+      - tree_00279
+      - tree_00280
+      - tree_00281
+      - tree_00282
+      - tree_00283
+      - tree_00284
+      - tree_00285
+      - tree_00286
+      - tree_00287
+      - tree_00288
+      - tree_00289
+      - tree_00290
+      - tree_00291
+      - tree_00292
+      - tree_00293
+      - tree_00294
+      - tree_00295
+      - tree_00296
+      - tree_00297
+      - tree_00298
+      - tree_00299
+      - tree_00300
+      - tree_00301
+      - tree_00302
+      - tree_00303
+      - tree_00304
+      - tree_00305
+      - tree_00306
+      - tree_00307
+      - tree_00308
+      - tree_00309
+      - tree_00310
+      - tree_00311
+      - tree_00312
+      - tree_00313
+      - tree_00314
+      - tree_00315
+      - tree_00316
+      - tree_00317
+      - tree_00318
+      - tree_00319
+      - tree_00320
+      - tree_00321
+      - tree_00322
+      - tree_00323
+      - tree_00324
+      - tree_00325
+      - tree_00326
+      - tree_00327
+      - tree_00328
+      - tree_00329
+      - tree_00330
+      - tree_00331
+      - tree_00332
+      - tree_00333
+      - tree_00334
+      - tree_00335
+      - tree_00336
+      - tree_00337
+      - tree_00338
+      - tree_00339
+      - tree_00340
+      - tree_00341
+      - tree_00342
+      - tree_00343
+      - tree_00344
+      - tree_00345
+      - tree_00346
+      - tree_00347
+      - tree_00348
+      - tree_00349
+      - tree_00350
+      - tree_00351
+      - tree_00352
+      - tree_00353
+      - tree_00354
+      - tree_00355
+      - tree_00356
+      - tree_00357
+      - tree_00358
+      - tree_00359
+      - tree_00360
+      - tree_00361
+      - tree_00362
+      - tree_00363
+      - tree_00364
+      - tree_00365
+      - tree_00366
+      - tree_00367
       source: procedural
       confidence: null
       polygon:
       - - 0.0
-        - 7.049911667879847
+        - 22.030973962124524
       - - 0.0
-        - 16.0
-      - - 6.682105741821316
-        - 16.0
-      - - 6.9668550103740285
-        - 5.987337350238459
+        - 50.0
+      - - 20.881580443191613
+        - 50.0
+      - - 21.771421907418837
+        - 18.710429219495186
       parcel_type: crop
       boundary_refs:
       - __type__: BoundaryRef
@@ -1360,8 +1667,8 @@ scene:
         row_spacing: 1.5
         tree_spacing: 1.0
         row_angle_deg: 91.6289907748196
-        headland_width: 2.0
-        sideland_width: 2.0
+        headland_width: 7.5
+        sideland_width: 6.5
         species_mix:
           almond: 1.0
         seed: 1141595798003601502
@@ -1384,8 +1691,8 @@ scene:
       source: procedural
       confidence: null
       position:
-      - 8.920588011052628
-      - 7.62601146249008
+      - 29.118156788918142
+      - 24.143892423931174
       species: almond
       age_years: 8.237693718499173
       canopy_radius: 1.5
@@ -1401,8 +1708,8 @@ scene:
       source: procedural
       confidence: null
       position:
-      - 9.919328899020195
-      - 7.676177573576467
+      - 30.116897676885788
+      - 24.194058535017565
       species: almond
       age_years: 9.508237393719009
       canopy_radius: 1.5
@@ -1418,8 +1725,8 @@ scene:
       source: procedural
       confidence: null
       position:
-      - 10.918069786987763
-      - 7.726343684662854
+      - 31.115638564853434
+      - 24.244224646103955
       species: almond
       age_years: 6.836175587627359
       canopy_radius: 1.5
@@ -1435,8 +1742,8 @@ scene:
       source: procedural
       confidence: null
       position:
-      - 11.91681067495533
-      - 7.7765097957492415
+      - 32.114379452821076
+      - 24.294390757190346
       species: almond
       age_years: 3.9450613680558506
       canopy_radius: 1.5
@@ -1452,8 +1759,8 @@ scene:
       source: procedural
       confidence: null
       position:
-      - 12.9155515629229
-      - 7.826675906835629
+      - 33.11312034078872
+      - 24.344556868276737
       species: almond
       age_years: 2.9537154893030517
       canopy_radius: 1.5
@@ -1469,8 +1776,8 @@ scene:
       source: procedural
       confidence: null
       position:
-      - 13.914292450890468
-      - 7.876842017922016
+      - 34.11186122875636
+      - 24.394722979363127
       species: almond
       age_years: 2.6759896515694424
       canopy_radius: 1.5
@@ -1486,8 +1793,8 @@ scene:
       source: procedural
       confidence: null
       position:
-      - 8.877946877564675
-      - 9.12540525123753
+      - 35.110602116724
+      - 24.44488909044952
       species: almond
       age_years: 11.264303617290826
       canopy_radius: 1.5
@@ -1503,8 +1810,8 @@ scene:
       source: procedural
       confidence: null
       position:
-      - 9.876687765532242
-      - 9.175571362323916
+      - 36.10934300469165
+      - 24.495055201535912
       species: almond
       age_years: 5.521902854325435
       canopy_radius: 1.5
@@ -1520,8 +1827,8 @@ scene:
       source: procedural
       confidence: null
       position:
-      - 10.87542865349981
-      - 9.225737473410303
+      - 37.108083892659295
+      - 24.545221312622303
       species: almond
       age_years: 9.987048037197209
       canopy_radius: 1.5
@@ -1537,8 +1844,8 @@ scene:
       source: procedural
       confidence: null
       position:
-      - 11.874169541467378
-      - 9.27590358449669
+      - 38.10682478062694
+      - 24.595387423708694
       species: almond
       age_years: 13.820787102016176
       canopy_radius: 1.5
@@ -1554,8 +1861,8 @@ scene:
       source: procedural
       confidence: null
       position:
-      - 12.872910429434947
-      - 9.326069695583078
+      - 39.10556566859458
+      - 24.645553534795084
       species: almond
       age_years: 14.437298129777098
       canopy_radius: 1.5
@@ -1571,8 +1878,8 @@ scene:
       source: procedural
       confidence: null
       position:
-      - 13.871651317402515
-      - 9.376235806669467
+      - 40.10430655656222
+      - 24.695719645881475
       species: almond
       age_years: 4.148193634530217
       canopy_radius: 1.5
@@ -1588,8 +1895,8 @@ scene:
       source: procedural
       confidence: null
       position:
-      - 8.835305744076724
-      - 10.62479903998498
+      - 41.103047444529864
+      - 24.745885756967866
       species: almond
       age_years: 5.623448743345225
       canopy_radius: 1.5
@@ -1605,8 +1912,8 @@ scene:
       source: procedural
       confidence: null
       position:
-      - 9.834046632044291
-      - 10.674965151071367
+      - 42.101788332497506
+      - 24.796051868054256
       species: almond
       age_years: 5.953418860410904
       canopy_radius: 1.5
@@ -1622,8 +1929,8 @@ scene:
       source: procedural
       confidence: null
       position:
-      - 10.832787520011859
-      - 10.725131262157754
+      - 29.075515655430188
+      - 25.643286212678724
       species: almond
       age_years: 12.964265712506473
       canopy_radius: 1.5
@@ -1639,8 +1946,8 @@ scene:
       source: procedural
       confidence: null
       position:
-      - 11.831528407979427
-      - 10.775297373244141
+      - 30.074256543397833
+      - 25.693452323765115
       species: almond
       age_years: 5.648728021089321
       canopy_radius: 1.5
@@ -1656,8 +1963,8 @@ scene:
       source: procedural
       confidence: null
       position:
-      - 12.830269295946996
-      - 10.825463484330529
+      - 31.07299743136548
+      - 25.743618434851506
       species: almond
       age_years: 14.65656167265294
       canopy_radius: 1.5
@@ -1673,8 +1980,8 @@ scene:
       source: procedural
       confidence: null
       position:
-      - 13.829010183914564
-      - 10.875629595416918
+      - 32.07173831933312
+      - 25.793784545937896
       species: almond
       age_years: 9.557664048790425
       canopy_radius: 1.5
@@ -1690,8 +1997,8 @@ scene:
       source: procedural
       confidence: null
       position:
-      - 8.792664610588771
-      - 12.12419282873243
+      - 33.070479207300764
+      - 25.843950657024287
       species: almond
       age_years: 7.71846796968732
       canopy_radius: 1.5
@@ -1707,8 +2014,8 @@ scene:
       source: procedural
       confidence: null
       position:
-      - 9.791405498556339
-      - 12.174358939818816
+      - 34.069220095268406
+      - 25.894116768110678
       species: almond
       age_years: 10.745726179692229
       canopy_radius: 1.5
@@ -1724,8 +2031,8 @@ scene:
       source: procedural
       confidence: null
       position:
-      - 10.790146386523906
-      - 12.224525050905203
+      - 35.06796098323605
+      - 25.94428287919707
       species: almond
       age_years: 14.585301719607767
       canopy_radius: 1.5
@@ -1741,8 +2048,8 @@ scene:
       source: procedural
       confidence: null
       position:
-      - 11.788887274491474
-      - 12.27469116199159
+      - 36.0667018712037
+      - 25.99444899028346
       species: almond
       age_years: 10.920759083379927
       canopy_radius: 1.5
@@ -1758,8 +2065,8 @@ scene:
       source: procedural
       confidence: null
       position:
-      - 12.787628162459043
-      - 12.324857273077978
+      - 37.06544275917134
+      - 26.04461510136985
       species: almond
       age_years: 7.086404171081635
       canopy_radius: 1.5
@@ -1775,8 +2082,8 @@ scene:
       source: procedural
       confidence: null
       position:
-      - 13.786369050426611
-      - 12.375023384164367
+      - 38.06418364713898
+      - 26.09478121245624
       species: almond
       age_years: 7.847175508175813
       canopy_radius: 1.5
@@ -1792,8 +2099,8 @@ scene:
       source: procedural
       confidence: null
       position:
-      - 8.750023477100818
-      - 13.62358661747988
+      - 39.062924535106625
+      - 26.14494732354263
       species: almond
       age_years: 11.188012225844577
       canopy_radius: 1.5
@@ -1809,8 +2116,8 @@ scene:
       source: procedural
       confidence: null
       position:
-      - 9.748764365068386
-      - 13.673752728566267
+      - 40.06166542307427
+      - 26.19511343462902
       species: almond
       age_years: 10.794238308090135
       canopy_radius: 1.5
@@ -1826,8 +2133,8 @@ scene:
       source: procedural
       confidence: null
       position:
-      - 10.747505253035953
-      - 13.723918839652654
+      - 41.06040631104191
+      - 26.245279545715412
       species: almond
       age_years: 6.252939716565679
       canopy_radius: 1.5
@@ -1843,8 +2150,8 @@ scene:
       source: procedural
       confidence: null
       position:
-      - 11.746246141003521
-      - 13.774084950739041
+      - 42.05914719900955
+      - 26.295445656801803
       species: almond
       age_years: 3.7112047415959357
       canopy_radius: 1.5
@@ -1860,8 +2167,8 @@ scene:
       source: procedural
       confidence: null
       position:
-      - 12.74498702897109
-      - 13.824251061825429
+      - 29.032874521942233
+      - 27.14268000142627
       species: almond
       age_years: 10.24827959572369
       canopy_radius: 1.5
@@ -1877,8 +2184,8 @@ scene:
       source: procedural
       confidence: null
       position:
-      - 13.743727916938658
-      - 13.874417172911816
+      - 30.03161540990988
+      - 27.19284611251266
       species: almond
       age_years: 9.469154673416345
       canopy_radius: 1.5
@@ -1889,15 +2196,15 @@ scene:
       id: tree_00030
       layer: tree
       tags:
-        parcel_id: parcel_001
+        parcel_id: parcel_000
       refs: []
       source: procedural
       confidence: null
       position:
-      - 14.002518224064863
-      - 3.8792260411127324
+      - 31.030356297877525
+      - 27.243012223599052
       species: almond
-      age_years: 12.672463311867995
+      age_years: 10.144501183306676
       canopy_radius: 1.5
       trunk_dbh: 0.15
       height: 4.0
@@ -1906,15 +2213,15 @@ scene:
       id: tree_00031
       layer: tree
       tags:
-        parcel_id: parcel_001
+        parcel_id: parcel_000
       refs: []
       source: procedural
       confidence: null
       position:
-      - 13.003777336097295
-      - 3.8290599300263453
+      - 32.02909718584517
+      - 27.293178334685443
       species: almond
-      age_years: 10.964137536457349
+      age_years: 8.044329905116925
       canopy_radius: 1.5
       trunk_dbh: 0.15
       height: 4.0
@@ -1923,15 +2230,15 @@ scene:
       id: tree_00032
       layer: tree
       tags:
-        parcel_id: parcel_001
+        parcel_id: parcel_000
       refs: []
       source: procedural
       confidence: null
       position:
-      - 12.005036448129728
-      - 3.778893818939958
+      - 33.02783807381281
+      - 27.343344445771834
       species: almond
-      age_years: 6.193816560222286
+      age_years: 14.387117752623983
       canopy_radius: 1.5
       trunk_dbh: 0.15
       height: 4.0
@@ -1940,15 +2247,15 @@ scene:
       id: tree_00033
       layer: tree
       tags:
-        parcel_id: parcel_001
+        parcel_id: parcel_000
       refs: []
       source: procedural
       confidence: null
       position:
-      - 11.006295560162158
-      - 3.728727707853571
+      - 34.02657896178045
+      - 27.393510556858224
       species: almond
-      age_years: 14.915379930936666
+      age_years: 13.1810629111338
       canopy_radius: 1.5
       trunk_dbh: 0.15
       height: 4.0
@@ -1957,15 +2264,15 @@ scene:
       id: tree_00034
       layer: tree
       tags:
-        parcel_id: parcel_001
+        parcel_id: parcel_000
       refs: []
       source: procedural
       confidence: null
       position:
-      - 10.00755467219459
-      - 3.678561596767184
+      - 35.025319849748094
+      - 27.443676667944615
       species: almond
-      age_years: 10.170525132197767
+      age_years: 13.042647382572616
       canopy_radius: 1.5
       trunk_dbh: 0.15
       height: 4.0
@@ -1974,15 +2281,15 @@ scene:
       id: tree_00035
       layer: tree
       tags:
-        parcel_id: parcel_001
+        parcel_id: parcel_000
       refs: []
       source: procedural
       confidence: null
       position:
-      - 14.002518224064863
-      - 2.3792260411129833
+      - 36.02406073771574
+      - 27.493842779031006
       species: almond
-      age_years: 5.172656487058356
+      age_years: 4.071595004479711
       canopy_radius: 1.5
       trunk_dbh: 0.15
       height: 4.0
@@ -1991,15 +2298,15 @@ scene:
       id: tree_00036
       layer: tree
       tags:
-        parcel_id: parcel_001
+        parcel_id: parcel_000
       refs: []
       source: procedural
       confidence: null
       position:
-      - 13.003777336097295
-      - 2.329059930026596
+      - 37.022801625683385
+      - 27.544008890117397
       species: almond
-      age_years: 3.1927905828754573
+      age_years: 3.3471691684492457
       canopy_radius: 1.5
       trunk_dbh: 0.15
       height: 4.0
@@ -2008,15 +2315,15 @@ scene:
       id: tree_00037
       layer: tree
       tags:
-        parcel_id: parcel_001
+        parcel_id: parcel_000
       refs: []
       source: procedural
       confidence: null
       position:
-      - 12.005036448129728
-      - 2.278893818940209
+      - 38.02154251365103
+      - 27.594175001203787
       species: almond
-      age_years: 5.038076112030101
+      age_years: 3.1015770061845207
       canopy_radius: 1.5
       trunk_dbh: 0.15
       height: 4.0
@@ -2025,15 +2332,15 @@ scene:
       id: tree_00038
       layer: tree
       tags:
-        parcel_id: parcel_001
+        parcel_id: parcel_000
       refs: []
       source: procedural
       confidence: null
       position:
-      - 11.006295560162158
-      - 2.228727707853822
+      - 39.02028340161867
+      - 27.644341112290178
       species: almond
-      age_years: 12.177208585936544
+      age_years: 10.32497353326737
       canopy_radius: 1.5
       trunk_dbh: 0.15
       height: 4.0
@@ -2042,15 +2349,15 @@ scene:
       id: tree_00039
       layer: tree
       tags:
-        parcel_id: parcel_001
+        parcel_id: parcel_000
       refs: []
       source: procedural
       confidence: null
       position:
-      - 10.00755467219459
-      - 2.1785615967674348
+      - 40.01902428958631
+      - 27.69450722337657
       species: almond
-      age_years: 9.688705932575424
+      age_years: 3.3327185403843846
       canopy_radius: 1.5
       trunk_dbh: 0.15
       height: 4.0
@@ -2059,15 +2366,15 @@ scene:
       id: tree_00040
       layer: tree
       tags:
-        parcel_id: parcel_002
+        parcel_id: parcel_000
       refs: []
       source: procedural
       confidence: null
       position:
-      - 1.9771362318726688
-      - 4.74836180365332
+      - 41.017765177553954
+      - 27.74467333446296
       species: almond
-      age_years: 8.942679088917941
+      age_years: 12.340947834239147
       canopy_radius: 1.5
       trunk_dbh: 0.15
       height: 4.0
@@ -2076,15 +2383,15 @@ scene:
       id: tree_00041
       layer: tree
       tags:
-        parcel_id: parcel_002
+        parcel_id: parcel_000
       refs: []
       source: procedural
       confidence: null
       position:
-      - 1.9771362318726688
-      - 3.7483618036534616
+      - 42.0165060655216
+      - 27.79483944554935
       species: almond
-      age_years: 12.179061251702757
+      age_years: 10.911432865904956
       canopy_radius: 1.5
       trunk_dbh: 0.15
       height: 4.0
@@ -2093,15 +2400,15 @@ scene:
       id: tree_00042
       layer: tree
       tags:
-        parcel_id: parcel_002
+        parcel_id: parcel_000
       refs: []
       source: procedural
       confidence: null
       position:
-      - 1.9771362318726688
-      - 2.7483618036536037
+      - 28.99023338845428
+      - 28.642073790173818
       species: almond
-      age_years: 3.070130240539593
+      age_years: 9.978323452287357
       canopy_radius: 1.5
       trunk_dbh: 0.15
       height: 4.0
@@ -2110,15 +2417,15 @@ scene:
       id: tree_00043
       layer: tree
       tags:
-        parcel_id: parcel_002
+        parcel_id: parcel_000
       refs: []
       source: procedural
       confidence: null
       position:
-      - 3.4599884057771706
-      - 4.522199405483212
+      - 29.988974276421924
+      - 28.69223990126021
       species: almond
-      age_years: 4.079576310382862
+      age_years: 10.87740855076494
       canopy_radius: 1.5
       trunk_dbh: 0.15
       height: 4.0
@@ -2127,15 +2434,15 @@ scene:
       id: tree_00044
       layer: tree
       tags:
-        parcel_id: parcel_002
+        parcel_id: parcel_000
       refs: []
       source: procedural
       confidence: null
       position:
-      - 3.4599884057771706
-      - 3.522199405483353
+      - 30.98771516438957
+      - 28.7424060123466
       species: almond
-      age_years: 8.73007370277831
+      age_years: 14.906830455027302
       canopy_radius: 1.5
       trunk_dbh: 0.15
       height: 4.0
@@ -2144,15 +2451,15 @@ scene:
       id: tree_00045
       layer: tree
       tags:
-        parcel_id: parcel_002
+        parcel_id: parcel_000
       refs: []
       source: procedural
       confidence: null
       position:
-      - 3.4599884057771706
-      - 2.5221994054834953
+      - 31.986456052357212
+      - 28.79257212343299
       species: almond
-      age_years: 8.018772481151435
+      age_years: 5.539492915785646
       canopy_radius: 1.5
       trunk_dbh: 0.15
       height: 4.0
@@ -2161,15 +2468,15 @@ scene:
       id: tree_00046
       layer: tree
       tags:
-        parcel_id: parcel_002
+        parcel_id: parcel_000
       refs: []
       source: procedural
       confidence: null
       position:
-      - 4.942840579681672
-      - 4.296037007313104
+      - 32.985196940324855
+      - 28.84273823451938
       species: almond
-      age_years: 10.93609722368631
+      age_years: 14.373227809707066
       canopy_radius: 1.5
       trunk_dbh: 0.15
       height: 4.0
@@ -2178,15 +2485,15 @@ scene:
       id: tree_00047
       layer: tree
       tags:
-        parcel_id: parcel_002
+        parcel_id: parcel_000
       refs: []
       source: procedural
       confidence: null
       position:
-      - 4.942840579681672
-      - 3.296037007313245
+      - 33.9839378282925
+      - 28.89290434560577
       species: almond
-      age_years: 6.609106916643753
+      age_years: 14.709900191834345
       canopy_radius: 1.5
       trunk_dbh: 0.15
       height: 4.0
@@ -2195,15 +2502,15 @@ scene:
       id: tree_00048
       layer: tree
       tags:
-        parcel_id: parcel_002
+        parcel_id: parcel_000
       refs: []
       source: procedural
       confidence: null
       position:
-      - 4.942840579681672
-      - 2.296037007313387
+      - 34.98267871626014
+      - 28.943070456692165
       species: almond
-      age_years: 2.469595235775013
+      age_years: 10.828223606711695
       canopy_radius: 1.5
       trunk_dbh: 0.15
       height: 4.0
@@ -2212,15 +2519,15 @@ scene:
       id: tree_00049
       layer: tree
       tags:
-        parcel_id: parcel_003
+        parcel_id: parcel_000
       refs: []
       source: procedural
       confidence: null
       position:
-      - 4.932863933850756
-      - 8.288078932795194
+      - 35.98141960422779
+      - 28.993236567778556
       species: almond
-      age_years: 10.299474908694021
+      age_years: 6.440703999322915
       canopy_radius: 1.5
       trunk_dbh: 0.15
       height: 4.0
@@ -2229,15 +2536,15 @@ scene:
       id: tree_00050
       layer: tree
       tags:
-        parcel_id: parcel_003
+        parcel_id: parcel_000
       refs: []
       source: procedural
       confidence: null
       position:
-      - 4.904436511525455
-      - 9.287674791960157
+      - 36.98016049219543
+      - 29.043402678864947
       species: almond
-      age_years: 6.552805502633838
+      age_years: 14.249091898670798
       canopy_radius: 1.5
       trunk_dbh: 0.15
       height: 4.0
@@ -2246,15 +2553,15 @@ scene:
       id: tree_00051
       layer: tree
       tags:
-        parcel_id: parcel_003
+        parcel_id: parcel_000
       refs: []
       source: procedural
       confidence: null
       position:
-      - 4.876009089200155
-      - 10.287270651125118
+      - 37.97890138016307
+      - 29.093568789951338
       species: almond
-      age_years: 11.551643944214335
+      age_years: 6.492047569580399
       canopy_radius: 1.5
       trunk_dbh: 0.15
       height: 4.0
@@ -2263,15 +2570,15 @@ scene:
       id: tree_00052
       layer: tree
       tags:
-        parcel_id: parcel_003
+        parcel_id: parcel_000
       refs: []
       source: procedural
       confidence: null
       position:
-      - 4.847581666874852
-      - 11.28686651029008
+      - 38.977642268130715
+      - 29.14373490103773
       species: almond
-      age_years: 6.301887918119445
+      age_years: 8.99016103936204
       canopy_radius: 1.5
       trunk_dbh: 0.15
       height: 4.0
@@ -2280,15 +2587,15 @@ scene:
       id: tree_00053
       layer: tree
       tags:
-        parcel_id: parcel_003
+        parcel_id: parcel_000
       refs: []
       source: procedural
       confidence: null
       position:
-      - 4.819154244549551
-      - 12.286462369455043
+      - 39.97638315609836
+      - 29.19390101212412
       species: almond
-      age_years: 8.294734096159525
+      age_years: 8.571958354351809
       canopy_radius: 1.5
       trunk_dbh: 0.15
       height: 4.0
@@ -2297,15 +2604,15 @@ scene:
       id: tree_00054
       layer: tree
       tags:
-        parcel_id: parcel_003
+        parcel_id: parcel_000
       refs: []
       source: procedural
       confidence: null
       position:
-      - 4.790726822224249
-      - 13.286058228620004
+      - 40.975124044066
+      - 29.24406712321051
       species: almond
-      age_years: 14.438733441736796
+      age_years: 2.8364588141217357
       canopy_radius: 1.5
       trunk_dbh: 0.15
       height: 4.0
@@ -2314,15 +2621,15 @@ scene:
       id: tree_00055
       layer: tree
       tags:
-        parcel_id: parcel_003
+        parcel_id: parcel_000
       refs: []
       source: procedural
       confidence: null
       position:
-      - 3.4500117599462548
-      - 8.514241330965302
+      - 41.97386493203364
+      - 29.2942332342969
       species: almond
-      age_years: 9.58859081965791
+      age_years: 11.03618596007381
       canopy_radius: 1.5
       trunk_dbh: 0.15
       height: 4.0
@@ -2331,15 +2638,15 @@ scene:
       id: tree_00056
       layer: tree
       tags:
-        parcel_id: parcel_003
+        parcel_id: parcel_000
       refs: []
       source: procedural
       confidence: null
       position:
-      - 3.421584337620954
-      - 9.513837190130266
+      - 28.947592254966324
+      - 30.141467578921365
       species: almond
-      age_years: 7.025251712716203
+      age_years: 2.7551526831109077
       canopy_radius: 1.5
       trunk_dbh: 0.15
       height: 4.0
@@ -2348,15 +2655,15 @@ scene:
       id: tree_00057
       layer: tree
       tags:
-        parcel_id: parcel_003
+        parcel_id: parcel_000
       refs: []
       source: procedural
       confidence: null
       position:
-      - 3.3931569152956524
-      - 10.513433049295227
+      - 29.94633314293397
+      - 30.191633690007755
       species: almond
-      age_years: 2.6757377285154025
+      age_years: 9.05275414637369
       canopy_radius: 1.5
       trunk_dbh: 0.15
       height: 4.0
@@ -2365,15 +2672,15 @@ scene:
       id: tree_00058
       layer: tree
       tags:
-        parcel_id: parcel_003
+        parcel_id: parcel_000
       refs: []
       source: procedural
       confidence: null
       position:
-      - 3.364729492970351
-      - 11.51302890846019
+      - 30.945074030901615
+      - 30.241799801094146
       species: almond
-      age_years: 9.636745190788528
+      age_years: 11.873452555341041
       canopy_radius: 1.5
       trunk_dbh: 0.15
       height: 4.0
@@ -2382,15 +2689,15 @@ scene:
       id: tree_00059
       layer: tree
       tags:
-        parcel_id: parcel_003
+        parcel_id: parcel_000
       refs: []
       source: procedural
       confidence: null
       position:
-      - 3.3363020706450492
-      - 12.512624767625152
+      - 31.943814918869258
+      - 30.291965912180537
       species: almond
-      age_years: 3.976085927175153
+      age_years: 11.364878760064748
       canopy_radius: 1.5
       trunk_dbh: 0.15
       height: 4.0
@@ -2399,15 +2706,5234 @@ scene:
       id: tree_00060
       layer: tree
       tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 32.9425558068369
+      - 30.342132023266927
+      species: almond
+      age_years: 13.57518763549159
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00061:
+      __type__: TreeInstance
+      id: tree_00061
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 33.94129669480454
+      - 30.392298134353318
+      species: almond
+      age_years: 13.842024513514732
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00062:
+      __type__: TreeInstance
+      id: tree_00062
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 34.940037582772185
+      - 30.442464245439712
+      species: almond
+      age_years: 13.23154867625389
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00063:
+      __type__: TreeInstance
+      id: tree_00063
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 35.938778470739834
+      - 30.492630356526103
+      species: almond
+      age_years: 8.7327252694856
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00064:
+      __type__: TreeInstance
+      id: tree_00064
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 36.937519358707476
+      - 30.542796467612494
+      species: almond
+      age_years: 5.7674472798034335
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00065:
+      __type__: TreeInstance
+      id: tree_00065
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 37.93626024667512
+      - 30.592962578698884
+      species: almond
+      age_years: 9.46268353963425
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00066:
+      __type__: TreeInstance
+      id: tree_00066
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 38.93500113464276
+      - 30.643128689785275
+      species: almond
+      age_years: 8.462620874530272
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00067:
+      __type__: TreeInstance
+      id: tree_00067
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 39.9337420226104
+      - 30.693294800871666
+      species: almond
+      age_years: 12.92024392433009
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00068:
+      __type__: TreeInstance
+      id: tree_00068
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 40.932482910578045
+      - 30.743460911958056
+      species: almond
+      age_years: 11.363266877133091
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00069:
+      __type__: TreeInstance
+      id: tree_00069
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 41.93122379854569
+      - 30.793627023044447
+      species: almond
+      age_years: 12.899984676310108
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00070:
+      __type__: TreeInstance
+      id: tree_00070
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 28.90495112147837
+      - 31.64086136766891
+      species: almond
+      age_years: 6.601436596299869
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00071:
+      __type__: TreeInstance
+      id: tree_00071
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 29.903692009446015
+      - 31.691027478755302
+      species: almond
+      age_years: 4.895437551600595
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00072:
+      __type__: TreeInstance
+      id: tree_00072
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 30.90243289741366
+      - 31.741193589841693
+      species: almond
+      age_years: 2.6542239445813496
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00073:
+      __type__: TreeInstance
+      id: tree_00073
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 31.901173785381303
+      - 31.791359700928083
+      species: almond
+      age_years: 13.04173838623444
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00074:
+      __type__: TreeInstance
+      id: tree_00074
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 32.899914673348945
+      - 31.841525812014474
+      species: almond
+      age_years: 9.887600397328498
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00075:
+      __type__: TreeInstance
+      id: tree_00075
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 33.89865556131659
+      - 31.891691923100865
+      species: almond
+      age_years: 9.263402559912787
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00076:
+      __type__: TreeInstance
+      id: tree_00076
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 34.89739644928423
+      - 31.94185803418726
+      species: almond
+      age_years: 12.885231219348146
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00077:
+      __type__: TreeInstance
+      id: tree_00077
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 35.89613733725188
+      - 31.99202414527365
+      species: almond
+      age_years: 5.4377616250565275
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00078:
+      __type__: TreeInstance
+      id: tree_00078
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 36.89487822521952
+      - 32.042190256360044
+      species: almond
+      age_years: 14.358525286052172
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00079:
+      __type__: TreeInstance
+      id: tree_00079
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 37.893619113187164
+      - 32.09235636744643
+      species: almond
+      age_years: 12.891304081012056
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00080:
+      __type__: TreeInstance
+      id: tree_00080
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 38.892360001154806
+      - 32.142522478532825
+      species: almond
+      age_years: 8.40065860513687
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00081:
+      __type__: TreeInstance
+      id: tree_00081
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 39.89110088912245
+      - 32.19268858961921
+      species: almond
+      age_years: 2.5402839020642323
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00082:
+      __type__: TreeInstance
+      id: tree_00082
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 40.88984177709009
+      - 32.24285470070561
+      species: almond
+      age_years: 3.6777118865472227
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00083:
+      __type__: TreeInstance
+      id: tree_00083
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 41.88858266505773
+      - 32.29302081179199
+      species: almond
+      age_years: 12.517375566532804
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00084:
+      __type__: TreeInstance
+      id: tree_00084
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 28.862309987990415
+      - 33.14025515641646
+      species: almond
+      age_years: 5.484412962045018
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00085:
+      __type__: TreeInstance
+      id: tree_00085
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 29.86105087595806
+      - 33.19042126750285
+      species: almond
+      age_years: 6.086992407397967
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00086:
+      __type__: TreeInstance
+      id: tree_00086
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 30.859791763925706
+      - 33.24058737858924
+      species: almond
+      age_years: 13.58575949260023
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00087:
+      __type__: TreeInstance
+      id: tree_00087
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 31.85853265189335
+      - 33.29075348967563
+      species: almond
+      age_years: 5.2112484281267175
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00088:
+      __type__: TreeInstance
+      id: tree_00088
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 32.85727353986099
+      - 33.34091960076202
+      species: almond
+      age_years: 7.012734699629762
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00089:
+      __type__: TreeInstance
+      id: tree_00089
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 33.85601442782863
+      - 33.39108571184841
+      species: almond
+      age_years: 4.129910498088696
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00090:
+      __type__: TreeInstance
+      id: tree_00090
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 34.854755315796275
+      - 33.44125182293481
+      species: almond
+      age_years: 3.3800489687877215
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00091:
+      __type__: TreeInstance
+      id: tree_00091
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 35.853496203763925
+      - 33.4914179340212
+      species: almond
+      age_years: 4.048560470333835
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00092:
+      __type__: TreeInstance
+      id: tree_00092
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 36.85223709173157
+      - 33.54158404510759
+      species: almond
+      age_years: 6.897911280513545
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00093:
+      __type__: TreeInstance
+      id: tree_00093
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 37.85097797969921
+      - 33.59175015619398
+      species: almond
+      age_years: 12.709707398942987
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00094:
+      __type__: TreeInstance
+      id: tree_00094
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 38.84971886766685
+      - 33.64191626728037
+      species: almond
+      age_years: 5.217612891606792
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00095:
+      __type__: TreeInstance
+      id: tree_00095
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 39.848459755634494
+      - 33.69208237836676
+      species: almond
+      age_years: 5.461271026896093
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00096:
+      __type__: TreeInstance
+      id: tree_00096
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 40.847200643602136
+      - 33.742248489453154
+      species: almond
+      age_years: 4.849684096848367
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00097:
+      __type__: TreeInstance
+      id: tree_00097
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 41.84594153156978
+      - 33.792414600539544
+      species: almond
+      age_years: 4.196546241535925
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00098:
+      __type__: TreeInstance
+      id: tree_00098
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 28.819668854502456
+      - 34.639648945164005
+      species: almond
+      age_years: 12.174609544245525
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00099:
+      __type__: TreeInstance
+      id: tree_00099
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 29.818409742470102
+      - 34.689815056250396
+      species: almond
+      age_years: 4.972328582388325
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00100:
+      __type__: TreeInstance
+      id: tree_00100
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 30.817150630437748
+      - 34.739981167336786
+      species: almond
+      age_years: 11.680872582535649
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00101:
+      __type__: TreeInstance
+      id: tree_00101
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 31.81589151840539
+      - 34.79014727842318
+      species: almond
+      age_years: 4.311094482878517
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00102:
+      __type__: TreeInstance
+      id: tree_00102
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 32.814632406373036
+      - 34.84031338950957
+      species: almond
+      age_years: 3.6106553062388067
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00103:
+      __type__: TreeInstance
+      id: tree_00103
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 33.81337329434068
+      - 34.89047950059596
+      species: almond
+      age_years: 4.22294592947471
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00104:
+      __type__: TreeInstance
+      id: tree_00104
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 34.81211418230832
+      - 34.940645611682356
+      species: almond
+      age_years: 7.600788417131911
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00105:
+      __type__: TreeInstance
+      id: tree_00105
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 35.81085507027597
+      - 34.99081172276874
+      species: almond
+      age_years: 11.15840103370266
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00106:
+      __type__: TreeInstance
+      id: tree_00106
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 36.80959595824361
+      - 35.04097783385514
+      species: almond
+      age_years: 7.527072964255726
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00107:
+      __type__: TreeInstance
+      id: tree_00107
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 37.808336846211255
+      - 35.09114394494152
+      species: almond
+      age_years: 14.226914561727256
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00108:
+      __type__: TreeInstance
+      id: tree_00108
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 38.8070777341789
+      - 35.14131005602792
+      species: almond
+      age_years: 12.590735563096331
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00109:
+      __type__: TreeInstance
+      id: tree_00109
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 39.80581862214654
+      - 35.1914761671143
+      species: almond
+      age_years: 4.688303368106373
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00110:
+      __type__: TreeInstance
+      id: tree_00110
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 40.80455951011418
+      - 35.2416422782007
+      species: almond
+      age_years: 2.393859434254476
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00111:
+      __type__: TreeInstance
+      id: tree_00111
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 41.803300398081824
+      - 35.291808389287084
+      species: almond
+      age_years: 4.1393544581894535
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00112:
+      __type__: TreeInstance
+      id: tree_00112
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 28.777027721014502
+      - 36.13904273391155
+      species: almond
+      age_years: 6.187583603392644
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00113:
+      __type__: TreeInstance
+      id: tree_00113
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 29.775768608982148
+      - 36.18920884499795
+      species: almond
+      age_years: 9.293957746414879
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00114:
+      __type__: TreeInstance
+      id: tree_00114
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 30.774509496949793
+      - 36.23937495608433
+      species: almond
+      age_years: 12.278733990127565
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00115:
+      __type__: TreeInstance
+      id: tree_00115
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 31.773250384917436
+      - 36.28954106717073
+      species: almond
+      age_years: 8.197031499410766
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00116:
+      __type__: TreeInstance
+      id: tree_00116
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 32.77199127288508
+      - 36.339707178257115
+      species: almond
+      age_years: 7.61806560954131
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00117:
+      __type__: TreeInstance
+      id: tree_00117
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 33.770732160852724
+      - 36.38987328934351
+      species: almond
+      age_years: 11.210955750622206
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00118:
+      __type__: TreeInstance
+      id: tree_00118
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 34.769473048820366
+      - 36.4400394004299
+      species: almond
+      age_years: 3.210297309135016
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00119:
+      __type__: TreeInstance
+      id: tree_00119
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 35.768213936788015
+      - 36.490205511516294
+      species: almond
+      age_years: 11.971092001549248
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00120:
+      __type__: TreeInstance
+      id: tree_00120
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 36.76695482475566
+      - 36.540371622602684
+      species: almond
+      age_years: 2.981602683675282
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00121:
+      __type__: TreeInstance
+      id: tree_00121
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 37.7656957127233
+      - 36.590537733689075
+      species: almond
+      age_years: 14.179556868090307
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00122:
+      __type__: TreeInstance
+      id: tree_00122
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 38.76443660069094
+      - 36.640703844775466
+      species: almond
+      age_years: 11.028805422311242
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00123:
+      __type__: TreeInstance
+      id: tree_00123
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 39.763177488658584
+      - 36.69086995586186
+      species: almond
+      age_years: 5.550373418050118
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00124:
+      __type__: TreeInstance
+      id: tree_00124
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 40.76191837662623
+      - 36.74103606694825
+      species: almond
+      age_years: 9.250131241278327
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00125:
+      __type__: TreeInstance
+      id: tree_00125
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 41.76065926459387
+      - 36.79120217803464
+      species: almond
+      age_years: 6.7361905477386275
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00126:
+      __type__: TreeInstance
+      id: tree_00126
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 28.734386587526547
+      - 37.638436522659106
+      species: almond
+      age_years: 8.647566772495665
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00127:
+      __type__: TreeInstance
+      id: tree_00127
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 29.733127475494193
+      - 37.68860263374549
+      species: almond
+      age_years: 3.817585910220696
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00128:
+      __type__: TreeInstance
+      id: tree_00128
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 30.73186836346184
+      - 37.73876874483189
+      species: almond
+      age_years: 10.376349120162201
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00129:
+      __type__: TreeInstance
+      id: tree_00129
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 31.73060925142948
+      - 37.78893485591827
+      species: almond
+      age_years: 10.908899466618816
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00130:
+      __type__: TreeInstance
+      id: tree_00130
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 32.72935013939713
+      - 37.83910096700467
+      species: almond
+      age_years: 11.30453303403482
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00131:
+      __type__: TreeInstance
+      id: tree_00131
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 33.72809102736477
+      - 37.88926707809105
+      species: almond
+      age_years: 8.72546063104414
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00132:
+      __type__: TreeInstance
+      id: tree_00132
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 34.72683191533241
+      - 37.93943318917745
+      species: almond
+      age_years: 5.600901967996873
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00133:
+      __type__: TreeInstance
+      id: tree_00133
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 35.72557280330006
+      - 37.98959930026384
+      species: almond
+      age_years: 3.628927060016445
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00134:
+      __type__: TreeInstance
+      id: tree_00134
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 36.7243136912677
+      - 38.03976541135023
+      species: almond
+      age_years: 12.478480002875145
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00135:
+      __type__: TreeInstance
+      id: tree_00135
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 37.723054579235345
+      - 38.08993152243662
+      species: almond
+      age_years: 5.426218110616405
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00136:
+      __type__: TreeInstance
+      id: tree_00136
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 38.72179546720299
+      - 38.14009763352301
+      species: almond
+      age_years: 12.893983172592737
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00137:
+      __type__: TreeInstance
+      id: tree_00137
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 39.72053635517063
+      - 38.1902637446094
+      species: almond
+      age_years: 4.930833877552727
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00138:
+      __type__: TreeInstance
+      id: tree_00138
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 40.71927724313827
+      - 38.240429855695794
+      species: almond
+      age_years: 13.825770561573044
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00139:
+      __type__: TreeInstance
+      id: tree_00139
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 41.718018131105914
+      - 38.290595966782185
+      species: almond
+      age_years: 10.021117810891553
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00140:
+      __type__: TreeInstance
+      id: tree_00140
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 28.691745454038593
+      - 39.137830311406645
+      species: almond
+      age_years: 11.849387417669318
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00141:
+      __type__: TreeInstance
+      id: tree_00141
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 29.69048634200624
+      - 39.18799642249304
+      species: almond
+      age_years: 2.522854669345635
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00142:
+      __type__: TreeInstance
+      id: tree_00142
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 30.689227229973884
+      - 39.23816253357943
+      species: almond
+      age_years: 13.682832713707949
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00143:
+      __type__: TreeInstance
+      id: tree_00143
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 31.687968117941526
+      - 39.288328644665825
+      species: almond
+      age_years: 13.578109444394112
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00144:
+      __type__: TreeInstance
+      id: tree_00144
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 32.68670900590917
+      - 39.33849475575221
+      species: almond
+      age_years: 13.828750910700355
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00145:
+      __type__: TreeInstance
+      id: tree_00145
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 33.685449893876815
+      - 39.388660866838606
+      species: almond
+      age_years: 13.889795130294786
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00146:
+      __type__: TreeInstance
+      id: tree_00146
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 34.68419078184446
+      - 39.438826977925
+      species: almond
+      age_years: 7.004129241826487
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00147:
+      __type__: TreeInstance
+      id: tree_00147
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 35.682931669812106
+      - 39.48899308901139
+      species: almond
+      age_years: 6.693795328596223
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00148:
+      __type__: TreeInstance
+      id: tree_00148
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 36.68167255777975
+      - 39.53915920009778
+      species: almond
+      age_years: 8.140336620994393
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00149:
+      __type__: TreeInstance
+      id: tree_00149
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 37.68041344574739
+      - 39.58932531118417
+      species: almond
+      age_years: 9.761359259411975
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00150:
+      __type__: TreeInstance
+      id: tree_00150
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 38.67915433371503
+      - 39.63949142227056
+      species: almond
+      age_years: 3.5526244312692086
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00151:
+      __type__: TreeInstance
+      id: tree_00151
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 39.677895221682675
+      - 39.68965753335695
+      species: almond
+      age_years: 11.55834125939354
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00152:
+      __type__: TreeInstance
+      id: tree_00152
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 40.67663610965032
+      - 39.73982364444334
+      species: almond
+      age_years: 9.602697241045048
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00153:
+      __type__: TreeInstance
+      id: tree_00153
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 41.67537699761796
+      - 39.78998975552973
+      species: almond
+      age_years: 3.21715913960767
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00154:
+      __type__: TreeInstance
+      id: tree_00154
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 28.649104320550638
+      - 40.6372241001542
+      species: almond
+      age_years: 14.672206864915825
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00155:
+      __type__: TreeInstance
+      id: tree_00155
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 29.647845208518284
+      - 40.68739021124058
+      species: almond
+      age_years: 10.04556889669211
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00156:
+      __type__: TreeInstance
+      id: tree_00156
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 30.64658609648593
+      - 40.73755632232698
+      species: almond
+      age_years: 7.543458305027048
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00157:
+      __type__: TreeInstance
+      id: tree_00157
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 31.645326984453572
+      - 40.787722433413364
+      species: almond
+      age_years: 8.451006208999974
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00158:
+      __type__: TreeInstance
+      id: tree_00158
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 32.64406787242122
+      - 40.83788854449976
+      species: almond
+      age_years: 5.654439003864598
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00159:
+      __type__: TreeInstance
+      id: tree_00159
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 33.64280876038886
+      - 40.888054655586146
+      species: almond
+      age_years: 2.022835460639964
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00160:
+      __type__: TreeInstance
+      id: tree_00160
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 34.6415496483565
+      - 40.93822076667254
+      species: almond
+      age_years: 9.559993076611528
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00161:
+      __type__: TreeInstance
+      id: tree_00161
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 35.640290536324144
+      - 40.988386877758934
+      species: almond
+      age_years: 9.888060201693408
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00162:
+      __type__: TreeInstance
+      id: tree_00162
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 36.63903142429179
+      - 41.038552988845325
+      species: almond
+      age_years: 2.3045300878780135
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00163:
+      __type__: TreeInstance
+      id: tree_00163
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 37.63777231225943
+      - 41.088719099931716
+      species: almond
+      age_years: 8.393585557783585
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00164:
+      __type__: TreeInstance
+      id: tree_00164
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 38.63651320022707
+      - 41.138885211018106
+      species: almond
+      age_years: 4.649072615741531
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00165:
+      __type__: TreeInstance
+      id: tree_00165
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 39.63525408819471
+      - 41.1890513221045
+      species: almond
+      age_years: 8.41021944471748
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00166:
+      __type__: TreeInstance
+      id: tree_00166
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 40.633994976162356
+      - 41.23921743319089
+      species: almond
+      age_years: 7.973846040014477
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00167:
+      __type__: TreeInstance
+      id: tree_00167
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 41.63273586413
+      - 41.28938354427728
+      species: almond
+      age_years: 8.959307211495936
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00168:
+      __type__: TreeInstance
+      id: tree_00168
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 28.606463187062683
+      - 42.13661788890174
+      species: almond
+      age_years: 6.784664564087577
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00169:
+      __type__: TreeInstance
+      id: tree_00169
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 29.60520407503033
+      - 42.18678399998814
+      species: almond
+      age_years: 3.8203445765440103
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00170:
+      __type__: TreeInstance
+      id: tree_00170
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 30.603944962997975
+      - 42.23695011107452
+      species: almond
+      age_years: 3.779166777456394
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00171:
+      __type__: TreeInstance
+      id: tree_00171
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 31.602685850965617
+      - 42.28711622216092
+      species: almond
+      age_years: 8.635331895159915
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00172:
+      __type__: TreeInstance
+      id: tree_00172
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 32.601426738933256
+      - 42.3372823332473
+      species: almond
+      age_years: 10.780501530645799
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00173:
+      __type__: TreeInstance
+      id: tree_00173
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 33.6001676269009
+      - 42.3874484443337
+      species: almond
+      age_years: 13.948499226709334
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00174:
+      __type__: TreeInstance
+      id: tree_00174
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 34.59890851486854
+      - 42.43761455542009
+      species: almond
+      age_years: 3.317849223804744
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00175:
+      __type__: TreeInstance
+      id: tree_00175
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 35.59764940283619
+      - 42.48778066650648
+      species: almond
+      age_years: 13.766637330935058
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00176:
+      __type__: TreeInstance
+      id: tree_00176
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 36.59639029080383
+      - 42.53794677759287
+      species: almond
+      age_years: 3.945310081411774
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00177:
+      __type__: TreeInstance
+      id: tree_00177
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 37.595131178771474
+      - 42.58811288867926
+      species: almond
+      age_years: 9.109946114728515
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00178:
+      __type__: TreeInstance
+      id: tree_00178
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 38.59387206673912
+      - 42.63827899976565
+      species: almond
+      age_years: 10.453319473143639
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00179:
+      __type__: TreeInstance
+      id: tree_00179
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 39.59261295470676
+      - 42.688445110852044
+      species: almond
+      age_years: 12.227167714632511
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00180:
+      __type__: TreeInstance
+      id: tree_00180
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 40.5913538426744
+      - 42.738611221938434
+      species: almond
+      age_years: 9.812883065011984
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00181:
+      __type__: TreeInstance
+      id: tree_00181
+      layer: tree
+      tags:
+        parcel_id: parcel_000
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 41.59009473064204
+      - 42.788777333024825
+      species: almond
+      age_years: 9.922433186100992
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00182:
+      __type__: TreeInstance
+      id: tree_00182
+      layer: tree
+      tags:
+        parcel_id: parcel_001
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 42.509443340242676
+      - 11.809873739618581
+      species: almond
+      age_years: 12.672463311867995
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00183:
+      __type__: TreeInstance
+      id: tree_00183
+      layer: tree
+      tags:
+        parcel_id: parcel_001
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 41.51070245227503
+      - 11.75970762853219
+      species: almond
+      age_years: 10.964137536457349
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00184:
+      __type__: TreeInstance
+      id: tree_00184
+      layer: tree
+      tags:
+        parcel_id: parcel_001
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 40.511961564307384
+      - 11.7095415174458
+      species: almond
+      age_years: 6.193816560222286
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00185:
+      __type__: TreeInstance
+      id: tree_00185
+      layer: tree
+      tags:
+        parcel_id: parcel_001
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 39.51322067633974
+      - 11.659375406359409
+      species: almond
+      age_years: 14.915379930936666
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00186:
+      __type__: TreeInstance
+      id: tree_00186
+      layer: tree
+      tags:
+        parcel_id: parcel_001
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 38.5144797883721
+      - 11.609209295273018
+      species: almond
+      age_years: 10.170525132197767
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00187:
+      __type__: TreeInstance
+      id: tree_00187
+      layer: tree
+      tags:
+        parcel_id: parcel_001
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 37.51573890040446
+      - 11.559043184186628
+      species: almond
+      age_years: 5.172656487058356
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00188:
+      __type__: TreeInstance
+      id: tree_00188
+      layer: tree
+      tags:
+        parcel_id: parcel_001
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 36.516998012436815
+      - 11.508877073100233
+      species: almond
+      age_years: 3.1927905828754573
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00189:
+      __type__: TreeInstance
+      id: tree_00189
+      layer: tree
+      tags:
+        parcel_id: parcel_001
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 35.51825712446917
+      - 11.458710962013843
+      species: almond
+      age_years: 5.038076112030101
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00190:
+      __type__: TreeInstance
+      id: tree_00190
+      layer: tree
+      tags:
+        parcel_id: parcel_001
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 34.519516236501524
+      - 11.408544850927452
+      species: almond
+      age_years: 12.177208585936544
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00191:
+      __type__: TreeInstance
+      id: tree_00191
+      layer: tree
+      tags:
+        parcel_id: parcel_001
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 33.52077534853388
+      - 11.358378739841061
+      species: almond
+      age_years: 9.688705932575424
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00192:
+      __type__: TreeInstance
+      id: tree_00192
+      layer: tree
+      tags:
+        parcel_id: parcel_001
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 32.52203446056624
+      - 11.30821262875467
+      species: almond
+      age_years: 10.955192988750378
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00193:
+      __type__: TreeInstance
+      id: tree_00193
+      layer: tree
+      tags:
+        parcel_id: parcel_001
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 31.523293572598597
+      - 11.25804651766828
+      species: almond
+      age_years: 3.4407753752664347
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00194:
+      __type__: TreeInstance
+      id: tree_00194
+      layer: tree
+      tags:
+        parcel_id: parcel_001
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 30.52455268463095
+      - 11.20788040658189
+      species: almond
+      age_years: 6.805623273018618
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00195:
+      __type__: TreeInstance
+      id: tree_00195
+      layer: tree
+      tags:
+        parcel_id: parcel_001
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 29.52581179666331
+      - 11.157714295495499
+      species: almond
+      age_years: 12.75158188255544
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00196:
+      __type__: TreeInstance
+      id: tree_00196
+      layer: tree
+      tags:
+        parcel_id: parcel_001
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 42.509443340242676
+      - 10.30987373961866
+      species: almond
+      age_years: 12.259468810031068
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00197:
+      __type__: TreeInstance
+      id: tree_00197
+      layer: tree
+      tags:
+        parcel_id: parcel_001
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 41.51070245227503
+      - 10.259707628532269
+      species: almond
+      age_years: 3.354222420244573
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00198:
+      __type__: TreeInstance
+      id: tree_00198
+      layer: tree
+      tags:
+        parcel_id: parcel_001
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 40.511961564307384
+      - 10.209541517445878
+      species: almond
+      age_years: 7.034062049999924
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00199:
+      __type__: TreeInstance
+      id: tree_00199
+      layer: tree
+      tags:
+        parcel_id: parcel_001
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 39.51322067633974
+      - 10.159375406359487
+      species: almond
+      age_years: 4.486977575644522
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00200:
+      __type__: TreeInstance
+      id: tree_00200
+      layer: tree
+      tags:
+        parcel_id: parcel_001
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 38.5144797883721
+      - 10.109209295273097
+      species: almond
+      age_years: 7.448187718068113
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00201:
+      __type__: TreeInstance
+      id: tree_00201
+      layer: tree
+      tags:
+        parcel_id: parcel_001
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 37.51573890040446
+      - 10.059043184186706
+      species: almond
+      age_years: 6.656880176197102
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00202:
+      __type__: TreeInstance
+      id: tree_00202
+      layer: tree
+      tags:
+        parcel_id: parcel_001
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 36.516998012436815
+      - 10.008877073100312
+      species: almond
+      age_years: 6.98102037367432
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00203:
+      __type__: TreeInstance
+      id: tree_00203
+      layer: tree
+      tags:
+        parcel_id: parcel_001
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 35.51825712446917
+      - 9.958710962013921
+      species: almond
+      age_years: 11.105334333662558
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00204:
+      __type__: TreeInstance
+      id: tree_00204
+      layer: tree
+      tags:
+        parcel_id: parcel_001
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 34.519516236501524
+      - 9.90854485092753
+      species: almond
+      age_years: 9.266351840195286
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00205:
+      __type__: TreeInstance
+      id: tree_00205
+      layer: tree
+      tags:
+        parcel_id: parcel_001
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 33.52077534853388
+      - 9.85837873984114
+      species: almond
+      age_years: 4.710664659002188
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00206:
+      __type__: TreeInstance
+      id: tree_00206
+      layer: tree
+      tags:
+        parcel_id: parcel_001
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 32.52203446056624
+      - 9.808212628754749
+      species: almond
+      age_years: 5.506725405028416
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00207:
+      __type__: TreeInstance
+      id: tree_00207
+      layer: tree
+      tags:
+        parcel_id: parcel_001
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 31.523293572598597
+      - 9.758046517668358
+      species: almond
+      age_years: 9.675650842628615
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00208:
+      __type__: TreeInstance
+      id: tree_00208
+      layer: tree
+      tags:
+        parcel_id: parcel_001
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 30.52455268463095
+      - 9.707880406581967
+      species: almond
+      age_years: 2.3007799608826396
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00209:
+      __type__: TreeInstance
+      id: tree_00209
+      layer: tree
+      tags:
+        parcel_id: parcel_001
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 42.509443340242676
+      - 8.809873739618741
+      species: almond
+      age_years: 6.126761505924498
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00210:
+      __type__: TreeInstance
+      id: tree_00210
+      layer: tree
+      tags:
+        parcel_id: parcel_001
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 41.51070245227503
+      - 8.75970762853235
+      species: almond
+      age_years: 10.199993300551627
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00211:
+      __type__: TreeInstance
+      id: tree_00211
+      layer: tree
+      tags:
+        parcel_id: parcel_001
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 40.511961564307384
+      - 8.70954151744596
+      species: almond
+      age_years: 10.088862592115584
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00212:
+      __type__: TreeInstance
+      id: tree_00212
+      layer: tree
+      tags:
+        parcel_id: parcel_001
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 39.51322067633974
+      - 8.659375406359569
+      species: almond
+      age_years: 14.446636540550841
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00213:
+      __type__: TreeInstance
+      id: tree_00213
+      layer: tree
+      tags:
+        parcel_id: parcel_001
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 38.5144797883721
+      - 8.609209295273178
+      species: almond
+      age_years: 3.1444566424068876
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00214:
+      __type__: TreeInstance
+      id: tree_00214
+      layer: tree
+      tags:
+        parcel_id: parcel_001
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 37.51573890040446
+      - 8.559043184186788
+      species: almond
+      age_years: 10.58511411331829
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00215:
+      __type__: TreeInstance
+      id: tree_00215
+      layer: tree
+      tags:
+        parcel_id: parcel_001
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 36.516998012436815
+      - 8.508877073100393
+      species: almond
+      age_years: 3.4886939057204125
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00216:
+      __type__: TreeInstance
+      id: tree_00216
+      layer: tree
+      tags:
+        parcel_id: parcel_001
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 35.51825712446917
+      - 8.458710962014003
+      species: almond
+      age_years: 8.641867229007445
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00217:
+      __type__: TreeInstance
+      id: tree_00217
+      layer: tree
+      tags:
+        parcel_id: parcel_001
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 34.519516236501524
+      - 8.408544850927612
+      species: almond
+      age_years: 2.8604696512851056
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00218:
+      __type__: TreeInstance
+      id: tree_00218
+      layer: tree
+      tags:
+        parcel_id: parcel_001
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 33.52077534853388
+      - 8.358378739841221
+      species: almond
+      age_years: 5.097767573928229
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00219:
+      __type__: TreeInstance
+      id: tree_00219
+      layer: tree
+      tags:
+        parcel_id: parcel_001
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 32.52203446056624
+      - 8.30821262875483
+      species: almond
+      age_years: 2.399950278227946
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00220:
+      __type__: TreeInstance
+      id: tree_00220
+      layer: tree
+      tags:
+        parcel_id: parcel_001
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 31.523293572598597
+      - 8.25804651766844
+      species: almond
+      age_years: 2.473104054152987
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00221:
+      __type__: TreeInstance
+      id: tree_00221
+      layer: tree
+      tags:
+        parcel_id: parcel_001
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 30.52455268463095
+      - 8.20788040658205
+      species: almond
+      age_years: 8.15001252179594
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00222:
+      __type__: TreeInstance
+      id: tree_00222
+      layer: tree
+      tags:
+        parcel_id: parcel_001
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 42.509443340242676
+      - 7.309873739618821
+      species: almond
+      age_years: 6.214189924629181
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00223:
+      __type__: TreeInstance
+      id: tree_00223
+      layer: tree
+      tags:
+        parcel_id: parcel_001
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 41.51070245227503
+      - 7.25970762853243
+      species: almond
+      age_years: 4.013589037996486
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00224:
+      __type__: TreeInstance
+      id: tree_00224
+      layer: tree
+      tags:
+        parcel_id: parcel_001
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 40.511961564307384
+      - 7.2095415174460395
+      species: almond
+      age_years: 6.713692091297998
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00225:
+      __type__: TreeInstance
+      id: tree_00225
+      layer: tree
+      tags:
+        parcel_id: parcel_001
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 39.51322067633974
+      - 7.159375406359649
+      species: almond
+      age_years: 7.687648947849846
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00226:
+      __type__: TreeInstance
+      id: tree_00226
+      layer: tree
+      tags:
+        parcel_id: parcel_001
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 38.5144797883721
+      - 7.109209295273258
+      species: almond
+      age_years: 6.441414507375404
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00227:
+      __type__: TreeInstance
+      id: tree_00227
+      layer: tree
+      tags:
+        parcel_id: parcel_001
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 37.51573890040446
+      - 7.0590431841868675
+      species: almond
+      age_years: 13.266652590517612
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00228:
+      __type__: TreeInstance
+      id: tree_00228
+      layer: tree
+      tags:
+        parcel_id: parcel_001
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 36.516998012436815
+      - 7.008877073100473
+      species: almond
+      age_years: 6.034875942506503
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00229:
+      __type__: TreeInstance
+      id: tree_00229
+      layer: tree
+      tags:
+        parcel_id: parcel_001
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 35.51825712446917
+      - 6.958710962014083
+      species: almond
+      age_years: 9.502668464505994
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00230:
+      __type__: TreeInstance
+      id: tree_00230
+      layer: tree
+      tags:
+        parcel_id: parcel_001
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 34.519516236501524
+      - 6.908544850927692
+      species: almond
+      age_years: 14.51036128747108
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00231:
+      __type__: TreeInstance
+      id: tree_00231
+      layer: tree
+      tags:
+        parcel_id: parcel_001
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 33.52077534853388
+      - 6.858378739841301
+      species: almond
+      age_years: 13.852823999628576
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00232:
+      __type__: TreeInstance
+      id: tree_00232
+      layer: tree
+      tags:
+        parcel_id: parcel_001
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 32.52203446056624
+      - 6.8082126287549105
+      species: almond
+      age_years: 11.367310817048738
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00233:
+      __type__: TreeInstance
+      id: tree_00233
+      layer: tree
+      tags:
+        parcel_id: parcel_001
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 31.523293572598597
+      - 6.75804651766852
+      species: almond
+      age_years: 2.8812271227102824
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00234:
+      __type__: TreeInstance
+      id: tree_00234
+      layer: tree
+      tags:
+        parcel_id: parcel_001
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 30.52455268463095
+      - 6.707880406582129
+      species: almond
+      age_years: 9.29744483253604
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00235:
+      __type__: TreeInstance
+      id: tree_00235
+      layer: tree
+      tags:
+        parcel_id: parcel_002
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 6.4256927535867945
+      - 13.550936903387633
+      species: almond
+      age_years: 8.942679088917941
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00236:
+      __type__: TreeInstance
+      id: tree_00236
+      layer: tree
+      tags:
+        parcel_id: parcel_002
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 6.4256927535867945
+      - 12.55093690338768
+      species: almond
+      age_years: 12.179061251702757
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00237:
+      __type__: TreeInstance
+      id: tree_00237
+      layer: tree
+      tags:
+        parcel_id: parcel_002
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 6.4256927535867945
+      - 11.550936903387722
+      species: almond
+      age_years: 3.070130240539593
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00238:
+      __type__: TreeInstance
+      id: tree_00238
+      layer: tree
+      tags:
+        parcel_id: parcel_002
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 6.4256927535867945
+      - 10.550936903387768
+      species: almond
+      age_years: 4.079576310382862
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00239:
+      __type__: TreeInstance
+      id: tree_00239
+      layer: tree
+      tags:
+        parcel_id: parcel_002
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 6.4256927535867945
+      - 9.550936903387814
+      species: almond
+      age_years: 8.73007370277831
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00240:
+      __type__: TreeInstance
+      id: tree_00240
+      layer: tree
+      tags:
+        parcel_id: parcel_002
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 6.4256927535867945
+      - 8.55093690338786
+      species: almond
+      age_years: 8.018772481151435
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00241:
+      __type__: TreeInstance
+      id: tree_00241
+      layer: tree
+      tags:
+        parcel_id: parcel_002
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 6.4256927535867945
+      - 7.550936903387904
+      species: almond
+      age_years: 10.93609722368631
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00242:
+      __type__: TreeInstance
+      id: tree_00242
+      layer: tree
+      tags:
+        parcel_id: parcel_002
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 7.908544927491439
+      - 13.324774505217501
+      species: almond
+      age_years: 6.609106916643753
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00243:
+      __type__: TreeInstance
+      id: tree_00243
+      layer: tree
+      tags:
+        parcel_id: parcel_002
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 7.908544927491439
+      - 12.324774505217547
+      species: almond
+      age_years: 2.469595235775013
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00244:
+      __type__: TreeInstance
+      id: tree_00244
+      layer: tree
+      tags:
+        parcel_id: parcel_002
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 7.908544927491439
+      - 11.324774505217594
+      species: almond
+      age_years: 13.497260129657242
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00245:
+      __type__: TreeInstance
+      id: tree_00245
+      layer: tree
+      tags:
+        parcel_id: parcel_002
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 7.908544927491439
+      - 10.32477450521764
+      species: almond
+      age_years: 13.871199027566922
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00246:
+      __type__: TreeInstance
+      id: tree_00246
+      layer: tree
+      tags:
+        parcel_id: parcel_002
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 7.908544927491439
+      - 9.324774505217682
+      species: almond
+      age_years: 3.86705044652416
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00247:
+      __type__: TreeInstance
+      id: tree_00247
+      layer: tree
+      tags:
+        parcel_id: parcel_002
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 7.908544927491439
+      - 8.324774505217729
+      species: almond
+      age_years: 10.34527062050284
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00248:
+      __type__: TreeInstance
+      id: tree_00248
+      layer: tree
+      tags:
+        parcel_id: parcel_002
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 9.391397101396084
+      - 13.098612107047373
+      species: almond
+      age_years: 2.7389264640206794
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00249:
+      __type__: TreeInstance
+      id: tree_00249
+      layer: tree
+      tags:
+        parcel_id: parcel_002
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 9.391397101396084
+      - 12.098612107047419
+      species: almond
+      age_years: 11.265142427189165
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00250:
+      __type__: TreeInstance
+      id: tree_00250
+      layer: tree
+      tags:
+        parcel_id: parcel_002
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 9.391397101396084
+      - 11.098612107047462
+      species: almond
+      age_years: 3.0070586369328853
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00251:
+      __type__: TreeInstance
+      id: tree_00251
+      layer: tree
+      tags:
+        parcel_id: parcel_002
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 9.391397101396084
+      - 10.098612107047508
+      species: almond
+      age_years: 7.132289556327588
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00252:
+      __type__: TreeInstance
+      id: tree_00252
+      layer: tree
+      tags:
+        parcel_id: parcel_002
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 9.391397101396084
+      - 9.098612107047554
+      species: almond
+      age_years: 4.422348379240306
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00253:
+      __type__: TreeInstance
+      id: tree_00253
+      layer: tree
+      tags:
+        parcel_id: parcel_002
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 9.391397101396084
+      - 8.0986121070476
+      species: almond
+      age_years: 13.7079288027813
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00254:
+      __type__: TreeInstance
+      id: tree_00254
+      layer: tree
+      tags:
+        parcel_id: parcel_002
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 10.874249275300729
+      - 12.872449708877241
+      species: almond
+      age_years: 6.486187670804873
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00255:
+      __type__: TreeInstance
+      id: tree_00255
+      layer: tree
+      tags:
+        parcel_id: parcel_002
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 10.874249275300729
+      - 11.872449708877287
+      species: almond
+      age_years: 7.921972730652332
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00256:
+      __type__: TreeInstance
+      id: tree_00256
+      layer: tree
+      tags:
+        parcel_id: parcel_002
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 10.874249275300729
+      - 10.872449708877333
+      species: almond
+      age_years: 14.714094238492898
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00257:
+      __type__: TreeInstance
+      id: tree_00257
+      layer: tree
+      tags:
+        parcel_id: parcel_002
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 10.874249275300729
+      - 9.87244970887738
+      species: almond
+      age_years: 8.992263547200597
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00258:
+      __type__: TreeInstance
+      id: tree_00258
+      layer: tree
+      tags:
+        parcel_id: parcel_002
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 10.874249275300729
+      - 8.872449708877422
+      species: almond
+      age_years: 12.129057886025137
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00259:
+      __type__: TreeInstance
+      id: tree_00259
+      layer: tree
+      tags:
+        parcel_id: parcel_002
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 10.874249275300729
+      - 7.872449708877469
+      species: almond
+      age_years: 6.866783076048379
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00260:
+      __type__: TreeInstance
+      id: tree_00260
+      layer: tree
+      tags:
+        parcel_id: parcel_002
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 12.357101449205373
+      - 12.646287310707113
+      species: almond
+      age_years: 6.499443966253212
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00261:
+      __type__: TreeInstance
+      id: tree_00261
+      layer: tree
+      tags:
+        parcel_id: parcel_002
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 12.357101449205373
+      - 11.646287310707159
+      species: almond
+      age_years: 3.946615797515285
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00262:
+      __type__: TreeInstance
+      id: tree_00262
+      layer: tree
+      tags:
+        parcel_id: parcel_002
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 12.357101449205373
+      - 10.646287310707203
+      species: almond
+      age_years: 9.662073505421189
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00263:
+      __type__: TreeInstance
+      id: tree_00263
+      layer: tree
+      tags:
+        parcel_id: parcel_002
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 12.357101449205373
+      - 9.64628731070725
+      species: almond
+      age_years: 6.488648796017509
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00264:
+      __type__: TreeInstance
+      id: tree_00264
+      layer: tree
+      tags:
+        parcel_id: parcel_002
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 12.357101449205373
+      - 8.646287310707294
+      species: almond
+      age_years: 14.17928959308635
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00265:
+      __type__: TreeInstance
+      id: tree_00265
+      layer: tree
+      tags:
+        parcel_id: parcel_002
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 12.357101449205373
+      - 7.646287310707339
+      species: almond
+      age_years: 10.400250250270279
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00266:
+      __type__: TreeInstance
+      id: tree_00266
+      layer: tree
+      tags:
+        parcel_id: parcel_002
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 13.839953623110018
+      - 12.42012491253698
+      species: almond
+      age_years: 4.396193286474365
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00267:
+      __type__: TreeInstance
+      id: tree_00267
+      layer: tree
+      tags:
+        parcel_id: parcel_002
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 13.839953623110018
+      - 11.420124912537027
+      species: almond
+      age_years: 11.654492891552948
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00268:
+      __type__: TreeInstance
+      id: tree_00268
+      layer: tree
+      tags:
+        parcel_id: parcel_002
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 13.839953623110018
+      - 10.420124912537073
+      species: almond
+      age_years: 11.78603049927076
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00269:
+      __type__: TreeInstance
+      id: tree_00269
+      layer: tree
+      tags:
+        parcel_id: parcel_002
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 13.839953623110018
+      - 9.42012491253712
+      species: almond
+      age_years: 10.53958670877025
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00270:
+      __type__: TreeInstance
+      id: tree_00270
+      layer: tree
+      tags:
+        parcel_id: parcel_002
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 13.839953623110018
+      - 8.420124912537162
+      species: almond
+      age_years: 13.170285539107628
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00271:
+      __type__: TreeInstance
+      id: tree_00271
+      layer: tree
+      tags:
+        parcel_id: parcel_002
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 15.322805797014663
+      - 12.193962514366852
+      species: almond
+      age_years: 14.08426459327553
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00272:
+      __type__: TreeInstance
+      id: tree_00272
+      layer: tree
+      tags:
+        parcel_id: parcel_002
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 15.322805797014663
+      - 11.193962514366898
+      species: almond
+      age_years: 12.970850180374994
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00273:
+      __type__: TreeInstance
+      id: tree_00273
+      layer: tree
+      tags:
+        parcel_id: parcel_002
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 15.322805797014663
+      - 10.193962514366943
+      species: almond
+      age_years: 12.545139389350945
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00274:
+      __type__: TreeInstance
+      id: tree_00274
+      layer: tree
+      tags:
+        parcel_id: parcel_002
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 15.322805797014663
+      - 9.193962514366989
+      species: almond
+      age_years: 3.0787467108473674
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00275:
+      __type__: TreeInstance
+      id: tree_00275
+      layer: tree
+      tags:
+        parcel_id: parcel_002
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 15.322805797014663
+      - 8.193962514367033
+      species: almond
+      age_years: 8.858704606002927
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00276:
+      __type__: TreeInstance
+      id: tree_00276
+      layer: tree
+      tags:
         parcel_id: parcel_003
       refs: []
       source: procedural
       confidence: null
       position:
-      - 3.3078746483197476
-      - 13.512220626790112
+      - 15.132523486392266
+      - 27.187435221970144
+      species: almond
+      age_years: 10.299474908694021
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00277:
+      __type__: TreeInstance
+      id: tree_00277
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 15.104096064066965
+      - 28.187031081135174
+      species: almond
+      age_years: 6.552805502633838
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00278:
+      __type__: TreeInstance
+      id: tree_00278
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 15.075668641741661
+      - 29.186626940300204
+      species: almond
+      age_years: 11.551643944214335
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00279:
+      __type__: TreeInstance
+      id: tree_00279
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 15.047241219416357
+      - 30.186222799465234
+      species: almond
+      age_years: 6.301887918119445
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00280:
+      __type__: TreeInstance
+      id: tree_00280
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 15.018813797091056
+      - 31.185818658630264
+      species: almond
+      age_years: 8.294734096159525
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00281:
+      __type__: TreeInstance
+      id: tree_00281
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 14.990386374765752
+      - 32.185414517795294
+      species: almond
+      age_years: 14.438733441736796
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00282:
+      __type__: TreeInstance
+      id: tree_00282
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 14.961958952440447
+      - 33.18501037696033
+      species: almond
+      age_years: 9.58859081965791
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00283:
+      __type__: TreeInstance
+      id: tree_00283
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 14.933531530115143
+      - 34.184606236125354
+      species: almond
+      age_years: 7.025251712716203
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00284:
+      __type__: TreeInstance
+      id: tree_00284
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 14.905104107789843
+      - 35.18420209529039
+      species: almond
+      age_years: 2.6757377285154025
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00285:
+      __type__: TreeInstance
+      id: tree_00285
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 14.876676685464538
+      - 36.18379795445542
+      species: almond
+      age_years: 9.636745190788528
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00286:
+      __type__: TreeInstance
+      id: tree_00286
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 14.848249263139234
+      - 37.18339381362045
+      species: almond
+      age_years: 3.976085927175153
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00287:
+      __type__: TreeInstance
+      id: tree_00287
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 14.81982184081393
+      - 38.182989672785475
       species: almond
       age_years: 3.17227172523804
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00288:
+      __type__: TreeInstance
+      id: tree_00288
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 14.791394418488629
+      - 39.18258553195051
+      species: almond
+      age_years: 5.6599140721410635
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00289:
+      __type__: TreeInstance
+      id: tree_00289
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 14.762966996163325
+      - 40.18218139111554
+      species: almond
+      age_years: 13.938591682172646
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00290:
+      __type__: TreeInstance
+      id: tree_00290
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 14.73453957383802
+      - 41.18177725028057
+      species: almond
+      age_years: 5.096780297678533
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00291:
+      __type__: TreeInstance
+      id: tree_00291
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 14.70611215151272
+      - 42.181373109445595
+      species: almond
+      age_years: 10.33943294325926
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00292:
+      __type__: TreeInstance
+      id: tree_00292
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 13.649671312487621
+      - 27.413597620140273
+      species: almond
+      age_years: 5.7728143041899145
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00293:
+      __type__: TreeInstance
+      id: tree_00293
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 13.62124389016232
+      - 28.413193479305303
+      species: almond
+      age_years: 2.604977798465295
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00294:
+      __type__: TreeInstance
+      id: tree_00294
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 13.592816467837016
+      - 29.412789338470333
+      species: almond
+      age_years: 9.979787515092797
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00295:
+      __type__: TreeInstance
+      id: tree_00295
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 13.564389045511712
+      - 30.412385197635363
+      species: almond
+      age_years: 3.7821557721610466
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00296:
+      __type__: TreeInstance
+      id: tree_00296
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 13.535961623186411
+      - 31.411981056800393
+      species: almond
+      age_years: 3.725175356703787
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00297:
+      __type__: TreeInstance
+      id: tree_00297
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 13.507534200861107
+      - 32.411576915965426
+      species: almond
+      age_years: 4.017185628360885
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00298:
+      __type__: TreeInstance
+      id: tree_00298
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 13.479106778535803
+      - 33.41117277513046
+      species: almond
+      age_years: 12.648926778256007
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00299:
+      __type__: TreeInstance
+      id: tree_00299
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 13.450679356210498
+      - 34.410768634295486
+      species: almond
+      age_years: 9.07281279844969
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00300:
+      __type__: TreeInstance
+      id: tree_00300
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 13.422251933885198
+      - 35.41036449346052
+      species: almond
+      age_years: 10.833353459449002
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00301:
+      __type__: TreeInstance
+      id: tree_00301
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 13.393824511559894
+      - 36.40996035262555
+      species: almond
+      age_years: 13.31560301647067
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00302:
+      __type__: TreeInstance
+      id: tree_00302
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 13.36539708923459
+      - 37.40955621179058
+      species: almond
+      age_years: 8.491066089296801
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00303:
+      __type__: TreeInstance
+      id: tree_00303
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 13.336969666909285
+      - 38.40915207095561
+      species: almond
+      age_years: 9.271280539152277
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00304:
+      __type__: TreeInstance
+      id: tree_00304
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 13.308542244583984
+      - 39.40874793012064
+      species: almond
+      age_years: 7.565171389892016
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00305:
+      __type__: TreeInstance
+      id: tree_00305
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 13.28011482225868
+      - 40.408343789285674
+      species: almond
+      age_years: 7.283009878196407
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00306:
+      __type__: TreeInstance
+      id: tree_00306
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 13.251687399933376
+      - 41.4079396484507
+      species: almond
+      age_years: 11.60023254261925
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00307:
+      __type__: TreeInstance
+      id: tree_00307
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 13.223259977608075
+      - 42.40753550761573
+      species: almond
+      age_years: 3.3050450557232827
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00308:
+      __type__: TreeInstance
+      id: tree_00308
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 12.166819138582976
+      - 27.639760018310405
+      species: almond
+      age_years: 9.892749270399994
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00309:
+      __type__: TreeInstance
+      id: tree_00309
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 12.138391716257676
+      - 28.639355877475435
+      species: almond
+      age_years: 13.53578177021433
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00310:
+      __type__: TreeInstance
+      id: tree_00310
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 12.109964293932372
+      - 29.638951736640465
+      species: almond
+      age_years: 7.318578089488252
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00311:
+      __type__: TreeInstance
+      id: tree_00311
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 12.081536871607067
+      - 30.638547595805495
+      species: almond
+      age_years: 14.337985527763735
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00312:
+      __type__: TreeInstance
+      id: tree_00312
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 12.053109449281767
+      - 31.638143454970525
+      species: almond
+      age_years: 3.9072772053786533
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00313:
+      __type__: TreeInstance
+      id: tree_00313
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 12.024682026956462
+      - 32.63773931413555
+      species: almond
+      age_years: 7.085282631319554
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00314:
+      __type__: TreeInstance
+      id: tree_00314
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 11.996254604631158
+      - 33.637335173300585
+      species: almond
+      age_years: 10.015703780373089
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00315:
+      __type__: TreeInstance
+      id: tree_00315
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 11.967827182305854
+      - 34.63693103246561
+      species: almond
+      age_years: 5.4166537444401275
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00316:
+      __type__: TreeInstance
+      id: tree_00316
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 11.939399759980553
+      - 35.636526891630645
+      species: almond
+      age_years: 6.257749975461124
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00317:
+      __type__: TreeInstance
+      id: tree_00317
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 11.910972337655249
+      - 36.63612275079568
+      species: almond
+      age_years: 7.63963429903885
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00318:
+      __type__: TreeInstance
+      id: tree_00318
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 11.882544915329945
+      - 37.635718609960705
+      species: almond
+      age_years: 13.843467866566154
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00319:
+      __type__: TreeInstance
+      id: tree_00319
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 11.85411749300464
+      - 38.63531446912573
+      species: almond
+      age_years: 10.97616523234714
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00320:
+      __type__: TreeInstance
+      id: tree_00320
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 11.82569007067934
+      - 39.634910328290765
+      species: almond
+      age_years: 8.062407384860213
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00321:
+      __type__: TreeInstance
+      id: tree_00321
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 11.797262648354035
+      - 40.6345061874558
+      species: almond
+      age_years: 13.0399734015211
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00322:
+      __type__: TreeInstance
+      id: tree_00322
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 11.768835226028731
+      - 41.634102046620825
+      species: almond
+      age_years: 3.4817600714368577
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00323:
+      __type__: TreeInstance
+      id: tree_00323
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 10.683966964678332
+      - 27.865922416480533
+      species: almond
+      age_years: 5.55899168974949
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00324:
+      __type__: TreeInstance
+      id: tree_00324
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 10.655539542353031
+      - 28.865518275645563
+      species: almond
+      age_years: 5.232642314962597
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00325:
+      __type__: TreeInstance
+      id: tree_00325
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 10.627112120027727
+      - 29.865114134810593
+      species: almond
+      age_years: 5.656670053798859
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00326:
+      __type__: TreeInstance
+      id: tree_00326
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 10.598684697702422
+      - 30.864709993975623
+      species: almond
+      age_years: 13.242607784821613
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00327:
+      __type__: TreeInstance
+      id: tree_00327
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 10.570257275377122
+      - 31.864305853140653
+      species: almond
+      age_years: 13.231841206318359
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00328:
+      __type__: TreeInstance
+      id: tree_00328
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 10.541829853051818
+      - 32.86390171230568
+      species: almond
+      age_years: 9.989695617642155
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00329:
+      __type__: TreeInstance
+      id: tree_00329
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 10.513402430726513
+      - 33.86349757147072
+      species: almond
+      age_years: 14.038229423666463
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00330:
+      __type__: TreeInstance
+      id: tree_00330
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 10.484975008401209
+      - 34.86309343063574
+      species: almond
+      age_years: 12.66051090723661
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00331:
+      __type__: TreeInstance
+      id: tree_00331
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 10.456547586075908
+      - 35.86268928980078
+      species: almond
+      age_years: 6.522854291987408
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00332:
+      __type__: TreeInstance
+      id: tree_00332
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 10.428120163750604
+      - 36.86228514896581
+      species: almond
+      age_years: 13.6558121055457
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00333:
+      __type__: TreeInstance
+      id: tree_00333
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 10.3996927414253
+      - 37.86188100813084
+      species: almond
+      age_years: 7.116266471948072
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00334:
+      __type__: TreeInstance
+      id: tree_00334
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 10.371265319099995
+      - 38.86147686729586
+      species: almond
+      age_years: 7.58384134896179
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00335:
+      __type__: TreeInstance
+      id: tree_00335
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 10.342837896774695
+      - 39.8610727264609
+      species: almond
+      age_years: 8.647620869378539
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00336:
+      __type__: TreeInstance
+      id: tree_00336
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 10.31441047444939
+      - 40.86066858562593
+      species: almond
+      age_years: 12.255679481612153
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00337:
+      __type__: TreeInstance
+      id: tree_00337
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 10.285983052124086
+      - 41.86026444479096
+      species: almond
+      age_years: 5.90773719795642
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00338:
+      __type__: TreeInstance
+      id: tree_00338
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 9.201114790773687
+      - 28.092084814650665
+      species: almond
+      age_years: 14.696036583953548
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00339:
+      __type__: TreeInstance
+      id: tree_00339
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 9.172687368448386
+      - 29.091680673815695
+      species: almond
+      age_years: 11.409070232513487
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00340:
+      __type__: TreeInstance
+      id: tree_00340
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 9.144259946123082
+      - 30.091276532980725
+      species: almond
+      age_years: 6.922793922020468
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00341:
+      __type__: TreeInstance
+      id: tree_00341
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 9.115832523797778
+      - 31.090872392145755
+      species: almond
+      age_years: 14.416705953211137
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00342:
+      __type__: TreeInstance
+      id: tree_00342
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 9.087405101472477
+      - 32.09046825131078
+      species: almond
+      age_years: 7.265644774836874
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00343:
+      __type__: TreeInstance
+      id: tree_00343
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 9.058977679147173
+      - 33.090064110475815
+      species: almond
+      age_years: 14.634652182619579
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00344:
+      __type__: TreeInstance
+      id: tree_00344
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 9.030550256821869
+      - 34.08965996964085
+      species: almond
+      age_years: 9.86201680524211
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00345:
+      __type__: TreeInstance
+      id: tree_00345
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 9.002122834496564
+      - 35.089255828805875
+      species: almond
+      age_years: 7.604552260317985
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00346:
+      __type__: TreeInstance
+      id: tree_00346
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 8.973695412171264
+      - 36.08885168797091
+      species: almond
+      age_years: 6.764891356329637
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00347:
+      __type__: TreeInstance
+      id: tree_00347
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 8.94526798984596
+      - 37.08844754713594
+      species: almond
+      age_years: 14.630170237161567
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00348:
+      __type__: TreeInstance
+      id: tree_00348
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 8.916840567520655
+      - 38.08804340630097
+      species: almond
+      age_years: 8.579159564560182
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00349:
+      __type__: TreeInstance
+      id: tree_00349
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 8.88841314519535
+      - 39.087639265465995
+      species: almond
+      age_years: 8.251914145843145
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00350:
+      __type__: TreeInstance
+      id: tree_00350
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 8.85998572287005
+      - 40.08723512463103
+      species: almond
+      age_years: 2.135757559722306
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00351:
+      __type__: TreeInstance
+      id: tree_00351
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 8.831558300544746
+      - 41.08683098379606
+      species: almond
+      age_years: 12.783828873882621
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00352:
+      __type__: TreeInstance
+      id: tree_00352
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 8.803130878219442
+      - 42.08642684296109
+      species: almond
+      age_years: 10.313700694292017
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00353:
+      __type__: TreeInstance
+      id: tree_00353
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 7.718262616869042
+      - 28.318247212820793
+      species: almond
+      age_years: 14.562001983873676
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00354:
+      __type__: TreeInstance
+      id: tree_00354
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 7.6898351945437415
+      - 29.317843071985823
+      species: almond
+      age_years: 4.296180666445681
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00355:
+      __type__: TreeInstance
+      id: tree_00355
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 7.661407772218437
+      - 30.317438931150853
+      species: almond
+      age_years: 4.549968207863401
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00356:
+      __type__: TreeInstance
+      id: tree_00356
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 7.632980349893133
+      - 31.317034790315883
+      species: almond
+      age_years: 2.1294313209961073
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00357:
+      __type__: TreeInstance
+      id: tree_00357
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 7.604552927567832
+      - 32.31663064948091
+      species: almond
+      age_years: 9.659608826515381
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00358:
+      __type__: TreeInstance
+      id: tree_00358
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 7.576125505242528
+      - 33.31622650864595
+      species: almond
+      age_years: 11.586158205042203
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00359:
+      __type__: TreeInstance
+      id: tree_00359
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 7.547698082917224
+      - 34.31582236781098
+      species: almond
+      age_years: 5.312625865891016
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00360:
+      __type__: TreeInstance
+      id: tree_00360
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 7.5192706605919195
+      - 35.31541822697601
+      species: almond
+      age_years: 8.384018602569888
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00361:
+      __type__: TreeInstance
+      id: tree_00361
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 7.490843238266619
+      - 36.31501408614104
+      species: almond
+      age_years: 5.4415968435088065
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00362:
+      __type__: TreeInstance
+      id: tree_00362
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 7.4624158159413145
+      - 37.314609945306074
+      species: almond
+      age_years: 13.44073541182711
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00363:
+      __type__: TreeInstance
+      id: tree_00363
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 7.43398839361601
+      - 38.3142058044711
+      species: almond
+      age_years: 7.666981688263292
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00364:
+      __type__: TreeInstance
+      id: tree_00364
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 7.405560971290706
+      - 39.31380166363613
+      species: almond
+      age_years: 8.781862014992406
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00365:
+      __type__: TreeInstance
+      id: tree_00365
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 7.377133548965405
+      - 40.31339752280116
+      species: almond
+      age_years: 6.975883813219675
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00366:
+      __type__: TreeInstance
+      id: tree_00366
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 7.348706126640101
+      - 41.312993381966194
+      species: almond
+      age_years: 14.22872476027061
+      canopy_radius: 1.5
+      trunk_dbh: 0.15
+      height: 4.0
+    tree_00367:
+      __type__: TreeInstance
+      id: tree_00367
+      layer: tree
+      tags:
+        parcel_id: parcel_003
+      refs: []
+      source: procedural
+      confidence: null
+      position:
+      - 7.320278704314797
+      - 42.31258924113122
+      species: almond
+      age_years: 8.923546088862286
       canopy_radius: 1.5
       trunk_dbh: 0.15
       height: 4.0
@@ -2422,14 +7948,14 @@ scene:
       source: procedural
       confidence: null
       polygon:
-      - - 6.682105741821316
-        - 16.0
-      - - 16.0
-        - 16.0
-      - - 16.0
-        - 5.979558263285173
-      - - 6.979961079768094
-        - 5.526487521987371
+      - - 20.881580443191613
+        - 50.0
+      - - 50.0
+        - 50.0
+      - - 50.0
+        - 18.686119572766167
+      - - 21.81237837427529
+        - 17.270273506210536
       density_params:
         cover_frac: 0.15
     weed_0001:
@@ -2442,14 +7968,14 @@ scene:
       source: procedural
       confidence: null
       polygon:
-      - - 16.0
-        - 5.979558263285173
-      - - 16.0
+      - - 50.0
+        - 18.686119572766167
+      - - 50.0
         - 0.0
-      - - 7.137128392260048
+      - - 22.303526225812647
         - 0.0
-      - - 6.979961079768094
-        - 5.526487521987371
+      - - 21.81237837427529
+        - 17.270273506210536
       density_params:
         cover_frac: 0.15
     weed_0002:
@@ -2462,14 +7988,14 @@ scene:
       source: procedural
       confidence: null
       polygon:
-      - - 7.137128392260048
+      - - 22.303526225812647
         - 0.0
       - - 0.0
         - 0.0
       - - 0.0
-        - 7.049911667879847
-      - - 6.9668550103740285
-        - 5.987337350238459
+        - 22.030973962124524
+      - - 21.771421907418837
+        - 18.710429219495186
       density_params:
         cover_frac: 0.15
     weed_0003:
@@ -2483,13 +8009,13 @@ scene:
       confidence: null
       polygon:
       - - 0.0
-        - 7.049911667879847
+        - 22.030973962124524
       - - 0.0
-        - 16.0
-      - - 6.682105741821316
-        - 16.0
-      - - 6.9668550103740285
-        - 5.987337350238459
+        - 50.0
+      - - 20.881580443191613
+        - 50.0
+      - - 21.771421907418837
+        - 18.710429219495186
       density_params:
         cover_frac: 0.15
   material_patches: {}
@@ -2499,8 +8025,8 @@ scene:
     generator_version: farm-gen-0.1.0
     global_seed: 5
     generator_params:
-      tessellation_raw_area: '256.0'
+      tessellation_raw_area: '2500.0'
       tessellation_raw_face_count: '4'
       max_faces: '4'
-      standoff: '1.0'
-      connect_radius: '2.5'
+      standoff: '3.5'
+      connect_radius: '8.75'
