@@ -1,5 +1,7 @@
 import math
+from collections import Counter
 
+import pytest
 from shapely.geometry import LineString, Point
 
 from export.usd import (
@@ -9,6 +11,7 @@ from export.usd import (
     build_hydrology_pslg,
     build_road_surface_patches,
     build_undulated_hydrology_edges,
+    build_water_surface_meshes,
     write_ground_mesh_usda,
 )
 from generation.orchestrator import FarmGenerationConfig, generate_farm
@@ -250,3 +253,63 @@ def test_seed_3_crossing_has_both_channel_slope_intersections():
             math.dist(c[:2], a[:2]),
         )
         assert area / longest**2 >= 1e-5
+
+
+def test_water_surfaces_are_closed_separate_meshes_and_exported(tmp_path):
+    bounds = (0.0, 0.0, 50.0, 50.0)
+    scene = generate_farm(FarmGenerationConfig(
+        bounds=bounds,
+        seed=1,
+        max_faces=4,
+        standoff=3.5,
+        headland_width=7.5,
+        sideland_width=6.5,
+        hydrology_add_water=True,
+        hydrology_water_depth_fraction=0.5,
+    ))
+    config = ChannelUndulationConfig()
+    water = build_water_surface_meshes(scene, bounds, undulation=config)
+    mesh = build_ground_mesh(scene, bounds, undulation=config)
+
+    assert water
+    assert len(mesh.water_surfaces) == len(water)
+    assert all(surface.triangles and surface.boundary_edges for surface in water)
+    assert all(
+        abs(point[2] + 0.4) < 1e-12
+        for surface in water for point in surface.points
+    )
+    for surface in water:
+        edge_counts = Counter(
+            tuple(sorted((triangle[i], triangle[(i + 1) % 3])))
+            for triangle in surface.triangles for i in range(3)
+        )
+        triangle_edges = set(edge_counts)
+        assert {tuple(sorted(edge)) for edge in surface.boundary_edges} <= triangle_edges
+        assert {edge for edge, count in edge_counts.items() if count == 1} == {
+            tuple(sorted(edge)) for edge in surface.boundary_edges
+        }
+        assert all(count in (1, 2) for count in edge_counts.values())
+
+    # The waterline is also a ground PSLG contour at half channel depth.
+    assert any(
+        abs(mesh.points[a][2] + 0.4) < 1e-6
+        and abs(mesh.points[b][2] + 0.4) < 1e-6
+        for a, b in mesh.breakline_edges
+    )
+
+    output = tmp_path / "water.usda"
+    write_ground_mesh_usda(mesh, str(output))
+    text = output.read_text()
+    assert 'def Material "WaterMaterial"' in text
+    assert 'float inputs:ior = 1.333' in text
+    assert 'float inputs:opacity = 0.32' in text
+    assert text.count('def Mesh "WaterSurface_') == len(water)
+
+
+def test_water_depth_fraction_is_validated():
+    with pytest.raises(ValueError, match="hydrology_water_depth_fraction"):
+        FarmGenerationConfig(
+            bounds=(0.0, 0.0, 10.0, 10.0),
+            seed=1,
+            hydrology_water_depth_fraction=1.1,
+        )

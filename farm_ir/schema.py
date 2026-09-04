@@ -167,6 +167,8 @@ class HydrologyEdge(NetworkEdge):
 class HydrologyNetwork:
     nodes: dict[str, HydrologyNode] = field(default_factory=dict)
     edges: dict[str, HydrologyEdge] = field(default_factory=dict)
+    water_enabled: bool = False
+    water_depth_fraction: float = 0.5
 
 
 # --- Roads -------------------------------------------------------------

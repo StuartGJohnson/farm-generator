@@ -22,6 +22,8 @@ def main() -> None:
             standoff=3.5,
             headland_width=7.5,
             sideland_width=6.5,
+            hydrology_add_water=True,
+            hydrology_water_depth_fraction=0.5,
         )
         scene, issues, used_seed = generate_validated(config)
         status = "OK" if not issues else f"{len(issues)} ISSUE(S)"
@@ -44,7 +46,13 @@ def main() -> None:
             os.path.join(mesh_dir, f"farm_seed_{seed}_ground_wireframe.png"),
             title=f"hydrology ground mesh — seed {seed}",
         )
-        print(f"    mesh: {len(mesh.points)} vertices, {len(mesh.triangles)} triangles")
+        water_vertices = sum(len(surface.points) for surface in mesh.water_surfaces)
+        water_triangles = sum(len(surface.triangles) for surface in mesh.water_surfaces)
+        print(
+            f"    ground: {len(mesh.points)} vertices, {len(mesh.triangles)} triangles; "
+            f"water: {len(mesh.water_surfaces)} surfaces, {water_vertices} vertices, "
+            f"{water_triangles} triangles"
+        )
 
 
 if __name__ == "__main__":

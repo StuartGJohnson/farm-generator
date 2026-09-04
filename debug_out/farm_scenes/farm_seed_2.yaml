@@ -24,6 +24,8 @@ config:
   hydrology_top_width: 2.0
   hydrology_bottom_width: 1.0
   hydrology_depth: 0.8
+  hydrology_add_water: true
+  hydrology_water_depth_fraction: 0.5
   connect_radius: 8.75
   crossing_angle_tol_deg: 0.001
   crop_type: orchard
@@ -510,6 +512,8 @@ scene:
         levee_crown_elev_a: null
         levee_crown_elev_b: null
         flow_direction: a_to_b
+    water_enabled: true
+    water_depth_fraction: 0.5
   roads:
     __type__: RoadNetwork
     nodes:

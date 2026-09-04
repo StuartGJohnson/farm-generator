@@ -91,6 +91,8 @@ class FarmGenerationConfig:
     hydrology_top_width: float = 2.0
     hydrology_bottom_width: float = 1.0
     hydrology_depth: float = 0.8
+    hydrology_add_water: bool = False
+    hydrology_water_depth_fraction: float = 0.5
 
     # --- crossings ---
     connect_radius: Optional[float] = None    # defaults to standoff * 2.5
@@ -120,6 +122,8 @@ class FarmGenerationConfig:
     weed_density_params: dict[str, float] = field(default_factory=lambda: {"cover_frac": 0.15})
 
     def __post_init__(self):
+        if not 0.0 <= self.hydrology_water_depth_fraction <= 1.0:
+            raise ValueError("hydrology_water_depth_fraction must be between 0 and 1")
         if self.connect_radius is None:
             self.connect_radius = self.standoff * 2.5
         if self.hydrology_node_merge_tol is None:
@@ -147,6 +151,8 @@ def generate_farm(config: FarmGenerationConfig) -> FarmScene:
             global_seed=config.seed,
         ),
     )
+    scene.hydrology.water_enabled = config.hydrology_add_water
+    scene.hydrology.water_depth_fraction = config.hydrology_water_depth_fraction
 
     scene = tessellation.run(scene, config, tess_rng)
     scene = hydrology.run(scene, config, hydro_rng)

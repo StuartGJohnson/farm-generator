@@ -30,6 +30,16 @@ class GroundMesh:
     road_breakline_edges: list[tuple[int, int]]
     crossing_breakline_edges: list[tuple[int, int]]
     face_classes: list[str]
+    water_surfaces: list[WaterSurfaceMesh]
+
+
+@dataclass(frozen=True)
+class WaterSurfaceMesh:
+    """One connected, planar water surface bounded by its shoreline."""
+    id: str
+    points: list[tuple[float, float, float]]
+    triangles: list[tuple[int, int, int]]
+    boundary_edges: list[tuple[int, int]]
 
 
 @dataclass(frozen=True)
@@ -74,6 +84,13 @@ class RoadSurfacePatch:
     road_edge_ids: tuple[str, ...]
     polygon: object
     is_crossing: bool = False
+
+
+@dataclass(frozen=True)
+class WaterSurfaceRegion:
+    id: str
+    polygon: object
+    elevation: float
 
 
 def _line_segments(geometry):
@@ -382,6 +399,64 @@ def build_road_surface_patches(scene: FarmScene, bounds) -> list[RoadSurfacePatc
     return patches
 
 
+def _polygon_parts(geometry):
+    if geometry.is_empty:
+        return
+    if isinstance(geometry, Polygon):
+        yield geometry
+    elif hasattr(geometry, "geoms"):
+        for part in geometry.geoms:
+            yield from _polygon_parts(part)
+
+
+def _water_surface_regions(scene, bounds, undulated_edges=None) -> list[WaterSurfaceRegion]:
+    """Derive connected water polygons from channel width at water level."""
+    if not scene.hydrology.water_enabled:
+        return []
+    fraction = scene.hydrology.water_depth_fraction
+    if not 0.0 <= fraction <= 1.0:
+        raise ValueError("hydrology water_depth_fraction must be between 0 and 1")
+
+    ribbons = []
+    elevations = []
+    for edge in _canonical_edges(scene):
+        export_edge = (
+            undulated_edges[_logical_edge_key(edge)]
+            if undulated_edges is not None else edge
+        )
+        width = edge.bottom_width + fraction * (edge.top_width - edge.bottom_width)
+        if width <= 0.0 or edge.depth <= 0.0:
+            continue
+        ribbons.append(LineString(export_edge.polyline).buffer(
+            width * 0.5, cap_style="round", join_style="mitre"
+        ))
+        elevations.append(-edge.depth * (1.0 - fraction))
+    if not ribbons:
+        return []
+    if max(elevations) - min(elevations) > 1e-9:
+        raise ValueError("connected water POC requires uniform channel depths")
+
+    water_area = unary_union(ribbons).intersection(box(*bounds))
+    road_area = next(
+        (
+            patch.polygon for patch in build_road_surface_patches(scene, bounds)
+            if not patch.is_crossing
+        ),
+        None,
+    )
+    if road_area is not None and not road_area.is_empty:
+        water_area = water_area.difference(road_area)
+    water_area = set_precision(water_area, 1e-6)
+    parts = sorted(
+        (part for part in _polygon_parts(water_area) if part.area > 1e-10),
+        key=lambda part: (part.centroid.x, part.centroid.y),
+    )
+    return [
+        WaterSurfaceRegion(f"WaterSurface_{i:03d}", part, elevations[0])
+        for i, part in enumerate(parts)
+    ]
+
+
 def _parcel_channel_geometry(scene, bounds, undulated_edges=None):
     """Derive regions directly from first-class channel faces."""
     domain = box(*bounds)
@@ -435,7 +510,11 @@ def _breaklines(scene, bounds, max_segment_length, undulated_edges=None):
         road_boundaries = []
     # Crossing footprints are already part of the unioned road area. Their
     # individual end/side boundaries must not cut across the road surface.
-    lines = [domain.boundary, *channel_lines, *road_boundaries]
+    water_boundaries = [
+        region.polygon.boundary
+        for region in _water_surface_regions(scene, bounds, undulated_edges)
+    ]
+    lines = [domain.boundary, *channel_lines, *road_boundaries, *water_boundaries]
     # GEOS overlay nodes intersections; explicit precision and a second
     # node pass ensure shared endpoints are bit-identical for PythonCDT.
     # A micrometre topology grid removes numerically distinct copies of an
@@ -507,6 +586,101 @@ def build_hydrology_pslg(
         vertices=[coords[key_] for key_ in ordered_keys],
         segments=segments,
     )
+
+
+def _triangulate_water_regions(
+    regions: list[WaterSurfaceRegion],
+    flat_resolution: float,
+    seed: int,
+) -> list[WaterSurfaceMesh]:
+    meshes = []
+    for region_index, region in enumerate(regions):
+        boundary = segmentize(region.polygon.boundary, max_segment_length=flat_resolution)
+        precision_scale = 1e8
+
+        def key(point):
+            return (
+                round(float(point[0]) * precision_scale),
+                round(float(point[1]) * precision_scale),
+            )
+
+        coords = {}
+        segment_keys = []
+        for a, b in _line_segments(boundary):
+            ka, kb = key(a), key(b)
+            coords.setdefault(ka, (float(a[0]), float(a[1])))
+            coords.setdefault(kb, (float(b[0]), float(b[1])))
+            if ka != kb:
+                segment_keys.append((ka, kb))
+
+        minx, miny, maxx, maxy = region.polygon.bounds
+        if minx < maxx and miny < maxy:
+            sampler = qmc.PoissonDisk(
+                d=2,
+                radius=0.62 * flat_resolution,
+                ncandidates=40,
+                rng=np.random.default_rng(seed + 0xA11CE + region_index),
+                l_bounds=np.array([minx, miny]),
+                u_bounds=np.array([maxx, maxy]),
+            )
+            for x, y in sampler.fill_space():
+                sample = Point(float(x), float(y))
+                if (
+                    region.polygon.covers(sample)
+                    and boundary.distance(sample) >= 0.15 * flat_resolution
+                ):
+                    coords.setdefault(key((x, y)), (float(x), float(y)))
+
+        ordered_keys = list(coords)
+        indices = {point_key: i for i, point_key in enumerate(ordered_keys)}
+        vertices = [condeltri.V2d(*coords[point_key]) for point_key in ordered_keys]
+        constraints = sorted({
+            tuple(sorted((indices[a], indices[b]))) for a, b in segment_keys
+        })
+        triangulation = condeltri.Triangulation(
+            condeltri.VertexInsertionOrder.AUTO,
+            condeltri.IntersectingConstraintEdges.NOT_ALLOWED,
+            0.0,
+        )
+        triangulation.insert_vertices(vertices)
+        triangulation.insert_edges([condeltri.Edge(a, b) for a, b in constraints])
+        triangulation.erase_outer_triangles_and_holes()
+        xy = [(float(v.x), float(v.y)) for v in triangulation.vertices_iter()]
+        triangles = [
+            tuple(int(i) for i in triangle.vertices)
+            for triangle in triangulation.triangles_iter()
+        ]
+        used_edges = {
+            tuple(sorted((tri[i], tri[(i + 1) % 3])))
+            for tri in triangles for i in range(3)
+        }
+        boundary_edges = [
+            (int(edge.v1), int(edge.v2))
+            for edge in triangulation.fixed_edges_iter()
+            if tuple(sorted((int(edge.v1), int(edge.v2)))) in used_edges
+        ]
+        meshes.append(WaterSurfaceMesh(
+            id=region.id,
+            points=[(x, y, region.elevation) for x, y in xy],
+            triangles=triangles,
+            boundary_edges=boundary_edges,
+        ))
+    return meshes
+
+
+def build_water_surface_meshes(
+    scene: FarmScene,
+    bounds: tuple[float, float, float, float],
+    flat_resolution: float = 1.0,
+    undulation: ChannelUndulationConfig | None = None,
+) -> list[WaterSurfaceMesh]:
+    """Build one constrained mesh for each connected water polygon."""
+    if flat_resolution <= 0:
+        raise ValueError("flat_resolution must be positive")
+    undulated_edges = build_undulated_hydrology_edges(scene, undulation) if undulation else None
+    regions = _water_surface_regions(scene, bounds, undulated_edges)
+    seed = scene.provenance.global_seed if scene.provenance is not None else 0
+    return _triangulate_water_regions(regions, flat_resolution, seed)
 
 
 def build_ground_mesh(
@@ -808,6 +982,12 @@ def build_ground_mesh(
             if road_boundary.covers(segment):
                 road_breakline_edges.append((a, b))
 
+    water_surfaces = _triangulate_water_regions(
+        _water_surface_regions(scene, bounds, undulated_edges),
+        flat_resolution,
+        seed,
+    )
+
     return GroundMesh(
         points=points,
         triangles=triangles,
@@ -815,6 +995,7 @@ def build_ground_mesh(
         road_breakline_edges=road_breakline_edges,
         crossing_breakline_edges=crossing_breakline_edges,
         face_classes=face_classes,
+        water_surfaces=water_surfaces,
     )
 
 
@@ -855,6 +1036,50 @@ def write_ground_mesh_usda(mesh: GroundMesh, path: str, prim_name: str = "Ground
         if kind == "road"
     )
     wall_faces = ", ".join(str(i) for i, kind in enumerate(mesh.face_classes) if kind == "crossing_wall")
+    water_prims = []
+    for surface in mesh.water_surfaces:
+        water_min = tuple(min(p[i] for p in surface.points) for i in range(3))
+        water_max = tuple(max(p[i] for p in surface.points) for i in range(3))
+        water_counts = ", ".join("3" for _ in surface.triangles)
+        water_indices = ", ".join(str(i) for tri in surface.triangles for i in tri)
+        water_prims.append(f'''def Mesh "{surface.id}"
+{{
+    uniform bool doubleSided = 1
+    float3[] extent = [({water_min[0]:.9g}, {water_min[1]:.9g}, {water_min[2]:.9g}), ({water_max[0]:.9g}, {water_max[1]:.9g}, {water_max[2]:.9g})]
+    int[] faceVertexCounts = [{water_counts}]
+    int[] faceVertexIndices = [{water_indices}]
+    normal3f[] normals = [(0, 0, 1)] (
+        interpolation = "constant"
+    )
+    uniform token orientation = "rightHanded"
+    point3f[] points = [
+        {vec(surface.points)}
+    ]
+    color3f[] primvars:displayColor = [(0.08, 0.16, 0.18)] (
+        interpolation = "constant"
+    )
+    rel material:binding = </WaterMaterial>
+    uniform token subdivisionScheme = "none"
+}}
+''')
+    water_material = '''def Material "WaterMaterial"
+{
+    token outputs:surface.connect = </WaterMaterial/PreviewSurface.outputs:surface>
+
+    def Shader "PreviewSurface"
+    {
+        uniform token info:id = "UsdPreviewSurface"
+        color3f inputs:diffuseColor = (0.08, 0.16, 0.18)
+        float inputs:roughness = 0.06
+        float inputs:metallic = 0
+        float inputs:opacity = 0.32
+        float inputs:ior = 1.333
+        float inputs:clearcoat = 1
+        float inputs:clearcoatRoughness = 0.02
+        token outputs:surface
+    }
+}
+''' if mesh.water_surfaces else ""
     text = f'''#usda 1.0
 (
     defaultPrim = "{prim_name}"
@@ -896,9 +1121,12 @@ def Mesh "{prim_name}"
         int[] indices = [{wall_faces}]
     }}
 }}
+
+{water_material}
+{chr(10).join(water_prims)}
 '''
     with open(path, "w", encoding="utf-8") as stream:
-        stream.write(text)
+        stream.write(text.rstrip() + "\n")
 
 
 def save_ground_mesh_wireframe(mesh: GroundMesh, path: str, title: str | None = None) -> None:
@@ -936,12 +1164,19 @@ def save_ground_mesh_wireframe(mesh: GroundMesh, path: str, title: str | None = 
         [(mesh.points[a][0], mesh.points[a][1]), (mesh.points[b][0], mesh.points[b][1])]
         for a, b in mesh.crossing_breakline_edges
     ]
+    water_boundary_xy = [
+        [(surface.points[a][0], surface.points[a][1]),
+         (surface.points[b][0], surface.points[b][1])]
+        for surface in mesh.water_surfaces
+        for a, b in surface.boundary_edges
+    ]
 
     fig = plt.figure(figsize=(14, 6), constrained_layout=True)
     plan = fig.add_subplot(1, 2, 1)
     plan.add_collection(LineCollection(xy_segments, colors="0.55", linewidths=0.35))
     plan.add_collection(LineCollection(channel_fixed_xy, colors="#ff8c00", linewidths=0.8))
     plan.add_collection(LineCollection(road_fixed_xy, colors="#e31a1c", linewidths=1.2))
+    plan.add_collection(LineCollection(water_boundary_xy, colors="#00a6d6", linewidths=1.2))
     plan.add_collection(LineCollection(transverse_xy, colors="#7a0177", linewidths=2.0))
     plan.scatter(
         [segment[0][0] for segment in crossing_xy],
@@ -954,7 +1189,7 @@ def save_ground_mesh_wireframe(mesh: GroundMesh, path: str, title: str | None = 
     )
     plan.autoscale()
     plan.set_aspect("equal")
-    plan.set_title("plan: roads (red), channels (orange), crossings (purple)")
+    plan.set_title("plan: roads (red), channels (orange), crossings (purple), water (cyan)")
     plan.set_xlabel("East [m]")
     plan.set_ylabel("North [m]")
 
@@ -980,6 +1215,16 @@ def save_ground_mesh_wireframe(mesh: GroundMesh, path: str, title: str | None = 
             color="#78634a", edgecolor="0.2", linewidth=0.2,
             alpha=0.75, shade=False,
         )
+    for surface in mesh.water_surfaces:
+        if surface.triangles:
+            perspective.plot_trisurf(
+                [p[0] for p in surface.points],
+                [p[1] for p in surface.points],
+                [p[2] for p in surface.points],
+                triangles=surface.triangles,
+                color="#39c6e6", edgecolor="#087f9c", linewidth=0.25,
+                alpha=0.55, shade=False,
+            )
     for a, b in mesh.crossing_breakline_edges:
         perspective.plot(
             [mesh.points[a][0], mesh.points[b][0]],

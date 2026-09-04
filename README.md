@@ -108,6 +108,15 @@ vertices are placed at road elevation, and explicit vertical triangles close
 the channel-facing solid fill sides. No crossing-specific constraints cut
 across the road top. Wall faces are exported in the `CrossingWalls` subset.
 
+Channel water is controlled by `hydrology_add_water` and
+`hydrology_water_depth_fraction` in `FarmGenerationConfig`; the latter is the
+filled fraction measured upward from the channel bottom. The waterline becomes
+an additional ground-mesh PSLG contour. Each connected water polygon, after
+subtracting road fills, is exported as a separate constrained `WaterSurface_*`
+mesh with a transparent, reflective `UsdPreviewSurface` material, low
+roughness, and an index of refraction of 1.333. The debug example enables water
+at half channel depth and draws its closed boundaries in cyan.
+
 ## Generating a farm programmatically
 
 ```python
