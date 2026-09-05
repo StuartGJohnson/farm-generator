@@ -118,9 +118,32 @@ def test_ground_mesh_covers_bounds_and_contains_channels(tmp_path):
     write_ground_mesh_usda(mesh, str(output))
     text = output.read_text()
     assert text.startswith("#usda 1.0")
+    assert 'defaultPrim = "World"' in text
+    assert 'def Xform "World"' in text
+    assert 'def PhysicsScene "PhysicsScene"' in text
+    assert 'def Scope "Lights"' in text
+    assert 'def DomeLight "Sky"' in text
+    assert 'dome_texture_clouds.png' in text
+    assert 'def DistantLight "Sun"' in text
+    assert 'float inputs:intensity = 500' in text
+    assert 'float inputs:intensity = 1000' in text
+    assert 'bool inputs:shadow:enable = 1' in text
     assert 'def Mesh "Ground"' in text
+    assert '"PhysicsCollisionAPI"' in text
     assert 'normal3f[] normals' in text
+    assert 'texCoord2f[] primvars:st' in text
     assert 'interpolation = "faceVarying"' in text
+    assert 'crushed_grass_chatgpt.png' in text
+    assert 'channels_chatgpt.png' in text
+    assert 'gravel_road_darker_chatgpt.png' in text
+    assert 'def GeomSubset "FlatFaces"' in text
+    assert 'def GeomSubset "ChannelFaces"' in text
+    assert 'def GeomSubset "RoadFaces"' in text
+    assert 'rel material:binding = </World/Looks/GrassMaterial>' in text
+    assert 'rel material:binding = </World/Looks/ChannelMaterial>' in text
+    assert 'rel material:binding = </World/Looks/GravelRoadMaterial>' in text
+    crossing_subset = text.split('def GeomSubset "CrossingWalls"', 1)[1].split("}", 1)[0]
+    assert 'rel material:binding = </World/Looks/ChannelMaterial>' in crossing_subset
 
 
 def test_channel_undulation_is_bounded_repeatable_and_non_mutating():
@@ -304,6 +327,7 @@ def test_water_surfaces_are_closed_separate_meshes_and_exported(tmp_path):
     assert 'float inputs:ior = 1.333' in text
     assert 'float inputs:opacity = 0.32' in text
     assert text.count('def Mesh "WaterSurface_') == len(water)
+    assert 'rel material:binding = </World/Looks/WaterMaterial>' in text
 
 
 def test_water_depth_fraction_is_validated():

@@ -117,6 +117,17 @@ mesh with a transparent, reflective `UsdPreviewSurface` material, low
 roughness, and an index of refraction of 1.333. The debug example enables water
 at half channel depth and draws its closed boundaries in cyan.
 
+Each USDA is a complete `/World` stage rather than a bare ground primitive. It
+includes a `/World/Lights/Sky` dome light using
+`assets/dome_texture_clouds.png`, a shadow-casting distant sun, a
+gravity-enabled physics scene, and a static ground mesh collider. Material
+geometry subsets map crushed grass to flat cropland, the channel texture to
+slopes, bottoms, and vertical crossing walls, and darker gravel to road decks.
+Face-varying world-space UVs repeat every texture at 2 m intervals. Vertical
+crossing walls use horizontal-distance/elevation projection so their texture
+does not collapse, while remaining independently identified by the
+`CrossingWalls` subset.
+
 ## Generating a farm programmatically
 
 ```python

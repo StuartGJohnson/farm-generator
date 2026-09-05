@@ -1000,20 +1000,56 @@ def build_ground_mesh(
 
 
 def write_ground_mesh_usda(mesh: GroundMesh, path: str, prim_name: str = "Ground") -> None:
-    """Write a self-contained USDA containing one double-sided mesh."""
+    """Write a textured, lit USD world containing the ground and water meshes."""
     os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
+    output_dir = os.path.dirname(os.path.abspath(path))
+    assets_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "assets"))
+
+    def asset_reference(filename):
+        return os.path.relpath(os.path.join(assets_dir, filename), output_dir).replace(os.sep, "/")
+
+    def indent(block, spaces=4):
+        prefix = " " * spaces
+        return "\n".join(prefix + line if line else line for line in block.splitlines())
+
     min_pt = tuple(min(p[i] for p in mesh.points) for i in range(3))
     max_pt = tuple(max(p[i] for p in mesh.points) for i in range(3))
     face_colors = []
+    face_materials = []
+    texture_coordinates = []
     for face_class, triangle in zip(mesh.face_classes, mesh.triangles):
         if face_class == "road":
             color = (0.30, 0.24, 0.17)
+            material = "road"
         elif face_class == "crossing_wall":
             color = (0.24, 0.24, 0.22)
+            material = "channel"
         elif min(mesh.points[i][2] for i in triangle) < -1e-9:
             color = (0.34, 0.20, 0.08)
+            material = "channel"
         else:
             color = (0.18, 0.38, 0.08)
+            material = "flat"
+        if face_class == "crossing_wall":
+            # Planar XY mapping collapses on a vertical wall. Project its
+            # dominant horizontal direction against Z instead.
+            x_range = max(mesh.points[i][0] for i in triangle) - min(
+                mesh.points[i][0] for i in triangle
+            )
+            y_range = max(mesh.points[i][1] for i in triangle) - min(
+                mesh.points[i][1] for i in triangle
+            )
+            horizontal_axis = 0 if x_range >= y_range else 1
+            texture_coordinates.extend(
+                (mesh.points[i][horizontal_axis] / 2.0, mesh.points[i][2] / 2.0)
+                for i in triangle
+            )
+        else:
+            texture_coordinates.extend(
+                (mesh.points[i][0] / 2.0, mesh.points[i][1] / 2.0)
+                for i in triangle
+            )
+        face_materials.append(material)
         face_colors.extend([color, color, color])
 
     normals = []
@@ -1029,12 +1065,53 @@ def write_ground_mesh_usda(mesh: GroundMesh, path: str, prim_name: str = "Ground
     def vec(values):
         return ",\n        ".join(f"({a:.9g}, {b:.9g}, {c:.9g})" for a, b, c in values)
 
+    def vec2(values):
+        return ",\n        ".join(f"({a:.9g}, {b:.9g})" for a, b in values)
+
+    def subset(name, material, face_indices):
+        faces = ", ".join(str(i) for i in face_indices)
+        return f'''def GeomSubset "{name}"
+{{
+    uniform token elementType = "face"
+    uniform token familyName = "materialBind"
+    int[] indices = [{faces}]
+    rel material:binding = </World/Looks/{material}>
+}}'''
+
+    def texture_material(name, filename, roughness):
+        return f'''def Material "{name}"
+{{
+    token outputs:surface.connect = </World/Looks/{name}/PreviewSurface.outputs:surface>
+
+    def Shader "PreviewSurface"
+    {{
+        uniform token info:id = "UsdPreviewSurface"
+        color3f inputs:diffuseColor.connect = </World/Looks/{name}/DiffuseTexture.outputs:rgb>
+        float inputs:roughness = {roughness:.3g}
+        token outputs:surface
+    }}
+
+    def Shader "UVReader"
+    {{
+        uniform token info:id = "UsdPrimvarReader_float2"
+        token inputs:varname = "st"
+        float2 outputs:result
+    }}
+
+    def Shader "DiffuseTexture"
+    {{
+        uniform token info:id = "UsdUVTexture"
+        asset inputs:file = @{asset_reference(filename)}@
+        token inputs:sourceColorSpace = "sRGB"
+        float2 inputs:st.connect = </World/Looks/{name}/UVReader.outputs:result>
+        token inputs:wrapS = "repeat"
+        token inputs:wrapT = "repeat"
+        float3 outputs:rgb
+    }}
+}}'''
+
     counts = ", ".join("3" for _ in mesh.triangles)
     indices = ", ".join(str(i) for tri in mesh.triangles for i in tri)
-    road_faces = ", ".join(
-        str(i) for i, kind in enumerate(mesh.face_classes)
-        if kind == "road"
-    )
     wall_faces = ", ".join(str(i) for i, kind in enumerate(mesh.face_classes) if kind == "crossing_wall")
     water_prims = []
     for surface in mesh.water_surfaces:
@@ -1058,13 +1135,13 @@ def write_ground_mesh_usda(mesh: GroundMesh, path: str, prim_name: str = "Ground
     color3f[] primvars:displayColor = [(0.08, 0.16, 0.18)] (
         interpolation = "constant"
     )
-    rel material:binding = </WaterMaterial>
+    rel material:binding = </World/Looks/WaterMaterial>
     uniform token subdivisionScheme = "none"
 }}
 ''')
     water_material = '''def Material "WaterMaterial"
 {
-    token outputs:surface.connect = </WaterMaterial/PreviewSurface.outputs:surface>
+    token outputs:surface.connect = </World/Looks/WaterMaterial/PreviewSurface.outputs:surface>
 
     def Shader "PreviewSurface"
     {
@@ -1080,50 +1157,116 @@ def write_ground_mesh_usda(mesh: GroundMesh, path: str, prim_name: str = "Ground
     }
 }
 ''' if mesh.water_surfaces else ""
+    looks = "\n\n".join([
+        texture_material("GrassMaterial", "crushed_grass_chatgpt.png", 0.9),
+        texture_material("ChannelMaterial", "channels_chatgpt.png", 0.85),
+        texture_material("GravelRoadMaterial", "gravel_road_darker_chatgpt.png", 0.8),
+        water_material.rstrip(),
+    ]).rstrip()
+    subsets = "\n\n".join([
+        subset(
+            "FlatFaces", "GrassMaterial",
+            (i for i, kind in enumerate(face_materials) if kind == "flat"),
+        ),
+        subset(
+            "ChannelFaces", "ChannelMaterial",
+            (
+                i for i, kind in enumerate(face_materials)
+                if kind == "channel" and mesh.face_classes[i] != "crossing_wall"
+            ),
+        ),
+        subset(
+            "RoadFaces", "GravelRoadMaterial",
+            (i for i, kind in enumerate(mesh.face_classes) if kind == "road"),
+        ),
+    ])
+    # Keep crossing walls independently selectable for physics/debugging while
+    # giving the filled channel-facing sides the channel appearance.
+    crossing_subset = f'''def GeomSubset "CrossingWalls"
+{{
+    uniform token elementType = "face"
+    uniform token familyName = "materialBind"
+    int[] indices = [{wall_faces}]
+    rel material:binding = </World/Looks/ChannelMaterial>
+}}'''
+    water_block = "\n\n".join(prim.rstrip() for prim in water_prims)
     text = f'''#usda 1.0
 (
-    defaultPrim = "{prim_name}"
+    defaultPrim = "World"
     metersPerUnit = 1
     upAxis = "Z"
 )
 
-def Mesh "{prim_name}"
+def Xform "World"
 {{
-    uniform bool doubleSided = 1
-    float3[] extent = [({min_pt[0]:.9g}, {min_pt[1]:.9g}, {min_pt[2]:.9g}), ({max_pt[0]:.9g}, {max_pt[1]:.9g}, {max_pt[2]:.9g})]
-    int[] faceVertexCounts = [{counts}]
-    int[] faceVertexIndices = [{indices}]
-    normal3f[] normals = [
-        {vec(normals)}
-    ] (
-        interpolation = "faceVarying"
-    )
-    uniform token orientation = "rightHanded"
-    point3f[] points = [
-        {vec(mesh.points)}
-    ]
-    color3f[] primvars:displayColor = [
-        {vec(face_colors)}
-    ] (
-        interpolation = "faceVarying"
-    )
-    uniform token subdivisionScheme = "none"
-
-    def GeomSubset "RoadFaces"
+    def PhysicsScene "PhysicsScene"
     {{
-        uniform token elementType = "face"
-        int[] indices = [{road_faces}]
+        float3 physics:gravityDirection = (0, 0, -1)
+        float physics:gravityMagnitude = 9.81
     }}
 
-    def GeomSubset "CrossingWalls"
+    def Scope "Lights"
     {{
-        uniform token elementType = "face"
-        int[] indices = [{wall_faces}]
+        def DomeLight "Sky"
+        {{
+            float inputs:intensity = 500
+            asset inputs:texture:file = @{asset_reference("dome_texture_clouds.png")}@
+            token inputs:texture:format = "latlong"
+        }}
+
+        def DistantLight "Sun"
+        {{
+            float inputs:angle = 0.53
+            color3f inputs:color = (1, 0.97, 0.9)
+            float inputs:intensity = 1000
+            bool inputs:shadow:enable = 1
+            float3 xformOp:rotateXYZ = (45, 0, 135)
+            uniform token[] xformOpOrder = ["xformOp:rotateXYZ"]
+        }}
     }}
+
+    def Scope "Looks"
+    {{
+{indent(looks, 8)}
+    }}
+
+    def Mesh "{prim_name}" (
+        prepend apiSchemas = ["PhysicsCollisionAPI", "PhysicsMeshCollisionAPI"]
+    )
+    {{
+        uniform bool doubleSided = 1
+        float3[] extent = [({min_pt[0]:.9g}, {min_pt[1]:.9g}, {min_pt[2]:.9g}), ({max_pt[0]:.9g}, {max_pt[1]:.9g}, {max_pt[2]:.9g})]
+        int[] faceVertexCounts = [{counts}]
+        int[] faceVertexIndices = [{indices}]
+        normal3f[] normals = [
+{indent(vec(normals), 12)}
+        ] (
+            interpolation = "faceVarying"
+        )
+        uniform token orientation = "rightHanded"
+        uniform token physics:approximation = "none"
+        point3f[] points = [
+{indent(vec(mesh.points), 12)}
+        ]
+        color3f[] primvars:displayColor = [
+{indent(vec(face_colors), 12)}
+        ] (
+            interpolation = "faceVarying"
+        )
+        texCoord2f[] primvars:st = [
+{indent(vec2(texture_coordinates), 12)}
+        ] (
+            interpolation = "faceVarying"
+        )
+        uniform token subdivisionScheme = "none"
+
+{indent(subsets, 8)}
+
+{indent(crossing_subset, 8)}
+    }}
+
+{indent(water_block, 4)}
 }}
-
-{water_material}
-{chr(10).join(water_prims)}
 '''
     with open(path, "w", encoding="utf-8") as stream:
         stream.write(text.rstrip() + "\n")
