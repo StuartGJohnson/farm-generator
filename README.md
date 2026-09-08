@@ -161,7 +161,8 @@ edge selection for layouts requiring more turns.
 ![HD Isaac Sim render of the 120 m by 120 m showcase farm](big_farm_render.png)
 
 This is an HD Isaac Sim render of the 120 m by 120 m showcase pecan farm generated
-by `examples/generate_showcase_farm.py`. Seed 1 produced 4 parcels, 16 channel
+by `examples/generate_showcase_farm.py`. This is modeled on flat, irrigated farmland
+typical of the Sacramento Delta in California. Seed 1 produced 4 parcels, 16 channel
 segments, 6 channel crossings, 453 trees selected from four procedural tree
 variants, and 8,356 weeds concentrated along the optimized tree rows. The
 complete run—including IR generation, ground and water meshing, USDA writing,
