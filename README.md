@@ -156,11 +156,11 @@ planting-grid anchor corner but uses the longer of its two incident parcel
 edges as the tree-row direction; the default `False` preserves randomized
 edge selection for layouts requiring more turns.
 
-## 120 m showcase farm
+## 120 m showcase pecan farm
 
 ![HD Isaac Sim render of the 120 m by 120 m showcase farm](big_farm_render.png)
 
-This is an HD Isaac Sim render of the 120 m by 120 m showcase farm generated
+This is an HD Isaac Sim render of the 120 m by 120 m showcase pecan farm generated
 by `examples/generate_showcase_farm.py`. Seed 1 produced 4 parcels, 16 channel
 segments, 6 channel crossings, 453 trees selected from four procedural tree
 variants, and 8,356 weeds concentrated along the optimized tree rows. The
