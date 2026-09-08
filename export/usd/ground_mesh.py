@@ -1406,12 +1406,10 @@ def Xform "World"
         stream.write(text.rstrip() + "\n")
 
 
-def save_ground_mesh_wireframe(mesh: GroundMesh, path: str, title: str | None = None) -> None:
-    """Save plan and perspective wireframe diagnostics with all vertices."""
-    import matplotlib.pyplot as plt
+def _draw_ground_mesh_plan(mesh: GroundMesh, axes) -> None:
+    """Draw the shared plan-view diagnostic onto a Matplotlib axes."""
     from matplotlib.collections import LineCollection
 
-    os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
     triangle_edges = {
         tuple(sorted((tri[i], tri[(i + 1) % 3])))
         for tri in mesh.triangles
@@ -1448,27 +1446,59 @@ def save_ground_mesh_wireframe(mesh: GroundMesh, path: str, title: str | None = 
         for a, b in surface.boundary_edges
     ]
 
-    fig = plt.figure(figsize=(14, 6), constrained_layout=True)
-    plan = fig.add_subplot(1, 2, 1)
-    plan.add_collection(LineCollection(xy_segments, colors="0.55", linewidths=0.35))
-    plan.add_collection(LineCollection(channel_fixed_xy, colors="#ff8c00", linewidths=0.8))
-    plan.add_collection(LineCollection(road_fixed_xy, colors="#e31a1c", linewidths=1.2))
-    plan.add_collection(LineCollection(water_boundary_xy, colors="#00a6d6", linewidths=1.2))
-    plan.add_collection(LineCollection(transverse_xy, colors="#7a0177", linewidths=2.0))
-    plan.scatter(
+    axes.add_collection(LineCollection(xy_segments, colors="0.55", linewidths=0.35))
+    axes.add_collection(LineCollection(channel_fixed_xy, colors="#ff8c00", linewidths=0.8))
+    axes.add_collection(LineCollection(road_fixed_xy, colors="#e31a1c", linewidths=1.2))
+    axes.add_collection(LineCollection(water_boundary_xy, colors="#00a6d6", linewidths=1.2))
+    axes.add_collection(LineCollection(transverse_xy, colors="#7a0177", linewidths=2.0))
+    axes.scatter(
         [segment[0][0] for segment in crossing_xy],
         [segment[0][1] for segment in crossing_xy],
         s=22, c="#7a0177", zorder=5, linewidths=0,
     )
-    plan.scatter(
+    axes.scatter(
         [p[0] for p in mesh.points], [p[1] for p in mesh.points],
         s=4, c="#0868ac", zorder=3, linewidths=0,
     )
-    plan.autoscale()
-    plan.set_aspect("equal")
-    plan.set_title("plan: roads (red), channels (orange), crossings (purple), water (cyan)")
-    plan.set_xlabel("East [m]")
-    plan.set_ylabel("North [m]")
+    axes.autoscale()
+    axes.set_aspect("equal")
+    axes.set_title("plan: roads (red), channels (orange), crossings (purple), water (cyan)")
+    axes.set_xlabel("East [m]")
+    axes.set_ylabel("North [m]")
+
+
+def save_ground_mesh_plan(
+    mesh: GroundMesh,
+    path: str,
+    title: str | None = None,
+    bounds: tuple[float, float, float, float] | None = None,
+) -> None:
+    """Save a plan-only mesh diagnostic, optionally cropped to XY bounds."""
+    import matplotlib.pyplot as plt
+
+    os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
+    fig, axes = plt.subplots(figsize=(8, 8), constrained_layout=True)
+    _draw_ground_mesh_plan(mesh, axes)
+    if bounds is not None:
+        min_x, min_y, max_x, max_y = bounds
+        if min_x >= max_x or min_y >= max_y:
+            raise ValueError("plan bounds must have positive width and height")
+        axes.set_xlim(min_x, max_x)
+        axes.set_ylim(min_y, max_y)
+    if title:
+        fig.suptitle(title)
+    fig.savefig(path, dpi=220)
+    plt.close(fig)
+
+
+def save_ground_mesh_wireframe(mesh: GroundMesh, path: str, title: str | None = None) -> None:
+    """Save plan and perspective wireframe diagnostics with all vertices."""
+    import matplotlib.pyplot as plt
+
+    os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
+    fig = plt.figure(figsize=(14, 6), constrained_layout=True)
+    plan = fig.add_subplot(1, 2, 1)
+    _draw_ground_mesh_plan(mesh, plan)
 
     perspective = fig.add_subplot(1, 2, 2, projection="3d")
     perspective.plot_trisurf(

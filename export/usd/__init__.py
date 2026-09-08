@@ -14,6 +14,7 @@ from .ground_mesh import (
     build_undulated_hydrology_edges,
     build_water_surface_meshes,
     export_scene_ground,
+    save_ground_mesh_plan,
     save_ground_mesh_wireframe,
     write_ground_mesh_usda,
 )
@@ -32,6 +33,7 @@ __all__ = [
     "build_undulated_hydrology_edges",
     "build_water_surface_meshes",
     "export_scene_ground",
+    "save_ground_mesh_plan",
     "save_ground_mesh_wireframe",
     "write_ground_mesh_usda",
 ]

@@ -7,16 +7,41 @@ from shapely.geometry import LineString, Point
 
 from export.usd import (
     ChannelUndulationConfig,
+    GroundMesh,
     build_channel_faces,
     build_ground_mesh,
     build_hydrology_pslg,
     build_road_surface_patches,
     build_undulated_hydrology_edges,
     build_water_surface_meshes,
+    save_ground_mesh_plan,
+    save_ground_mesh_wireframe,
     write_ground_mesh_usda,
 )
 from generation.orchestrator import FarmGenerationConfig, generate_farm
 from generation.procedural_assets import generate_procedural_asset_library
+
+
+def test_plan_only_mesh_diagnostic_supports_zoom_bounds(tmp_path):
+    mesh = GroundMesh(
+        points=[(0.0, 0.0, 0.0), (2.0, 0.0, 0.0), (0.0, 2.0, -0.8)],
+        triangles=[(0, 1, 2)],
+        breakline_edges=[(0, 2)],
+        road_breakline_edges=[],
+        crossing_breakline_edges=[(0, 2)],
+        face_classes=["ground"],
+        water_surfaces=[],
+    )
+    output = tmp_path / "mesh_zoom.png"
+    save_ground_mesh_plan(mesh, str(output), bounds=(0.5, 0.5, 1.5, 1.5))
+    assert output.is_file()
+    assert output.stat().st_size > 0
+    dual_output = tmp_path / "mesh_dual.png"
+    save_ground_mesh_wireframe(mesh, str(dual_output))
+    assert dual_output.is_file()
+    assert dual_output.stat().st_size > 0
+    with pytest.raises(ValueError, match="positive width and height"):
+        save_ground_mesh_plan(mesh, str(output), bounds=(1.0, 0.0, 1.0, 2.0))
 
 
 def test_ground_mesh_covers_bounds_and_contains_channels(tmp_path):

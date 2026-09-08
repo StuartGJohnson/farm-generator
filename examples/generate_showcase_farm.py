@@ -2,7 +2,12 @@
 
 from pathlib import Path
 
-from export.usd import ChannelUndulationConfig, export_scene_ground, save_ground_mesh_wireframe
+from export.usd import (
+    ChannelUndulationConfig,
+    export_scene_ground,
+    save_ground_mesh_plan,
+    save_ground_mesh_wireframe,
+)
 from generation.orchestrator import FarmGenerationConfig, generate_validated, save_farm
 from visualization.debug_view import save_scene_png
 
@@ -65,6 +70,12 @@ def main() -> None:
         mesh,
         str(mesh_dir / f"{stem}_ground_wireframe.png"),
         title=f"hydrology ground mesh — showcase seed {used_seed}, 120 m × 120 m",
+    )
+    save_ground_mesh_plan(
+        mesh,
+        str(mesh_dir / f"{stem}_ground_zoom.png"),
+        title="showcase mesh detail — x=60–100 m, y=60–100 m",
+        bounds=(60.0, 60.0, 100.0, 100.0),
     )
     print(
         f"{stem}: {len(scene.parcels)} parcels, {len(scene.trees)} trees, "

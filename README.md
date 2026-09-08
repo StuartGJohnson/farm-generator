@@ -160,6 +160,14 @@ edge selection for layouts requiring more turns.
 
 ![HD Isaac Sim render of the 120 m by 120 m showcase farm](big_farm_render.png)
 
+![Plan-view mesh detail from x=60–100 m and y=60–100 m](debug_out/mesh/farm_seed_1_120m2_ground_zoom.png)
+
+The mesh detail above is a plan-view crop covering x=60–100 m and y=60–100 m
+in the same East-right, North-up orientation as the full diagnostics. Gray
+lines are Delaunay triangle edges, blue dots are mesh vertices, red lines are
+road constraints, orange lines are channel constraints, cyan lines are water
+boundaries, and purple markers identify crossing/channel-slope constraints.
+
 This is an HD Isaac Sim render of the 120 m by 120 m showcase pecan farm generated
 by `examples/generate_showcase_farm.py`. This is modeled on flat, irrigated farmland
 typical of the Sacramento Delta in California. Seed 1 produced 4 parcels, 16 channel
