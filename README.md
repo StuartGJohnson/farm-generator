@@ -179,7 +179,7 @@ lines are Delaunay triangle edges, blue dots are mesh vertices, red lines are
 road constraints, orange lines are channel constraints, cyan lines are water
 boundaries, and purple markers identify crossing/channel-slope constraints. This
 mesh is constrained to have edges along the channels, roads (and channel crossings)
-and the farm parcels. The resolution of the mesh is nominally 1m in order to faithfully
+and the farm parcels. The resolution of the mesh is nominally 1m in order to
 sample variations in height and surface friction.
 
 ## Generating a farm programmatically
