@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import numpy as np
 from scipy.spatial import cKDTree
+from shapely.geometry import LineString, Point
 
 from farm_ir.schema import CrossingFeature, CrossingType, FarmScene, RoadClass, RoadEdge
 
@@ -73,21 +74,21 @@ def _is_collinear(dir_a: np.ndarray, dir_b: np.ndarray, angle_tol_deg: float) ->
 
 def _nearest_hydrology_edge(scene: FarmScene, pid_a: str, pid_b: str, midpoint):
     """
-    Best-effort association of a crossing with the hydrology channel it
-    spans: among hydrology edges tagged to either parcel (see
-    generation/hydrology.py), the one whose own midpoint is closest to
-    the crossing's midpoint. Not a guaranteed exact match (T-junction
-    supercell edges mean the "true" spanned segment isn't always
-    unambiguous), but a reasonable, bounded-scope heuristic for
-    `CrossingFeature.hydrology_edge_id` / `span_width`.
+    Associate a crossing with the hydrology channel it actually spans.
+    Compare the crossing location with each candidate segment itself,
+    rather than comparing segment midpoints: a long correct channel can
+    have a distant midpoint while a nearby perpendicular channel has a
+    deceptively close one.
     """
     candidates = [e for e in scene.hydrology.edges.values()
                   if e.tags.get("parcel_id") in (pid_a, pid_b)]
     if not candidates:
         return None
-    mids = np.array([np.mean(np.array(e.polyline), axis=0) for e in candidates])
-    d = np.linalg.norm(mids - np.array(midpoint), axis=1)
-    return candidates[int(np.argmin(d))]
+    crossing_point = Point(midpoint)
+    return min(
+        candidates,
+        key=lambda edge: LineString(edge.polyline).distance(crossing_point),
+    )
 
 
 def run(scene: FarmScene, config, rng) -> FarmScene:

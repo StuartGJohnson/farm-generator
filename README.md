@@ -67,8 +67,13 @@ It generates and validates 5 seeds and saves plots to
 
 ## Generating hydrology ground meshes
 
-Run `python examples/generate_ground_meshes.py` to generate five 50 m by
-50 m farm IRs and corresponding USDA ground meshes in `debug_out/mesh/`.
+Run `python examples/generate_procedural_assets.py` first to build the reusable,
+fully procedural tree and weed prototype library. Then run
+`python examples/generate_ground_meshes.py` to generate five 60 m by 60 m farm
+IRs and corresponding USDA worlds in `debug_out/mesh/`. All five diagnostic
+farms enable optimized tree-row orientation. Run
+`python examples/generate_showcase_farm.py` separately to build the larger
+120 m by 120 m presentation scene without replacing those regression cases.
 The exporter uses deterministic Poisson-disc (blue-noise) points, producing
 an amorphous Delaunay/Voronoi-dual mesh, plus exact constrained breaklines at
 the shoulders and flat bottoms of the trapezoidal irrigation channels.
@@ -107,6 +112,10 @@ Channel constraints are clipped out wherever a road exists, road-side boundary
 vertices are placed at road elevation, and explicit vertical triangles close
 the channel-facing solid fill sides. No crossing-specific constraints cut
 across the road top. Wall faces are exported in the `CrossingWalls` subset.
+Each crossing is associated with the hydrology segment that geometrically
+passes through its location, rather than by channel-midpoint proximity. The
+purple wireframe diagnostics therefore cover the crossing/channel-slope
+intersections at every crossing, including long channel segments.
 
 Channel water is controlled by `hydrology_add_water` and
 `hydrology_water_depth_fraction` in `FarmGenerationConfig`; the latter is the
@@ -127,6 +136,39 @@ Face-varying world-space UVs repeat every texture at 2 m intervals. Vertical
 crossing walls use horizontal-distance/elevation projection so their texture
 does not collapse, while remaining independently identified by the
 `CrossingWalls` subset.
+
+Trees and weeds are authored as separate USD `PointInstancer` systems under
+`/World/Vegetation`. Tree positions come directly from the farm IR. Each IR
+weed zone records the exact cultivated row centerlines; weeds are sampled only
+from Gaussian lateral profiles around those rows while excluding road and
+channel footprints. `weed_row_density_per_m` is the expected instance count per
+metre of row, integrated laterally, and `weed_row_falloff_m` is the lateral
+standard deviation. Sampling is truncated at three standard deviations, with
+no parcel-wide background weeds. Both systems reference the separately
+generated prototype library; exporting a farm never silently generates or
+mutates those assets. The diagnostic configuration uses 5 m row spacing and
+4 m tree spacing and 4.5 expected weeds per row-metre. The current procedural
+library contains four deterministic pecan-tree variants plus dry grass,
+fennel, and ashweed. Individual tree and weed instances receive independently
+seeded, repeatable random rotations about the vertical axis and modest scale
+variation. Setting `optimize_tree_layout=True` retains the random
+planting-grid anchor corner but uses the longer of its two incident parcel
+edges as the tree-row direction; the default `False` preserves randomized
+edge selection for layouts requiring more turns.
+
+## 120 m showcase farm
+
+![HD Isaac Sim render of the 120 m by 120 m showcase farm](big_farm_render.png)
+
+This is an HD Isaac Sim render of the 120 m by 120 m showcase farm generated
+by `examples/generate_showcase_farm.py`. Seed 1 produced 4 parcels, 16 channel
+segments, 6 channel crossings, 453 trees selected from four procedural tree
+variants, and 8,356 weeds concentrated along the optimized tree rows. The
+complete run—including IR generation, ground and water meshing, USDA writing,
+and diagnostic rendering—took approximately 2 minutes 10 seconds on the
+development machine. The resulting USDA contains 33,616 ground vertices and
+52,003 ground triangles and is written as
+`debug_out/mesh/farm_seed_1_120m2_ground.usda`.
 
 ## Generating a farm programmatically
 

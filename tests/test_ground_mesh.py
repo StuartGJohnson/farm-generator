@@ -2,6 +2,7 @@ import math
 from collections import Counter
 
 import pytest
+from pxr import Usd, UsdGeom, UsdShade
 from shapely.geometry import LineString, Point
 
 from export.usd import (
@@ -15,6 +16,7 @@ from export.usd import (
     write_ground_mesh_usda,
 )
 from generation.orchestrator import FarmGenerationConfig, generate_farm
+from generation.procedural_assets import generate_procedural_asset_library
 
 
 def test_ground_mesh_covers_bounds_and_contains_channels(tmp_path):
@@ -115,7 +117,14 @@ def test_ground_mesh_covers_bounds_and_contains_channels(tmp_path):
     assert abs(road_mesh_area - road_area.area) < 1e-4
 
     output = tmp_path / "ground.usda"
-    write_ground_mesh_usda(mesh, str(output))
+    assets = generate_procedural_asset_library(tmp_path / "procedural_assets")
+    write_ground_mesh_usda(
+        mesh,
+        str(output),
+        scene=scene,
+        tree_assets=assets.tree_assets,
+        weed_assets=assets.weed_assets,
+    )
     text = output.read_text()
     assert text.startswith("#usda 1.0")
     assert 'defaultPrim = "World"' in text
@@ -144,6 +153,78 @@ def test_ground_mesh_covers_bounds_and_contains_channels(tmp_path):
     assert 'rel material:binding = </World/Looks/GravelRoadMaterial>' in text
     crossing_subset = text.split('def GeomSubset "CrossingWalls"', 1)[1].split("}", 1)[0]
     assert 'rel material:binding = </World/Looks/ChannelMaterial>' in crossing_subset
+    assert 'def Scope "Vegetation"' in text
+    assert 'def PointInstancer "Trees"' in text
+    assert 'def PointInstancer "Weeds"' in text
+    assert text.count('prepend references = @procedural_assets/trees/') == 4
+    assert text.count('prepend references = @procedural_assets/weeds/') == 3
+
+    stage = Usd.Stage.Open(str(output), load=Usd.Stage.LoadNone)
+    weed_positions = UsdGeom.PointInstancer.Get(
+        stage, "/World/Vegetation/Weeds"
+    ).GetPositionsAttr().Get()
+    row_lines = [
+        LineString(row)
+        for zone in scene.weed_zones.values()
+        for row in zone.row_centerlines
+    ]
+    max_support = max(
+        3.0 * zone.density_params["row_falloff_m"]
+        for zone in scene.weed_zones.values()
+    )
+    assert weed_positions
+    assert all(
+        min(row.distance(Point(position[0], position[1])) for row in row_lines)
+        <= max_support + 1e-6
+        for position in weed_positions
+    )
+
+
+def test_procedural_asset_generation_is_repeatable_and_separate(tmp_path):
+    first = generate_procedural_asset_library(
+        tmp_path / "first", tree_seeds=(11, 22, 33, 44), weed_seeds=(11, 22, 33)
+    )
+    second = generate_procedural_asset_library(
+        tmp_path / "second", tree_seeds=(11, 22, 33, 44), weed_seeds=(11, 22, 33)
+    )
+    assert len(first.tree_assets) == 4
+    assert len(first.weed_assets) == 3
+    for left, right in zip(first.tree_assets + first.weed_assets, second.tree_assets + second.weed_assets):
+        assert left.read_text() == right.read_text()
+        left_texture = next((left.parent / "textures").glob("*.png"))
+        right_texture = next((right.parent / "textures").glob("*.png"))
+        assert left_texture.read_bytes() == right_texture.read_bytes()
+
+    expected_meshes = {
+        "PecanTree": {"Trunk", "Leaves"},
+        "DryGrass": {"Blades"},
+        "Fennel": {"Stems", "Leaves", "Flowers"},
+        "Ashweed": {"Stems", "Leaves"},
+    }
+    for asset in first.tree_assets + first.weed_assets:
+        stage = Usd.Stage.Open(str(asset), load=Usd.Stage.LoadNone)
+        assert stage
+        root_name = stage.GetDefaultPrim().GetName()
+        meshes = [prim for prim in stage.Traverse() if prim.IsA(UsdGeom.Mesh)]
+        assert {prim.GetName() for prim in meshes} == expected_meshes[root_name]
+        assert all(
+            UsdShade.MaterialBindingAPI(prim).GetDirectBinding().GetMaterial()
+            for prim in meshes
+        )
+        minimum_point_counts = {
+            "PecanTree": 4000,
+            "DryGrass": 400,
+            "Fennel": 400,
+            "Ashweed": 500,
+        }
+        assert sum(
+            len(UsdGeom.Mesh(prim).GetPointsAttr().Get()) for prim in meshes
+        ) > minimum_point_counts[root_name]
+
+    # Guard against accidentally substituting the earlier toy tree generator.
+    tree_stage = Usd.Stage.Open(str(first.tree_assets[0]), load=Usd.Stage.LoadNone)
+    assert len(UsdGeom.Mesh.Get(tree_stage, "/PecanTree/Trunk").GetPointsAttr().Get()) > 4000
+    assert len(UsdGeom.Mesh.Get(tree_stage, "/PecanTree/Leaves").GetFaceVertexCountsAttr().Get()) > 2000
 
 
 def test_channel_undulation_is_bounded_repeatable_and_non_mutating():

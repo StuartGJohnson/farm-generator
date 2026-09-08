@@ -38,9 +38,9 @@ per column with sideland_width. This is exact regardless of parcel shape
 and still additionally clipped against the real polygon as a final
 safety net.
 
-Weeds are a simple uniform low-density zone over the whole parcel this
-phase (headland + row-gap correlation is a later phase -- see CLAUDE.md
-"Generation order" #7).
+Weed zones retain the exact cultivated row centerlines.  Exporters sample
+weeds from a lateral probability distribution around those rows; there is
+no uniform parcel-wide background population.
 
 Boundary-tie tolerance: a row's near-side entry is mathematically exactly
 0 whenever that row still lies along the anchor vertex's own row_dir edge
@@ -74,11 +74,17 @@ from farm_ir.schema import CropArea, FarmScene, PlantingSpec, TreeInstance, Weed
 _BOUNDARY_EPS = 1e-6
 
 
-def _pick_row_and_col_dirs(parcel_coords: np.ndarray, rng: np.random.Generator):
+def _pick_row_and_col_dirs(
+    parcel_coords: np.ndarray,
+    rng: np.random.Generator,
+    optimize_tree_layout: bool = False,
+):
     """
     Anchor the planting grid to a random corner of the parcel: pick a
-    random vertex, then randomly assign one of its two incident edges as
-    the row direction and the other as the column direction. Returns
+    random vertex, then assign one of its two incident edges as the row
+    direction and the other as the column direction.  With optimized
+    layout the longer incident edge is always the row; otherwise the
+    assignment is random. Returns
     (origin, row_dir, col_dir) with row_dir/col_dir unit vectors pointing
     from the vertex into the polygon along its own edges.
     """
@@ -90,10 +96,17 @@ def _pick_row_and_col_dirs(parcel_coords: np.ndarray, rng: np.random.Generator):
 
     dir_to_prev = prev_v - origin
     dir_to_next = next_v - origin
-    dir_to_prev = dir_to_prev / (np.linalg.norm(dir_to_prev) + 1e-12)
-    dir_to_next = dir_to_next / (np.linalg.norm(dir_to_next) + 1e-12)
+    prev_length = np.linalg.norm(dir_to_prev)
+    next_length = np.linalg.norm(dir_to_next)
+    dir_to_prev = dir_to_prev / (prev_length + 1e-12)
+    dir_to_next = dir_to_next / (next_length + 1e-12)
 
-    if rng.random() < 0.5:
+    if optimize_tree_layout and not np.isclose(prev_length, next_length):
+        if prev_length > next_length:
+            row_dir, col_dir = dir_to_prev, dir_to_next
+        else:
+            row_dir, col_dir = dir_to_next, dir_to_prev
+    elif rng.random() < 0.5:
         row_dir, col_dir = dir_to_next, dir_to_prev
     else:
         row_dir, col_dir = dir_to_prev, dir_to_next
@@ -164,6 +177,7 @@ def _generate_tree_grid(origin: np.ndarray, row_dir: np.ndarray, col_dir: np.nda
         return col_span_cache[k]
 
     trees = []
+    row_centerlines = []
     for l in range(l_max + 1):
         # Phase the grid at (headland_width, sideland_width) from the
         # anchor vertex -- NOT at (0, 0) filtered afterward by those
@@ -185,6 +199,7 @@ def _generate_tree_grid(origin: np.ndarray, row_dir: np.ndarray, col_dir: np.nda
         if i_hi < i_lo:
             continue  # this row is too short for headland clearance at both ends
 
+        row_tree_count = 0
         for k in range(k_max + 1):
             i = spec.headland_width + k * spec.tree_spacing
             if i < i_lo - _BOUNDARY_EPS or i > i_hi + _BOUNDARY_EPS:
@@ -207,7 +222,16 @@ def _generate_tree_grid(origin: np.ndarray, row_dir: np.ndarray, col_dir: np.nda
                 species=str(species),
                 age=float(rng.uniform(2.0, 15.0)),
             ))
-    return trees
+            row_tree_count += 1
+
+        if row_tree_count:
+            start = origin + col_dir * j + row_dir * i_lo
+            end = origin + col_dir * j + row_dir * i_hi
+            row_centerlines.append([
+                (float(start[0]), float(start[1])),
+                (float(end[0]), float(end[1])),
+            ])
+    return trees, row_centerlines
 
 
 def run(scene: FarmScene, config, rng: np.random.Generator) -> FarmScene:
@@ -224,7 +248,9 @@ def run(scene: FarmScene, config, rng: np.random.Generator) -> FarmScene:
         parcel_seed = int(rng.integers(0, 2**63 - 1))
         parcel_rng = np.random.default_rng(parcel_seed)
 
-        origin, row_dir, col_dir = _pick_row_and_col_dirs(parcel_coords, parcel_rng)
+        origin, row_dir, col_dir = _pick_row_and_col_dirs(
+            parcel_coords, parcel_rng, config.optimize_tree_layout
+        )
         row_angle_deg = float(np.degrees(np.arctan2(row_dir[1], row_dir[0])))
 
         spec = PlantingSpec(
@@ -235,10 +261,14 @@ def run(scene: FarmScene, config, rng: np.random.Generator) -> FarmScene:
             sideland_width=config.sideland_width,
             species_mix=dict(config.species_mix),
             seed=parcel_seed,
+            optimize_tree_layout=config.optimize_tree_layout,
         )
         parcel.planting = spec
 
-        for t in _generate_tree_grid(origin, row_dir, col_dir, poly, spec, parcel_rng):
+        trees, row_centerlines = _generate_tree_grid(
+            origin, row_dir, col_dir, poly, spec, parcel_rng
+        )
+        for t in trees:
             tid = f"tree_{tree_idx:05d}"
             tree_idx += 1
             scene.trees[tid] = TreeInstance(
@@ -258,10 +288,20 @@ def run(scene: FarmScene, config, rng: np.random.Generator) -> FarmScene:
         scene.weed_zones[wid] = WeedZone(
             id=wid,
             polygon=parcel.polygon,
-            density_params=dict(config.weed_density_params),
+            row_centerlines=row_centerlines,
+            density_params={
+                "row_density_per_m": config.weed_row_density_per_m,
+                "row_falloff_m": config.weed_row_falloff_m,
+            },
             tags={"parcel_id": pid},
         )
-        parcel.weeds = WeedSpec(density_params=dict(config.weed_density_params), seed=parcel_seed)
+        parcel.weeds = WeedSpec(
+            density_params={
+                "row_density_per_m": config.weed_row_density_per_m,
+                "row_falloff_m": config.weed_row_falloff_m,
+            },
+            seed=parcel_seed,
+        )
         parcel.weed_zone_refs.append(wid)
 
     return scene

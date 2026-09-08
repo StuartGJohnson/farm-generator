@@ -1,6 +1,7 @@
 """Generate five small farm IRs and their hydrology-derived USD meshes."""
 
 import os
+from pathlib import Path
 
 from export.usd import ChannelUndulationConfig, export_scene_ground, save_ground_mesh_wireframe
 from generation.orchestrator import FarmGenerationConfig, generate_validated, save_farm
@@ -12,7 +13,15 @@ def main() -> None:
     mesh_dir = os.path.join("debug_out", "mesh")
     os.makedirs(scene_dir, exist_ok=True)
     os.makedirs(mesh_dir, exist_ok=True)
-    bounds = (0.0, 0.0, 50.0, 50.0)
+    bounds = (0.0, 0.0, 60.0, 60.0)
+    asset_dir = Path("debug_out") / "procedural_assets"
+    tree_assets = tuple(sorted(asset_dir.glob("trees/*/*.usda")))
+    weed_assets = tuple(sorted(asset_dir.glob("weeds/*/*.usda")))
+    if not tree_assets or not weed_assets:
+        raise FileNotFoundError(
+            "procedural vegetation assets are missing; run "
+            "`python examples/generate_procedural_assets.py` first"
+        )
 
     for seed in [1, 2, 3, 4, 5]:
         config = FarmGenerationConfig(
@@ -22,6 +31,11 @@ def main() -> None:
             standoff=3.5,
             headland_width=7.5,
             sideland_width=6.5,
+            tree_spacing=4.0,
+            row_spacing=5.0,
+            optimize_tree_layout=True,
+            weed_row_density_per_m=4.5,
+            weed_row_falloff_m=0.35,
             hydrology_add_water=True,
             hydrology_water_depth_fraction=0.5,
         )
@@ -40,6 +54,8 @@ def main() -> None:
                 min_wavelength=1.0,
                 sample_spacing=1.0,
             ),
+            tree_assets=tree_assets,
+            weed_assets=weed_assets,
         )
         save_ground_mesh_wireframe(
             mesh,

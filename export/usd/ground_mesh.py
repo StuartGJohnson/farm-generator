@@ -11,6 +11,8 @@ from dataclasses import dataclass, replace
 import hashlib
 import math
 import os
+from pathlib import Path
+import random
 
 import condeltri
 import numpy as np
@@ -999,7 +1001,15 @@ def build_ground_mesh(
     )
 
 
-def write_ground_mesh_usda(mesh: GroundMesh, path: str, prim_name: str = "Ground") -> None:
+def write_ground_mesh_usda(
+    mesh: GroundMesh,
+    path: str,
+    prim_name: str = "Ground",
+    *,
+    scene: FarmScene | None = None,
+    tree_assets: tuple[Path, ...] = (),
+    weed_assets: tuple[Path, ...] = (),
+) -> None:
     """Write a textured, lit USD world containing the ground and water meshes."""
     os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
     output_dir = os.path.dirname(os.path.abspath(path))
@@ -1067,6 +1077,128 @@ def write_ground_mesh_usda(mesh: GroundMesh, path: str, prim_name: str = "Ground
 
     def vec2(values):
         return ",\n        ".join(f"({a:.9g}, {b:.9g})" for a, b in values)
+
+    def point_instancer(name, assets, positions, seed, scales):
+        if not assets or not positions:
+            return ""
+        references = [asset_reference_path(Path(asset)) for asset in assets]
+        targets = ", ".join(
+            f"</World/Vegetation/{name}/Prototypes/Prototype_{i}>"
+            for i in range(len(references))
+        )
+        prototypes = "\n\n".join(
+            f'''            def Xform "Prototype_{i}" (
+                instanceable = true
+                prepend references = @{reference}@
+            )
+            {{
+            }}'''
+            for i, reference in enumerate(references)
+        )
+        rng = random.Random(seed)
+        proto_indices = [rng.randrange(len(references)) for _ in positions]
+        orientations = []
+        for _ in positions:
+            half_angle = rng.uniform(0.0, math.pi)
+            orientations.append((math.cos(half_angle), 0.0, 0.0, math.sin(half_angle)))
+        return f'''        def PointInstancer "{name}"
+        {{
+            quath[] orientations = [{", ".join(f"({w:.7g}, {x:.7g}, {y:.7g}, {z:.7g})" for w, x, y, z in orientations)}]
+            point3f[] positions = [{", ".join(f"({x:.7g}, {y:.7g}, {z:.7g})" for x, y, z in positions)}]
+            int[] protoIndices = [{", ".join(str(index) for index in proto_indices)}]
+            rel prototypes = [{targets}]
+            float3[] scales = [{", ".join(f"({scale:.7g}, {scale:.7g}, {scale:.7g})" for scale in scales)}]
+
+            def Scope "Prototypes"
+            {{
+{prototypes}
+            }}
+        }}'''
+
+    def asset_reference_path(asset):
+        asset = asset.resolve()
+        if not asset.is_file():
+            raise FileNotFoundError(f"procedural USD asset not found: {asset}")
+        return os.path.relpath(asset, output_dir).replace(os.sep, "/")
+
+    vegetation_block = ""
+    if scene is not None and (tree_assets or weed_assets):
+        seed = scene.provenance.global_seed
+        tree_positions = [(tree.position[0], tree.position[1], 0.0) for tree in scene.trees.values()]
+        tree_rng = random.Random(seed + 4101)
+        tree_scales = [tree_rng.uniform(0.92, 1.08) for _ in tree_positions]
+
+        road_exclusion = unary_union([
+            LineString(edge.polyline).buffer(edge.width * 0.5)
+            for edge in scene.roads.edges.values()
+        ])
+        channel_exclusion = unary_union([
+            LineString(edge.polyline).buffer(edge.top_width * 0.5)
+            for edge in scene.hydrology.edges.values()
+        ])
+        excluded = unary_union([road_exclusion, channel_exclusion])
+        weed_positions = []
+        weed_scales = []
+        weed_rng = random.Random(seed + 9103)
+        for zone in scene.weed_zones.values():
+            polygon = Polygon(zone.polygon)
+            rows = [LineString(row) for row in zone.row_centerlines if len(row) >= 2]
+            rows = [row for row in rows if row.length > 0.0]
+            density = float(zone.density_params.get("row_density_per_m", 0.0))
+            falloff = float(zone.density_params.get("row_falloff_m", 0.0))
+            total_length = sum(row.length for row in rows)
+            target_count = max(0, round(total_length * density))
+            if not rows or target_count == 0:
+                continue
+            cumulative_lengths = []
+            running_length = 0.0
+            for row in rows:
+                running_length += row.length
+                cumulative_lengths.append(running_length)
+            accepted = 0
+            for _ in range(max(50, target_count * 30)):
+                if accepted >= target_count:
+                    break
+                distance_on_rows = weed_rng.uniform(0.0, total_length)
+                row_index = next(
+                    i for i, end_distance in enumerate(cumulative_lengths)
+                    if distance_on_rows <= end_distance
+                )
+                row = rows[row_index]
+                row_start = cumulative_lengths[row_index] - row.length
+                center = row.interpolate(distance_on_rows - row_start)
+                start_x, start_y = row.coords[0]
+                end_x, end_y = row.coords[-1]
+                inv_length = 1.0 / row.length
+                normal_x = -(end_y - start_y) * inv_length
+                normal_y = (end_x - start_x) * inv_length
+                if falloff > 0.0:
+                    lateral_offset = weed_rng.gauss(0.0, falloff)
+                    if abs(lateral_offset) > 3.0 * falloff:
+                        continue
+                else:
+                    lateral_offset = 0.0
+                candidate = Point(
+                    center.x + normal_x * lateral_offset,
+                    center.y + normal_y * lateral_offset,
+                )
+                if not polygon.covers(candidate) or excluded.covers(candidate):
+                    continue
+                weed_positions.append((candidate.x, candidate.y, 0.002))
+                weed_scales.append(weed_rng.uniform(0.75, 1.2))
+                accepted += 1
+
+        instancers = [
+            point_instancer("Trees", tree_assets, tree_positions, seed + 101, tree_scales),
+            point_instancer("Weeds", weed_assets, weed_positions, seed + 202, weed_scales),
+        ]
+        instancers = [block for block in instancers if block]
+        if instancers:
+            vegetation_block = '''    def Scope "Vegetation"
+    {
+%s
+    }
+''' % "\n\n".join(instancers)
 
     def subset(name, material, face_indices):
         faces = ", ".join(str(i) for i in face_indices)
@@ -1266,6 +1398,8 @@ def Xform "World"
     }}
 
 {indent(water_block, 4)}
+
+{vegetation_block.rstrip()}
 }}
 '''
     with open(path, "w", encoding="utf-8") as stream:
@@ -1401,7 +1535,16 @@ def export_scene_ground(
     path: str,
     flat_resolution: float = 1.0,
     undulation: ChannelUndulationConfig | None = None,
+    *,
+    tree_assets: tuple[Path, ...] = (),
+    weed_assets: tuple[Path, ...] = (),
 ) -> GroundMesh:
     mesh = build_ground_mesh(scene, bounds, flat_resolution, undulation)
-    write_ground_mesh_usda(mesh, path)
+    write_ground_mesh_usda(
+        mesh,
+        path,
+        scene=scene,
+        tree_assets=tree_assets,
+        weed_assets=weed_assets,
+    )
     return mesh

@@ -275,6 +275,7 @@ class PlantingSpec:
                                  # the parcel edge
     species_mix: dict[str, float]   # species name -> fraction, sums to 1.0
     seed: int
+    optimize_tree_layout: bool = False  # use the longer edge at the selected anchor corner
 
 
 @dataclass
@@ -337,6 +338,10 @@ class TreeInstance(SpatialFeature):
 @dataclass
 class WeedZone(SpatialFeature):
     polygon: Polygon = field(default_factory=list)
+    # Cultivated row axes that drive weed placement.  Keeping these in the
+    # IR avoids trying to recover rows from a set of tree points at export
+    # time, and permits non-tree row crops later.
+    row_centerlines: list[Polyline] = field(default_factory=list)
     density_params: dict[str, float] = field(default_factory=dict)
 
     def __post_init__(self):

@@ -20,6 +20,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.collections import PatchCollection
 from matplotlib.patches import Polygon as MplPolygon
+from shapely.geometry import LineString, Polygon
 
 from farm_ir.schema import FarmScene
 
@@ -32,8 +33,23 @@ def plot_scene(scene: FarmScene, layers: set[str] | None = None, title: str | No
 
     if "weed_zones" in layers and scene.weed_zones:
         for wz in scene.weed_zones.values():
-            ax.add_patch(MplPolygon(wz.polygon, closed=True, facecolor="khaki",
-                                     edgecolor="none", alpha=0.3, zorder=1))
+            falloff = float(wz.density_params.get("row_falloff_m", 0.0))
+            parcel = Polygon(wz.polygon)
+            for row in wz.row_centerlines:
+                if len(row) < 2:
+                    continue
+                # Show the finite support of the exported distribution,
+                # not the old (and now incorrect) whole-parcel weed zone.
+                support = LineString(row).buffer(
+                    max(3.0 * falloff, 0.03), cap_style="flat"
+                ).intersection(parcel)
+                parts = support.geoms if hasattr(support, "geoms") else [support]
+                for part in parts:
+                    if hasattr(part, "exterior"):
+                        ax.add_patch(MplPolygon(
+                            list(part.exterior.coords), closed=True,
+                            facecolor="khaki", edgecolor="none", alpha=0.3, zorder=1,
+                        ))
 
     if "parcels" in layers and scene.parcels:
         parcels = list(scene.parcels.values())
@@ -101,7 +117,7 @@ if __name__ == "__main__":
     from generation.orchestrator import FarmGenerationConfig, generate_validated, save_farm
 
     out_dir = os.path.join(os.path.dirname(__file__), "..", "debug_out", "farm_scenes")
-    bounds = (0.0, 0.0, 50.0, 50.0)
+    bounds = (0.0, 0.0, 60.0, 60.0)
     seeds = [1, 2, 3, 4, 5]
 
     for seed in seeds:
@@ -110,7 +126,10 @@ if __name__ == "__main__":
                                       max_faces=4,
                                       standoff=3.5,
                                       headland_width=7.5,
-                                      sideland_width=6.5)
+                                      sideland_width=6.5,
+                                      tree_spacing=4.0,
+                                      row_spacing=5.0,
+                                      optimize_tree_layout=True)
         scene, issues, used_seed = generate_validated(config)
 
         status = "OK" if not issues else f"{len(issues)} ISSUE(S)"

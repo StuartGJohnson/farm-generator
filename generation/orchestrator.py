@@ -115,15 +115,25 @@ class FarmGenerationConfig:
     sideland_width: float = 2.0
     row_spacing: float = 1.5
     tree_spacing: float = 1.0
+    optimize_tree_layout: bool = False
     species_mix: dict[str, float] = field(default_factory=lambda: {"almond": 1.0})
     canopy_radius: float = 1.5
     trunk_dbh: float = 0.15
     tree_height: float = 4.0
-    weed_density_params: dict[str, float] = field(default_factory=lambda: {"cover_frac": 0.15})
+    # Expected instances per metre of cultivated row, integrated across
+    # the row's lateral profile.  Lateral offsets are Gaussian with this
+    # standard deviation and are truncated at 3 sigma.  There is no
+    # parcel-wide background weed population.
+    weed_row_density_per_m: float = 4.5
+    weed_row_falloff_m: float = 0.35
 
     def __post_init__(self):
         if not 0.0 <= self.hydrology_water_depth_fraction <= 1.0:
             raise ValueError("hydrology_water_depth_fraction must be between 0 and 1")
+        if self.weed_row_density_per_m < 0.0:
+            raise ValueError("weed_row_density_per_m must be non-negative")
+        if self.weed_row_falloff_m < 0.0:
+            raise ValueError("weed_row_falloff_m must be non-negative")
         if self.connect_radius is None:
             self.connect_radius = self.standoff * 2.5
         if self.hydrology_node_merge_tol is None:
