@@ -191,3 +191,9 @@ config = FarmGenerationConfig(bounds=(0.0, 0.0, 100.0, 100.0), seed=1)
 scene, issues, used_seed = generate_validated(config)
 save_farm(scene, config, "my_farm.yaml")
 ```
+
+## AI assistance
+
+ChatGPT 5.6 (OpenAI, 08/2026), Codex CLI (gpt-5.6-sol, OpenAI, 08/2026), Claude Code 2.1.248 CLI (Anthropic, 08/20206) and Google Antigravity 1.0.14 CLI (Google, 08/2026) were used to assist in the creation of this repo. In particular, the python code is entirely AI created, with git operations, feedback, debugging help, and generation of .md file instructions by Stuart Johnson.
+
+
