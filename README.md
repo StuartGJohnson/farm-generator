@@ -65,6 +65,38 @@ python examples/farm_mesh_prototype.py
 It generates and validates 5 seeds and saves plots to
 `debug_out/examples/`.
 
+## Generating tree and weed assets
+
+The vegetation geometry is generated procedurally rather than sourced from a
+library of predefined or licensed tree and weed models. The asset-generation
+algorithms were originally developed in the
+[FarmGeneration repository](https://github.com/StuartGJohnson/FarmGeneration)
+and copied into `generation/asset_generation/` so this repository can build
+the same assets independently.
+
+Run the standalone asset build from the repository root:
+
+```bash
+conda activate usd2508
+python examples/generate_procedural_assets.py
+```
+
+This creates four seeded pecan-tree variants and one seeded prototype for each
+of dry grass, fennel, and ashweed under `debug_out/procedural_assets/`. The
+tree generator constructs trunks, branching structure, and leaf geometry and
+procedurally creates the bark and leaf textures. The weed generators construct
+species-specific stems, blades, leaves, and flowers as appropriate, along with
+their textures. The current tree seeds are 101, 202, 303, and 404; weed seeds
+are 101, 202, and 303. Reusing the same seeds produces repeatable USDA geometry
+and texture files.
+
+Asset generation is deliberately separate from farm and mesh generation.
+Farm export expects the prototype library to exist already and references its
+USDA files through tree and weed `PointInstancer` prototypes. It does not
+silently regenerate assets. Each farm seed then determines the prototype
+choice, rotation, and scale at each vegetation placement without modifying the
+underlying asset files.
+
 ## Generating hydrology ground meshes
 
 Run `python examples/generate_procedural_assets.py` first to build the reusable,
@@ -195,5 +227,4 @@ save_farm(scene, config, "my_farm.yaml")
 ## AI assistance
 
 ChatGPT 5.6 (OpenAI, 08/2026), Codex CLI (gpt-5.6-sol, OpenAI, 08/2026), Claude Code 2.1.248 CLI (Anthropic, 08/20206) and Google Antigravity 1.0.14 CLI (Google, 08/2026) were used to assist in the creation of this repo. In particular, the python code is entirely AI created, with git operations, feedback, debugging help, and generation of .md file instructions by Stuart Johnson.
-
 
