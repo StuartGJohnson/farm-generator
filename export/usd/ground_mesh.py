@@ -1331,10 +1331,15 @@ def write_ground_mesh_usda(
 
 def Xform "World"
 {{
-    def PhysicsScene "PhysicsScene"
+    def PhysicsScene "PhysicsScene" (
+        prepend apiSchemas = ["PhysxVehicleContextAPI"]
+    )
     {{
         float3 physics:gravityDirection = (0, 0, -1)
         float physics:gravityMagnitude = 9.81
+        uniform token physxVehicleContext:longitudinalAxis = "posX"
+        uniform token physxVehicleContext:updateMode = "velocityChange"
+        uniform token physxVehicleContext:verticalAxis = "posZ"
     }}
 
     def Scope "Lights"

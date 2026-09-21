@@ -24,4 +24,4 @@ dependencies = [
 dev = ["pytest>=7.0"]
 
 [tool.setuptools.packages.find]
-include = ["farm_ir*", "generation*", "visualization*", "export*"]
+include = ["farm_ir*", "generation*", "visualization*", "export*", "tractor_generation*", "bringup*"]

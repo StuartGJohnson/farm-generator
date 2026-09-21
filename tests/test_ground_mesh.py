@@ -155,6 +155,9 @@ def test_ground_mesh_covers_bounds_and_contains_channels(tmp_path):
     assert 'defaultPrim = "World"' in text
     assert 'def Xform "World"' in text
     assert 'def PhysicsScene "PhysicsScene"' in text
+    assert 'prepend apiSchemas = ["PhysxVehicleContextAPI"]' in text
+    assert 'physxVehicleContext:longitudinalAxis = "posX"' in text
+    assert 'physxVehicleContext:verticalAxis = "posZ"' in text
     assert 'def Scope "Lights"' in text
     assert 'def DomeLight "Sky"' in text
     assert 'dome_texture_clouds.png' in text
