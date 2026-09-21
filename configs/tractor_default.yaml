@@ -3,10 +3,10 @@ random_seed: 1
 wheelbase: 2.7
 front_tire_dia: 1.0
 front_tire_width: 0.2
-front_tire_depth: 0.1
+front_tire_depth: 0.2
 rear_tire_dia: 1.6
 rear_tire_width: 0.3
-rear_tire_depth: 0.15
+rear_tire_depth: 0.2
 front_track_width: 1.0
 rear_track_width: 1.6
 turning_radius: 2.7

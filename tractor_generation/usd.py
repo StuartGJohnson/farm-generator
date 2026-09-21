@@ -9,6 +9,8 @@ from __future__ import annotations
 import math
 from pathlib import Path
 
+from .appearance import paint_material, rounded_box, textured_material
+from .wheel_appearance import add_wheel_appearance
 from .config import TractorConfig
 from .names import BASE_LINK, SENSOR_POD_LINK, WHEELS, camera_link
 
@@ -54,8 +56,10 @@ def write_tractor_usda(config: TractorConfig, path: str | Path) -> Path:
         mat.CreateSurfaceOutput().ConnectToSource(shader.ConnectableAPI(), "surface")
         return mat
 
-    body_mat = material("Body", (0.07, 0.32, 0.08), 0.15, 0.32)
-    accent_mat = material("Accent", (0.98, 0.55, 0.03), 0.05, 0.38)
+    body_mat = paint_material(stage, output, config.livery)
+    hub_mat = textured_material(stage, output,
+                                Path(__file__).parent / "assets" / "wheels" / "steel_hub.png",
+                                "WheelHub", metallic=0.25, roughness=0.46)
     black_mat = material("Rubber", (0.018, 0.022, 0.018), 0.0, 0.82)
     rim_mat = material("Rim", (0.68, 0.72, 0.70), 0.75, 0.22)
     lens_mat = material("Lens", (0.04, 0.16, 0.24), 0.25, 0.08)
@@ -159,6 +163,7 @@ def write_tractor_usda(config: TractorConfig, path: str | Path) -> Path:
     UsdGeom.Xform.Define(stage, f"{vehicle_path}/Body")
     for index, (center_x, length, width) in enumerate(config.body_segments):
         body = UsdGeom.Cube.Define(stage, f"{vehicle_path}/Body/segment_{index}")
+        body.CreatePurposeAttr(UsdGeom.Tokens.guide)
         body.CreateSizeAttr(1.0)
         body.AddTranslateOp().Set(Gf.Vec3f(center_x, 0, 0))
         body.AddScaleOp().Set(Gf.Vec3f(length, width, z))
@@ -167,30 +172,29 @@ def write_tractor_usda(config: TractorConfig, path: str | Path) -> Path:
         PhysxSchema.PhysxCollisionAPI.Apply(body.GetPrim()).CreateContactOffsetAttr(0.02)
         add_collision_to_collision_group(stage, str(body.GetPath()), chassis_group_path)
 
-    # Deterministic, simple livery geometry avoids external texture assets.
-    if config.livery == "tiger_stripes":
-        offsets = (-1.1, -0.45, 0.25, 0.95)
-        widths = (0.16, 0.11, 0.15, 0.10)
-        for index, (offset, width) in enumerate(zip(offsets, widths)):
-            stripe_width = next(
-                segment_width for center, length, segment_width in config.body_segments
-                if center - length / 2 - 1e-9 <= offset <= center + length / 2 + 1e-9
-            )
-            stripe = UsdGeom.Cube.Define(stage, f"{vehicle_path}/Livery/stripe_{index}")
-            stripe.CreateSizeAttr(1.0); stripe.AddTranslateOp().Set(Gf.Vec3f(offset, 0, z*0.505))
-            stripe.AddScaleOp().Set(Gf.Vec3f(width, stripe_width*1.01, 0.02))
-            UsdShade.MaterialBindingAPI.Apply(stripe.GetPrim()).Bind(accent_mat)
-    else:
-        for index, (sx, sy) in enumerate(((-1.0, .3), (-.35, -.35), (.25, .32), (.9, -.25))):
-            spot = UsdGeom.Sphere.Define(stage, f"{vehicle_path}/Livery/spot_{index}")
-            spot.CreateRadiusAttr(0.18); spot.AddTranslateOp().Set(Gf.Vec3f(sx, sy, z*.52))
-            spot.AddScaleOp().Set(Gf.Vec3f(1.5, 1.0, .15))
-            UsdShade.MaterialBindingAPI.Apply(spot.GetPrim()).Bind(accent_mat)
-
-    pod = UsdGeom.Cube.Define(stage, f"{vehicle_path}/{SENSOR_POD_LINK}")
-    pod.CreateSizeAttr(1.0); pod.AddTranslateOp().Set(Gf.Vec3f(0, 0, pod_local_z))
-    pod.AddScaleOp().Set(Gf.Vec3f(config.sensor_pod_length, config.sensor_pod_width, config.sensor_pod_height))
-    UsdShade.MaterialBindingAPI.Apply(pod.GetPrim()).Bind(black_mat)
+    # Cosmetic meshes sit inside the original collision envelopes. They carry
+    # no collision or mass APIs and cannot change Vehicle 2 dynamics.
+    coachwork = f"{vehicle_path}/Coachwork"
+    UsdGeom.Xform.Define(stage, coachwork)
+    for index, (center_x, length, width) in enumerate(config.body_segments):
+        rounded_box(stage, f"{coachwork}/panel_{index}", (length, width, z),
+                    (center_x, 0, 0), body_mat, min(0.12, z * 0.12))
+    pod = rounded_box(stage, f"{vehicle_path}/{SENSOR_POD_LINK}",
+                      (config.sensor_pod_length, config.sensor_pod_width, config.sensor_pod_height),
+                      (0, 0, 0), body_mat, config.sensor_pod_height * 0.24)
+    pod.AddTranslateOp().Set(Gf.Vec3d(0, 0, pod_local_z))
+    gap = pod_local_z - config.sensor_pod_height / 2 - z / 2
+    if gap > 0:
+        rounded_box(stage, f"{coachwork}/PodSupport", (min(x, config.sensor_pod_length)*0.12,
+                    min(y, config.sensor_pod_width)*0.15, gap),
+                    (0, 0, z/2 + gap/2), black_mat, 0.025)
+    nose_width = config.body_segments[-1][2]
+    rounded_box(stage, f"{coachwork}/Grille", (0.012, nose_width*0.65, z*0.48),
+                (x/2, 0, -z*0.05), black_mat, 0.003)
+    for index in range(6):
+        rounded_box(stage, f"{coachwork}/GrilleSlat_{index}",
+                    (0.016, nose_width*0.57, z*0.018),
+                    (x/2 + 0.007, 0, z*(-0.23 + index*0.072)), rim_mat, 0.002)
 
     wheel_specs = (
         (config.front_axle_x, config.front_track_width/2, config.front_tire_dia/2, config.front_tire_width, config.front_tire_depth),
@@ -245,13 +249,12 @@ def write_tractor_usda(config: TractorConfig, path: str | Path) -> Path:
         PhysxSchema.PhysxCollisionAPI.Apply(collision.GetPrim()).CreateContactOffsetAttr(0.02)
         add_collision_to_collision_group(stage, str(collision.GetPath()), wheel_group_path)
         render = UsdGeom.Cylinder.Define(stage, f"{wheel_path}/Render")
+        # Retain the diagnostic axle primitive, but draw the detailed meshes.
+        render.CreatePurposeAttr(UsdGeom.Tokens.guide)
         render.CreateAxisAttr(UsdGeom.Tokens.x); render.CreateHeightAttr(width); render.CreateRadiusAttr(radius)
         render.CreateExtentAttr(UsdGeom.Cylinder.ComputeExtentFromPlugins(render, 0))
         UsdShade.MaterialBindingAPI.Apply(render.GetPrim()).Bind(black_mat)
-        rim = UsdGeom.Cylinder.Define(stage, f"{wheel_path}/Rim")
-        rim.CreateAxisAttr(UsdGeom.Tokens.x); rim.CreateHeightAttr(width*1.03); rim.CreateRadiusAttr(max(.05, radius-tread_depth))
-        rim.CreateExtentAttr(UsdGeom.Cylinder.ComputeExtentFromPlugins(rim, 0))
-        UsdShade.MaterialBindingAPI.Apply(rim.GetPrim()).Bind(rim_mat)
+        add_wheel_appearance(stage, wheel_path, radius, width, tread_depth, black_mat, hub_mat)
 
     camera_positions = {
         "front": (config.sensor_pod_length/2, 0, pod_local_z),

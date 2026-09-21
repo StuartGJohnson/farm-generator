@@ -16,10 +16,11 @@ class TractorConfig:
     wheelbase: float = 2.7
     front_tire_dia: float = 1.0
     front_tire_width: float = 0.2
-    front_tire_depth: float = 0.1
+    # Radial rubber thickness (outer radius minus visual rim radius), cosmetic.
+    front_tire_depth: float = 0.2
     rear_tire_dia: float = 1.6
     rear_tire_width: float = 0.3
-    rear_tire_depth: float = 0.15
+    rear_tire_depth: float = 0.2
     front_track_width: float = 1.0
     rear_track_width: float = 1.6
     turning_radius: float = 2.7

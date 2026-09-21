@@ -267,6 +267,60 @@ Isaac Sim's bundled USD libraries and writes the following files under
 - `tractor.usda` — the complete reusable Vehicle 2 tractor asset.
 - `tractor.urdf` — the corresponding ROS-oriented robot description.
 - `tractor_diagnostic.png` — lightweight side and plan geometry diagnostics.
+- `textures/` — the selected livery PNG, referenced relative to the USDA.
+
+The USD tractor uses `tiger_stripes` (orange/black) or `cheetah_spots`
+(ochre/black) paint textures on every body panel and the sensor pod. Low-poly
+rounded panels follow the compound body's wheel-clearance envelope, with a
+rounded pod, dark pod support, and front grille. These are cosmetic meshes;
+the original collision boxes, vehicle mass, inertia, and wheel frames remain
+unchanged. Collision boxes use USD's `guide` purpose. The URDF remains the
+simplified geometry description and does not include this USD appearance.
+Keep the `textures` directory beside the USDA when moving an exported tractor.
+
+Wheels have rounded rubber sidewalls, raised agricultural chevron tread, and
+textured steel dish rims on both sides. `front_tire_depth` and `rear_tire_depth`
+default to **0.2 m** and control radial rubber thickness (outer tire radius minus
+rim radius). The raised lugs use part of that thickness; they do not increase
+the configured tire diameter or width. All wheel detail is collision-free and
+leaves rolling radius, wheel mass/inertia, suspension, and friction unchanged.
+The original `Render` cylinder remains a hidden guide for axle diagnostics.
+Wheel texture provenance and prompt are in
+[`tractor_generation/assets/wheels/`](tractor_generation/assets/wheels/).
+
+Render both liveries with Isaac Sim on a GPU:
+
+```bash
+conda run -n isaacsim61-cu13 python examples/render_tractor.py
+```
+
+This writes `tractor.png`, a reusable `tractor.usda`, and a lit `studio.usda`
+under each livery directory in `debug_out/tractor/livery_preview/`. The preview
+holds simulation time fixed; it is an appearance check, not a driving test.
+Use `--config PATH` and `--output-dir PATH` to preview other dimensions.
+Source textures and their generation prompts are in
+[`tractor_generation/assets/livery/`](tractor_generation/assets/livery/).
+
+Example renderings of the upgraded tractor appearance:
+
+- [Tiger-stripe tractor](debug_out/tractor/livery_preview/tiger_stripes/tractor.png):
+  an AI-generated orange-and-black stripe texture mapped onto the rounded body
+  panels and sensor pod using `livery: tiger_stripes`.
+
+  <img src="debug_out/tractor/livery_preview/tiger_stripes/tractor.png" alt="Tiger-stripe tractor with chevron tire tread and textured steel hubs" width="640">
+
+- [Cheetah-spot tractor](debug_out/tractor/livery_preview/cheetah_spots/tractor.png):
+  an AI-generated ochre-and-black spot texture applied to the same geometry
+  using `livery: cheetah_spots`.
+
+  <img src="debug_out/tractor/livery_preview/cheetah_spots/tractor.png" alt="Cheetah-spot tractor with chevron tire tread and textured steel hubs" width="640">
+
+Both PNGs were rendered at 1280 × 960 in headless Isaac Sim 6.1 on an RTX 2070,
+using a studio floor, lighting, and a three-quarter camera view. Replicator's
+RGB annotator captured the actual USD geometry and materials. Both tractors
+have procedural chevron tread, 0.2 m radial rubber thickness, and dished hubs
+with an AI-generated steel-wheel texture; image generation supplied only the
+texture assets, while Isaac Sim produced the final renderings.
 
 An alternative YAML file may be supplied as the first positional argument,
 and `--output-dir` selects a different destination:
