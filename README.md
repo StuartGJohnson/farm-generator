@@ -5,8 +5,10 @@ See `CLAUDE.md` for the full architecture/design reference.
 
 ## Setup
 
-This repo uses the `usd2508` conda environment (shared with the USD/IsaacSim
-tooling this project eventually exports to), not a Python venv.
+Farm and vegetation generation use the `usd2508` conda environment. Tractor
+generation and interactive simulation use the separate `isaacsim61-cu13`
+environment described in [Tractor generation and bringup](#tractor-generation-and-bringup),
+because those workflows require Isaac Sim 6.1's bundled USD and PhysX schemas.
 
 ```bash
 conda activate usd2508
@@ -224,7 +226,103 @@ scene, issues, used_seed = generate_validated(config)
 save_farm(scene, config, "my_farm.yaml")
 ```
 
+## Tractor generation and bringup
+
+The tractor is generated deterministically from
+`configs/tractor_default.yaml`. The current model uses PhysX 5 Vehicle 2 with
+rear-wheel drive, Ackermann steering, independent wheel suspension, tire
+friction, a compound collision body with wheel clearances, and a pitched RGB
+camera in the sensor pod. Wheel attachment, collision, and render frames are
+authored separately to accommodate Vehicle 2's managed wheel transforms while
+remaining correct both before and during simulation. Matching link, wheel,
+joint, and camera names are used in the USDA and URDF outputs.
+
+Isaac Sim is intentionally not a dependency in `pyproject.toml`: it is a large,
+platform-specific application and supplies its own compatible OpenUSD and
+`PhysxSchema` builds. Install Isaac Sim 6.1 separately, create or activate an
+environment that exposes its Python packages, and then install this repository
+into that environment. On the development machine the environment is named
+`isaacsim61-cu13`:
+
+```bash
+conda activate isaacsim61-cu13
+python -m pip install -e ".[dev]"
+```
+
+Avoid importing an unrelated PyPI OpenUSD build in
+the same process as Isaac Sim, since mixed USD builds can cause ABI and singleton
+conflicts.
+
+Generate the tractor assets from the repository root with:
+
+```bash
+conda activate isaacsim61-cu13
+python examples/generate_tractor.py
+```
+
+The command does not launch `SimulationApp`. It configures a subprocess to use
+Isaac Sim's bundled USD libraries and writes the following files under
+`debug_out/tractor/`:
+
+- `tractor.usda` — the complete reusable Vehicle 2 tractor asset.
+- `tractor.urdf` — the corresponding ROS-oriented robot description.
+- `tractor_diagnostic.png` — lightweight side and plan geometry diagnostics.
+
+An alternative YAML file may be supplied as the first positional argument,
+and `--output-dir` selects a different destination:
+
+```bash
+python examples/generate_tractor.py configs/tractor_default.yaml \
+  --output-dir debug_out/tractor
+```
+
+To compose the generated tractor into the 120 m showcase farm and drive it
+interactively, run:
+
+```bash
+python -m bringup.launch_tractor --position 20 3.5 0
+```
+
+The selected position starts the tractor on the lower horizontal gravel road.
+The launcher starts Isaac Sim, references the farm and tractor assets under one
+`/World`, disables the tractor asset's nested convenience physics scene, and
+uses the farm's `/World/PhysicsScene` as the authoritative Vehicle 2 context.
+Click the viewport before driving. Controls are `W` forward, `S` reverse,
+`A`/`D` steering, and Space for the brake. Select `/World/Tractor/base_link`
+and press `F` to frame the tractor in the viewport.
+
+The optional runtime frame report is useful when changing wheel geometry or
+Vehicle 2 settings:
+
+```bash
+python -m bringup.launch_tractor \
+  --position 20 3.5 0 \
+  --frame-report
+```
+
+It writes `debug_out/tractor/runtime_frame_report.txt` after simulation has
+initialized. `--headless` suppresses the interactive window. `--ros2` also
+enables the ROS 2 bridge and creates camera publishing graphs. ROS 2 Humble
+bringup currently expects:
+
+```bash
+export ROS_DISTRO=humble
+export RMW_IMPLEMENTATION=rmw_fastrtps_cpp
+export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/home/sjohnson/anaconda3/envs/isaacsim61-cu13/lib/python3.12/site-packages/isaacsim/exts/isaacsim.ros2.core/humble/lib"
+python -m bringup.launch_tractor --position 20 3.5 0 --ros2
+```
+
+Run the focused generation tests without starting Isaac Sim:
+
+```bash
+python -m pytest tests/test_tractor_generation.py -q
+```
+
+The standalone scripts in `examples/autocompute_tractor_frames.py` and
+`examples/inspect_tractor_runtime_frames.py` are targeted debugging tools for
+an already open Isaac Sim stage; normal generation and driving do not require
+them.
+
 ## AI assistance
 
 ChatGPT 5.6 (OpenAI, 08/2026), Codex CLI (gpt-5.6-sol, OpenAI, 08/2026), Claude Code 2.1.248 CLI (Anthropic, 08/20206) and Google Antigravity 1.0.14 CLI (Google, 08/2026) were used to assist in the creation of this repo. In particular, the python code is entirely AI created, with git operations, feedback, debugging help, and generation of .md file instructions by Stuart Johnson.
-
