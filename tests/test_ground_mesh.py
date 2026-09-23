@@ -19,6 +19,7 @@ from export.usd import (
     write_ground_mesh_usda,
 )
 from generation.orchestrator import FarmGenerationConfig, generate_farm
+from generation.surface_height import sample_height
 from generation.procedural_assets import generate_procedural_asset_library
 
 
@@ -75,8 +76,10 @@ def test_ground_mesh_covers_bounds_and_contains_channels(tmp_path):
     assert max(p[0] for p in mesh.points) == bounds[2]
     assert min(p[1] for p in mesh.points) == bounds[1]
     assert max(p[1] for p in mesh.points) == bounds[3]
-    assert min(p[2] for p in mesh.points) == -0.8
-    assert max(p[2] for p in mesh.points) == 0.0
+    offsets = sample_height(scene.surface_height, [point[:2] for point in mesh.points])
+    profile_heights = [point[2] - offset for point, offset in zip(mesh.points, offsets)]
+    assert min(profile_heights) == pytest.approx(-0.8)
+    assert max(profile_heights) == pytest.approx(0.0)
     assert all(len(set(t)) == 3 for t in mesh.triangles)
     triangle_edges = {
         tuple(sorted((tri[i], tri[(i + 1) % 3])))
@@ -98,7 +101,7 @@ def test_ground_mesh_covers_bounds_and_contains_channels(tmp_path):
     )
     cross_slope_edges = [
         edge for edge in mesh.breakline_edges
-        if {round(mesh.points[i][2], 9) for i in edge} == {-0.8, 0.0}
+        if {round(profile_heights[i], 9) for i in edge} == {-0.8, 0.0}
     ]
     assert len(cross_slope_edges) >= sum(len(parcel.polygon) for parcel in scene.parcels.values())
     xy_area = sum(
@@ -127,7 +130,7 @@ def test_ground_mesh_covers_bounds_and_contains_channels(tmp_path):
         for a, b in mesh.crossing_breakline_edges
     )
     assert all(
-        all(abs(mesh.points[i][2]) < 1e-12 for i in triangle)
+        all(abs(profile_heights[i]) < 1e-12 for i in triangle)
         for triangle, kind in zip(mesh.triangles, mesh.face_classes)
         if kind == "road"
     )
@@ -173,13 +176,13 @@ def test_ground_mesh_covers_bounds_and_contains_channels(tmp_path):
     assert 'crushed_grass_chatgpt.png' in text
     assert 'channels_chatgpt.png' in text
     assert 'gravel_road_darker_chatgpt.png' in text
-    assert 'def GeomSubset "FlatFaces"' in text
-    assert 'def GeomSubset "ChannelFaces"' in text
-    assert 'def GeomSubset "RoadFaces"' in text
+    assert 'def GeomSubset "Friction_Crop_' in text
+    assert 'def GeomSubset "Friction_Channel_00"' in text
+    assert 'def GeomSubset "Friction_Road_' in text
     assert 'rel material:binding = </World/Looks/GrassMaterial>' in text
     assert 'rel material:binding = </World/Looks/ChannelMaterial>' in text
     assert 'rel material:binding = </World/Looks/GravelRoadMaterial>' in text
-    crossing_subset = text.split('def GeomSubset "CrossingWalls"', 1)[1].split("}", 1)[0]
+    crossing_subset = text.split('def GeomSubset "Friction_Channel_00"', 1)[1].split("}", 1)[0]
     assert 'rel material:binding = </World/Looks/ChannelMaterial>' in crossing_subset
     assert 'def Scope "Vegetation"' in text
     assert 'def PointInstancer "Trees"' in text
@@ -188,6 +191,8 @@ def test_ground_mesh_covers_bounds_and_contains_channels(tmp_path):
     assert text.count('prepend references = @procedural_assets/weeds/') == 3
 
     stage = Usd.Stage.Open(str(output), load=Usd.Stage.LoadNone)
+    channel_indices = set(UsdGeom.Subset.Get(stage, "/World/Ground/Friction_Channel_00").GetIndicesAttr().Get())
+    assert {i for i, kind in enumerate(mesh.face_classes) if kind == "crossing_wall"} <= channel_indices
     weed_positions = UsdGeom.PointInstancer.Get(
         stage, "/World/Vegetation/Weeds"
     ).GetPositionsAttr().Get()
@@ -423,9 +428,10 @@ def test_water_surfaces_are_closed_separate_meshes_and_exported(tmp_path):
         assert all(count in (1, 2) for count in edge_counts.values())
 
     # The waterline is also a ground PSLG contour at half channel depth.
+    offsets = sample_height(scene.surface_height, [point[:2] for point in mesh.points])
     assert any(
-        abs(mesh.points[a][2] + 0.4) < 1e-6
-        and abs(mesh.points[b][2] + 0.4) < 1e-6
+        abs(mesh.points[a][2] - offsets[a] * mesh.height_weights[a] + 0.4) < 1e-6
+        and abs(mesh.points[b][2] - offsets[b] * mesh.height_weights[b] + 0.4) < 1e-6
         for a, b in mesh.breakline_edges
     )
 

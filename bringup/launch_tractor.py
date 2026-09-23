@@ -44,13 +44,18 @@ def main() -> None:
         tractor = stage.DefinePrim("/World/Tractor", "Xform")
         tractor.GetReferences().AddReference(str(Path(args.tractor).resolve()))
         UsdGeom.Xformable(tractor).AddTranslateOp().Set(Gf.Vec3d(*args.position))
-        app.update()
 
         # The tractor asset contains a scene for convenient manual inspection;
         # the composed farm's /World/PhysicsScene remains authoritative.
         nested_scene = stage.GetPrimAtPath("/World/Tractor/PhysicsScene")
         if nested_scene:
             nested_scene.SetActive(False)
+
+        from bringup.surface_friction import configure_vehicle_surface_friction
+
+        tire_count = configure_vehicle_surface_friction(stage)
+        if tire_count:
+            print(f"Connected {tire_count} tires to /World/TireFrictionTable")
 
         if args.ros2:
             from isaacsim.core.utils.extensions import enable_extension
@@ -68,7 +73,13 @@ def main() -> None:
             teleop = TractorKeyboardTeleop(vehicle)
             print("W/S throttle and reverse, A/D steer, Space brake")
 
-        omni.timeline.get_timeline_interface().play()
+        # Generated assets have no animation range. Give this interactive
+        # simulation a usable range so Kit does not loop a single frame.
+        stage.SetStartTimeCode(0)
+        stage.SetEndTimeCode(stage.GetTimeCodesPerSecond() * 86400)
+        timeline = omni.timeline.get_timeline_interface()
+        timeline.set_looping(False)
+        timeline.play()
         update_count = 0
         while app.is_running():
             if teleop is not None:

@@ -10,9 +10,10 @@ CLAUDE.md "Generation order"):
     3. roads              (full perimeter per parcel, via erosion)
     4. crossings          (strict collinear vertex-to-vertex)
     5. crops/weeds        (per CropArea)
+    6. surface friction   (independently seeded, output-independent fields)
 
-`generation/material.py` is deliberately NOT called -- material patches
-are out of scope this phase (see CLAUDE.md "Explicitly out of scope").
+`generation/material.py` is not called; semantic material patches are separate
+from the continuous surface friction fields generated here.
 There is no elevation/terrain stage -- see CLAUDE.md "Elevation / terrain:
 removed": all features derive directly from the road and hydrology
 networks, and a baked heightfield added no information downstream
@@ -45,11 +46,36 @@ from shapely.geometry import Polygon
 
 from farm_ir.schema import FarmScene, GenerationProvenance, IrrigationType, RoadSurface, SceneOrigin
 from farm_ir.serialize import from_plain, read, write
+from generation.surface_friction import generate_surface_friction
+from generation.surface_height import generate_surface_height
 
 from generation import crops, crossings, hydrology, roads, tessellation
 from generation.tessellation import min_interior_angle_deg
 
 GENERATOR_VERSION = "farm-gen-0.1.0"
+
+
+@dataclass(frozen=True)
+class SurfaceFrictionConfig:
+    """Dimensionless surface mu, full variation interval, and spatial spectrum."""
+    friction_mean: float = 0.65
+    friction_variation_range: float = 0.30
+    friction_scale_m: float = 5.0
+    friction_spectral_slope: float = 4.0
+    friction_seed: int = 1001
+
+    def __post_init__(self):
+        import math
+        values = (self.friction_mean, self.friction_variation_range,
+                  self.friction_scale_m, self.friction_spectral_slope)
+        if not all(math.isfinite(v) for v in values):
+            raise ValueError("surface friction parameters must be finite")
+        if self.friction_variation_range < 0 or self.friction_mean < self.friction_variation_range / 2:
+            raise ValueError("surface friction interval must be non-negative")
+        if self.friction_scale_m <= 0 or self.friction_spectral_slope < 0:
+            raise ValueError("friction scale must be positive and spectral slope non-negative")
+        if isinstance(self.friction_seed, bool) or not isinstance(self.friction_seed, int) or self.friction_seed < 0:
+            raise ValueError("friction_seed must be a non-negative integer")
 
 
 @dataclass
@@ -84,7 +110,18 @@ class FarmGenerationConfig:
     standoff: float = 1.0                    # meters; uniform road setback from parcel boundary
     mitre_limit: float = 2.0                 # caps a corner's erosion extension at mitre_limit * standoff
     road_width: float = 4.0
-    road_surface: RoadSurface = RoadSurface.GRAVEL
+    road_surface_type: RoadSurface = RoadSurface.GRAVEL
+    crop_surface: SurfaceFrictionConfig = field(default_factory=SurfaceFrictionConfig)
+    road_surface: SurfaceFrictionConfig = field(default_factory=lambda: SurfaceFrictionConfig(
+        friction_mean=1.05, friction_variation_range=0.20, friction_seed=2001))
+    farm_resolution_m: float = 1.0
+    channel_friction: float = 0.3
+    height_mean: float = 0.0
+    height_variation_range_m: float = 0.2
+    height_scale_m: float = 3.0
+    height_spectral_slope: float = 4.0
+    height_seed: int = 1001
+    shoreline_taper_m: float = 1.0
 
     # --- hydrology ---
     hydrology_node_merge_tol: Optional[float] = None  # meters; defaults to 0.05 * standoff
@@ -128,6 +165,32 @@ class FarmGenerationConfig:
     weed_row_falloff_m: float = 0.35
 
     def __post_init__(self):
+        import math
+        # Accept the former constructor spelling and old serialized configs.
+        if isinstance(self.road_surface, (RoadSurface, str)):
+            self.road_surface_type = RoadSurface(self.road_surface)
+            self.road_surface = SurfaceFrictionConfig(1.05, 0.20, 5.0, 4.0, 2001)
+        for name in ("crop_surface", "road_surface"):
+            value = getattr(self, name)
+            if isinstance(value, dict):
+                setattr(self, name, SurfaceFrictionConfig(**value))
+            elif not isinstance(value, SurfaceFrictionConfig):
+                raise TypeError(f"{name} must be SurfaceFrictionConfig or a parameter mapping")
+        if not math.isfinite(self.farm_resolution_m) or self.farm_resolution_m <= 0:
+            raise ValueError("farm_resolution_m must be finite and positive")
+        if not math.isfinite(self.channel_friction) or self.channel_friction < 0:
+            raise ValueError("channel_friction must be finite and non-negative")
+        if not all(math.isfinite(value) for value in (
+            self.height_mean, self.height_variation_range_m,
+            self.height_scale_m, self.height_spectral_slope,
+        )):
+            raise ValueError("surface height parameters must be finite")
+        if self.height_variation_range_m < 0 or self.height_scale_m <= 0 or self.height_spectral_slope < 0:
+            raise ValueError("height range and spectral slope must be non-negative; scale must be positive")
+        if isinstance(self.height_seed, bool) or not isinstance(self.height_seed, int) or self.height_seed < 0:
+            raise ValueError("height_seed must be a non-negative integer")
+        if not math.isfinite(self.shoreline_taper_m) or self.shoreline_taper_m < 0:
+            raise ValueError("shoreline_taper_m must be finite and non-negative")
         if not 0.0 <= self.hydrology_water_depth_fraction <= 1.0:
             raise ValueError("hydrology_water_depth_fraction must be between 0 and 1")
         if self.weed_row_density_per_m < 0.0:
@@ -169,6 +232,8 @@ def generate_farm(config: FarmGenerationConfig) -> FarmScene:
     scene = roads.run(scene, config, road_rng)
     scene = crossings.run(scene, config, crossing_rng)
     scene = crops.run(scene, config, crop_rng)
+    scene.surface_friction = generate_surface_friction(config)
+    scene.surface_height = generate_surface_height(config)
 
     scene.provenance.generator_params.update({
         "max_faces": str(config.max_faces),
@@ -269,6 +334,23 @@ def load_farm(path: str) -> tuple[FarmScene, FarmGenerationConfig]:
     """Inverse of save_farm: read a scene + its generating config back
     from `path`."""
     doc = read(path)
+    if isinstance(doc["config"].get("road_surface"), str):
+        doc["config"]["road_surface_type"] = doc["config"].pop("road_surface")
+    # Older scenes embedded the generator model in each field. Preserve their
+    # original quantization interval while loading the output-only IR schema.
+    friction = doc["scene"].get("surface_friction")
+    if friction:
+        for region in ("crop", "road"):
+            field_data = friction[region]
+            parameters = field_data.pop("parameters", None)
+            if parameters is not None:
+                half_range = parameters["friction_variation_range"] / 2
+                field_data["friction_min"] = parameters["friction_mean"] - half_range
+                field_data["friction_max"] = parameters["friction_mean"] + half_range
     scene = from_plain(doc["scene"], FarmScene)
     config = from_plain(doc["config"], FarmGenerationConfig)
+    if scene.surface_friction is None:
+        scene.surface_friction = generate_surface_friction(config)
+    if scene.surface_height is None:
+        scene.surface_height = generate_surface_height(config)
     return scene, config

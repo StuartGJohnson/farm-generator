@@ -139,13 +139,15 @@ surface-patch convention for later roads and structures.
 The example uses a 3.5 m road standoff, 7.5 m headlands, and 6.5 m sidelands.
 Straight 4 m-wide roads are represented as first-class `RoadSurfacePatch`
 footprints. Road boundaries are PSLG constraints, and their triangles are
-exported in the USD `RoadFaces` geometry subset for later material binding.
+exported in USD `Friction_Road_*` subsets for visual and physics material binding.
 
 Road footprints replace, rather than overlay, the underlying terrain mesh.
 Channel constraints are clipped out wherever a road exists, road-side boundary
-vertices are placed at road elevation, and explicit vertical triangles close
-the channel-facing solid fill sides. No crossing-specific constraints cut
-across the road top. Wall faces are exported in the `CrossingWalls` subset.
+vertices on flat ground are shared with the neighboring crop mesh, and only
+depressed channel-profile vertices receive a raised road-deck copy. Explicit
+vertical triangles close those channel-facing fill sides. No crossing-specific
+constraints cut across the road top. Wall faces share the
+`Friction_Channel_00` physics subset with the channel slopes and bottoms.
 Each crossing is associated with the hydrology segment that geometrically
 passes through its location, rather than by channel-midpoint proximity. The
 purple wireframe diagnostics therefore cover the crossing/channel-slope
@@ -168,8 +170,8 @@ geometry subsets map crushed grass to flat cropland, the channel texture to
 slopes, bottoms, and vertical crossing walls, and darker gravel to road decks.
 Face-varying world-space UVs repeat every texture at 2 m intervals. Vertical
 crossing walls use horizontal-distance/elevation projection so their texture
-does not collapse, while remaining independently identified by the
-`CrossingWalls` subset.
+does not collapse. The in-memory mesh retains the `crossing_wall` face class
+for diagnostics, while USD material subsets group faces by surface friction.
 
 Trees and weeds are authored as separate USD `PointInstancer` systems under
 `/World/Vegetation`. Tree positions come directly from the farm IR. Each IR
@@ -215,6 +217,146 @@ boundaries, and purple markers identify crossing/channel-slope constraints. This
 mesh is constrained to have edges along the channels, roads (and channel crossings)
 and the farm parcels. The resolution of the mesh is nominally 1m in order to
 sample variations in height and surface friction.
+
+## Surface friction variation
+
+Farm generation creates independent, seeded crop and road friction fields over
+the entire domain and stores their samples and coefficient limits in the
+`FarmScene` IR. Generator models live in `generation.orchestrator` as part of
+`FarmGenerationConfig`, saved alongside the scene. The showcase example defines
+crop, road, and constant channel friction explicitly in its config call. This happens before USD export. `FarmGenerationConfig` accepts nested
+`SurfaceFrictionConfig` objects (or parameter dictionaries) with these defaults:
+
+```yaml
+farm_resolution_m: 1.0
+channel_friction: 0.3
+crop_surface:
+  friction_mean: 0.65
+  friction_variation_range: 0.30
+  friction_scale_m: 5.0
+  friction_spectral_slope: 4.0
+  friction_seed: 1001
+road_surface:
+  friction_mean: 1.05
+  friction_variation_range: 0.20
+  friction_scale_m: 5.0
+  friction_spectral_slope: 4.0
+  friction_seed: 2001
+```
+
+The gravel/asphalt classification is now `road_surface_type`; `load_farm`
+migrates the former string-valued `road_surface` in saved configurations.
+Friction seeds are independent of the farm geometry seed. Identical parameters,
+bounds, resolution, and seed reproduce the same field, regardless of exporter.
+
+For frequency `f` in cycles/m, the target power spectrum is
+`P(f) ∝ [1 + (f × friction_scale_m)²]^(-friction_spectral_slope/2)`.
+The generator filters white-noise Fourier coefficients by `sqrt(P)`, removes
+DC, and cuts radial frequencies above `1 / (2 × farm_resolution_m)`. A single
+max-absolute normalization preserves the grid spectrum and mean while bounding
+values to `mean ± variation_range/2`. The field need not reach both interval
+endpoints. The FFT grid is periodic across the domain boundaries; continuous
+bilinear sampling stays bounded and adds the usual grid-scale interpolation
+smoothing. The specified spectrum applies to the stored grid, not an exact
+power law at every arbitrary sample location.
+
+Ground meshing uses `farm_resolution_m` from the IR as its default spacing;
+the existing `flat_resolution` argument remains an explicit mesh-only override.
+Each triangle samples the appropriate field at its XY centroid. Raised road
+decks use road friction; channel bottoms, slopes, and crossing walls use the
+constant channel value, including submerged channel faces. Water surfaces
+remain visual meshes without collisions.
+
+USD export accepts `friction_config=UsdFrictionConfig(n_sample_fields=10)`.
+Each crop/road interval is divided into N midpoint bins, with
+`delta_mu = friction_variation_range/N` and maximum error `delta_mu/2`.
+A zero-width interval produces one material. The default export defines 21
+physics materials: 10 crop, 10 road, and one channel. Nonempty face subsets form
+a complete, non-overlapping `materialBind` partition, each with a visual material
+and a separate `material:binding:physics` binding. Physics materials have matching
+static/dynamic friction and zero restitution. Uniform face primvars retain both
+the sampled and quantized mu for inspection.
+
+Bringup connects all four tires to `/World/TireFrictionTable`, which maps each
+physics material to its surface mu. The existing tire friction-versus-slip graph
+then multiplies that value (1 at low/peak slip, decreasing to 0.85 at high slip).
+Material static/dynamic friction is not multiplied into this tire lookup a
+second time. Wheel-cylinder contacts with the ground are filtered so the
+Vehicle 2 suspension queries supply the tire forces; chassis contacts remain
+enabled. See NVIDIA's [vehicle materials documentation](https://docs.omniverse.nvidia.com/kit/docs/omni_physics/107.2/extensions/ux/source/omni.physx.vehicle/docs/collision_filtering_and_materials.html)
+and [tire slip graph reference](https://docs.omniverse.nvidia.com/kit/docs/usdrt.scenegraph/7.6.2/api/classusdrt_1_1_physx_schema_physx_vehicle_tire_a_p_i.html).
+
+Regenerate the showcase and its friction diagnostic, then drive it as before:
+
+```bash
+python examples/generate_showcase_farm.py
+python -m bringup.launch_tractor --position 20 3.5 0
+```
+
+<img src="debug_out/mesh/farm_seed_1_120m2_friction.png" alt="Crop and road friction fields masked by surface type, combined channel/crop/road friction, and USD quantization" width="1000">
+
+The [full-size diagnostic](debug_out/mesh/farm_seed_1_120m2_friction.png) shows
+crop-only and road-only panels with separate color scales, followed by the
+combined sampled and quantized fields on a shared scale. Gray marks other
+surface types. `generate_ground_meshes.py` also writes a friction PNG for each
+of the five smaller regression farms.
+
+Run the headless runtime check in the Isaac Sim environment:
+
+```bash
+conda run -n isaacsim61-cu13 python examples/check_surface_friction.py
+```
+
+It compares identical four-second throttle inputs on constant mu 0.15 and 1.05
+surfaces, then drives through the showcase's variable road field. The check
+verifies wheel-contact material paths and effective friction values and writes
+positions, velocities, and contact samples to `debug_out/friction_check/report.json`.
+The verified baseline reached **3.22 m/s at mu 0.15** and **7.64 m/s at mu 1.05**
+after identical four-second throttle inputs. On the showcase route, the wheels
+encountered five distinct road-friction bins with matching runtime coefficients.
+
+## Surface height variation
+
+`FarmGenerationConfig` also defines a seeded terrain-height field with
+`height_mean=0`, `height_variation_range_m=0.2`, `height_scale_m=3`,
+`height_spectral_slope=4`, `height_seed=1001`, and `shoreline_taper_m=1` by
+default. The showcase example sets these beside the friction parameters,
+including a 0.5 m height range and 10 m scale. The generated
+`FarmScene.surface_height` stores the sampled field; the generator parameters
+are saved with the config. Change the range for stronger bumps, the scale for
+smaller or larger patches, and `farm_resolution_m` to resolve finer features.
+
+The field uses the same isotropic spectrum and periodic, bounded bilinear
+sampling described above for friction, with a separately configurable
+seed and units of meters. Equal seeds can correlate height and friction fields.
+The exporter adds the sampled offset to every **ground** mesh vertex,
+including roads and channel profiles. It keeps each water mesh level at its
+original elevation. When water is present, a smooth 1 m taper reduces the
+ground offset to zero at natural shorelines, avoiding seams against the flat
+water mesh. Road and crop triangles share vertices along their ordinary
+breakline, so both sides use the same height sample and cannot develop a
+vertical step there. Road decks retain their full height variation; road-cut
+and domain edges of the water polygon are excluded from the shoreline taper.
+Set `shoreline_taper_m=0` to disable the taper. Friction materials retain their
+pre-displacement surface classification, while tree and weed instances follow
+the terrain height.
+
+The displaced ground mesh is the static collider queried by Vehicle 2's
+suspension and tires. The diagnostic image `debug_out/mesh/farm_seed_1_120m2_height.png`
+shows the field and the final meshed elevation.
+
+<img src="debug_out/mesh/farm_seed_1_120m2_height.png" alt="Generated height field and displaced ground mesh" width="1000">
+
+Run `python examples/check_water_perimeter.py` to audit the showcase's water
+boundary against the ground. It writes
+`debug_out/mesh/water_perimeter_report.json`, separating natural shoreline,
+road-cut, and map-edge segments and recording gaps before and after height
+displacement.
+
+The headless Vehicle 2 check above confirms that its ground queries encounter
+the uneven surface; the report also records suspension force, tire force, and
+slip at each sampled wheel contact. The current tractor still commands steering
+angles directly, so this terrain does not add steering kickback.
 
 ## Generating a farm programmatically
 
@@ -344,6 +486,14 @@ uses the farm's `/World/PhysicsScene` as the authoritative Vehicle 2 context.
 Click the viewport before driving. Controls are `W` forward, `S` reverse,
 `A`/`D` steering, and Space for the brake. Select `/World/Tractor/base_link`
 and press `F` to frame the tractor in the viewport.
+Space cuts throttle while held; releasing it restores any held W/S input.
+Teleop consumes driving keys before Kit's shortcuts, so Space does not pause
+the simulation. W/S applies full throttle, rather than requesting a fixed
+speed; the updated surface traction can produce substantially faster motion.
+
+Run `python examples/check_tractor_teleop.py` in the Isaac Sim environment to
+check keyboard dispatch, braking, resumed forward/reverse motion, and all four
+tire-table bindings headlessly against the generated farm and tractor assets.
 
 The optional runtime frame report is useful when changing wheel geometry or
 Vehicle 2 settings:
@@ -379,4 +529,4 @@ them.
 
 ## AI assistance
 
-ChatGPT 5.6 (OpenAI, 08/2026), Codex CLI (gpt-5.6-sol, OpenAI, 08/2026), Claude Code 2.1.248 CLI (Anthropic, 08/20206) and Google Antigravity 1.0.14 CLI (Google, 08/2026) were used to assist in the creation of this repo. In particular, the python code is entirely AI created, with git operations, feedback, debugging help, and generation of .md file instructions by Stuart Johnson.
+ChatGPT 5.6 (OpenAI, 08/2026), Codex CLI (gpt-5.6-sol, OpenAI, 08/2026), ChatGPT 6 (OpenAI, 09/2026), Codex CLI (gpt-6-sol/astra, OpenAI, 09/2026), Claude Code 2.1.248 CLI (Anthropic, 08/20206) and Google Antigravity 1.0.14 CLI (Google, 08/2026) were used to assist in the creation of this repo. In particular, the python code is entirely AI created, with git operations, feedback, debugging help, and generation of .md/.txt file instructions (in collaboration with AI!) by Stuart Johnson.

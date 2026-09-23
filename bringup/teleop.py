@@ -18,11 +18,21 @@ class TractorKeyboardTeleop:
             raise ValueError(f"{vehicle_prim.GetPath()} has no PhysxVehicleControllerAPI")
         self._input = carb.input.acquire_input_interface()
         self._keyboard = omni.appwindow.get_default_app_window().get_keyboard()
-        self._subscription = self._input.subscribe_to_keyboard_events(
-            self._keyboard, self._on_keyboard
+        # Kit's hotkey dispatcher subscribes at order 0. Consume driving keys
+        # first, especially Space, which otherwise also pauses the timeline.
+        self._subscription = self._input.subscribe_to_input_events(
+            self._on_input, device=self._keyboard, order=-100
         )
 
+    def _on_input(self, event, *_args) -> bool:
+        if event.deviceType == self._carb_input.DeviceType.KEYBOARD:
+            return self._on_keyboard(event.event)
+        return True
+
     def _on_keyboard(self, event, *_args) -> bool:
+        key = self._carb_input.KeyboardInput
+        if event.input not in (key.W, key.S, key.A, key.D, key.SPACE):
+            return True
         event_type = event.type
         if event_type in (
             self._carb_input.KeyboardEventType.KEY_PRESS,
@@ -31,7 +41,7 @@ class TractorKeyboardTeleop:
             self._pressed.add(event.input)
         elif event_type == self._carb_input.KeyboardEventType.KEY_RELEASE:
             self._pressed.discard(event.input)
-        return True
+        return False
 
     def update(self) -> None:
         key = self._carb_input.KeyboardInput
@@ -40,18 +50,20 @@ class TractorKeyboardTeleop:
         left = key.A in self._pressed
         right = key.D in self._pressed
         conflicting_throttle = forward and reverse
+        braking = conflicting_throttle or key.SPACE in self._pressed
 
         self._controller.GetAcceleratorAttr().Set(
-            0.0 if conflicting_throttle else float(forward or reverse)
+            0.0 if braking else float(forward or reverse)
         )
         self._controller.GetTargetGearAttr().Set(-1 if reverse and not forward else 1)
         self._controller.GetSteerAttr().Set(float(left) - float(right))
         self._controller.GetBrake0Attr().Set(
-            float(conflicting_throttle or key.SPACE in self._pressed)
+            float(braking)
         )
 
     def close(self) -> None:
         if self._subscription is not None:
-            self._input.unsubscribe_to_keyboard_events(self._keyboard, self._subscription)
+            self._input.unsubscribe_to_input_events(self._subscription)
             self._subscription = None
-
+            self._pressed.clear()
+            self.update()

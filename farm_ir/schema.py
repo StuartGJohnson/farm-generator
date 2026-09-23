@@ -4,10 +4,9 @@ farm_ir_schema.py
 Core intermediate representation (IR) for procedurally generated farms.
 
 Design principles:
-  - Vector-first: everything is authored/generated as points, polylines,
-    or polygons with parameters -- no rasters in the IR at all. Any
-    rasterization (e.g. material grids) happens only at simulator-export
-    bake time, per-simulator, per-resolution. There is no terrain/
+  - Vector-first geometry: points, polylines, and polygons with parameters.
+    Surface friction is an output-independent sampled random field in the IR;
+    simulator-specific material quantization happens at export. There is no terrain/
     elevation model in this IR -- see CLAUDE.md "Elevation / terrain:
     removed": every feature derives directly from the road and hydrology
     networks.
@@ -387,6 +386,38 @@ class GenerationProvenance:
 
 
 @dataclass
+class SurfaceFrictionField:
+    """Periodic grid over bounds, row-major [north][east], with no duplicate edge.
+
+    Samples and coefficient limits are output data; generator settings live
+    in FarmGenerationConfig, serialized alongside the scene.
+    """
+    bounds: tuple[float, float, float, float]
+    values: list[list[float]]
+    friction_min: float
+    friction_max: float
+
+
+@dataclass
+class SurfaceFriction:
+    crop: SurfaceFrictionField
+    road: SurfaceFrictionField
+    channel_friction: float = 0.3
+    farm_resolution_m: float = 1.0
+
+
+@dataclass
+class SurfaceHeightField:
+    """Generated ENU elevation offsets on a periodic row-major grid."""
+    bounds: tuple[float, float, float, float]
+    values: list[list[float]]
+    resolution_m: float
+    height_min: float
+    height_max: float
+    shoreline_taper_m: float = 1.0
+
+
+@dataclass
 class FarmScene:
     origin: SceneOrigin
     hydrology: HydrologyNetwork = field(default_factory=HydrologyNetwork)
@@ -398,3 +429,5 @@ class FarmScene:
     material_patches: dict[str, MaterialPatch] = field(default_factory=dict)
     buildings: dict[str, Building] = field(default_factory=dict)
     provenance: GenerationProvenance = field(default_factory=GenerationProvenance)
+    surface_friction: Optional[SurfaceFriction] = None
+    surface_height: Optional[SurfaceHeightField] = None

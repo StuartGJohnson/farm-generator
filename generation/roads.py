@@ -69,7 +69,7 @@ def run(scene: FarmScene, config, rng) -> FarmScene:
                 node_b=b,
                 polyline=[(float(pa[0]), float(pa[1])), (float(pb[0]), float(pb[1]))],
                 width=config.road_width,
-                surface=config.road_surface,
+                surface=config.road_surface_type,
                 road_class=RoadClass.FRONTAGE,
                 tags={"parcel_id": pid},
             )

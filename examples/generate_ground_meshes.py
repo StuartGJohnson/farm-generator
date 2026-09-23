@@ -6,6 +6,9 @@ from pathlib import Path
 from export.usd import ChannelUndulationConfig, export_scene_ground, save_ground_mesh_wireframe
 from generation.orchestrator import FarmGenerationConfig, generate_validated, save_farm
 from visualization.debug_view import save_scene_png
+from visualization.surface_friction import save_surface_friction_plot
+from visualization.surface_height import save_surface_height_plot
+from export.usd.friction import quantize_friction
 
 
 def main() -> None:
@@ -57,6 +60,10 @@ def main() -> None:
             tree_assets=tree_assets,
             weed_assets=weed_assets,
         )
+        bins, assignments = quantize_friction(mesh)
+        save_surface_friction_plot(mesh, Path(mesh_dir) / f"farm_seed_{seed}_friction.png",
+                                   [bins[i][2] for i in assignments])
+        save_surface_height_plot(mesh, Path(mesh_dir) / f"farm_seed_{seed}_height.png")
         save_ground_mesh_wireframe(
             mesh,
             os.path.join(mesh_dir, f"farm_seed_{seed}_ground_wireframe.png"),

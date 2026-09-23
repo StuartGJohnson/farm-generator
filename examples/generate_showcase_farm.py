@@ -8,8 +8,11 @@ from export.usd import (
     save_ground_mesh_plan,
     save_ground_mesh_wireframe,
 )
-from generation.orchestrator import FarmGenerationConfig, generate_validated, save_farm
+from generation.orchestrator import FarmGenerationConfig, SurfaceFrictionConfig, generate_validated, save_farm
 from visualization.debug_view import save_scene_png
+from visualization.surface_friction import save_surface_friction_plot
+from visualization.surface_height import save_surface_height_plot
+from export.usd.friction import quantize_friction
 
 
 def main() -> None:
@@ -33,6 +36,33 @@ def main() -> None:
     config = FarmGenerationConfig(
         bounds=bounds,
         seed=seed,
+        # Increase variation_range for stronger contrasts; decrease scale_m
+        # for finer spatial variation. The shortest wavelength is 2 * resolution.
+        farm_resolution_m=1.0,
+        crop_surface=SurfaceFrictionConfig(
+            friction_mean=0.5,
+            friction_variation_range=0.90,
+            friction_scale_m=10.0,
+            friction_spectral_slope=4.0,
+            friction_seed=1001,
+        ),
+        road_surface=SurfaceFrictionConfig(
+            friction_mean=1.05,
+            friction_variation_range=0.20,
+            friction_scale_m=10.0,
+            friction_spectral_slope=4.0,
+            friction_seed=2001,
+        ),
+        channel_friction=0.30,  # Channels currently use a constant coefficient.
+        # Height uses the same grid resolution and shares the crop seed, so
+        # their patterns are correlated despite the different spatial scales.
+        # The water surface remains at its original level.
+        height_mean=0.0,
+        height_variation_range_m=0.5,
+        height_scale_m=10.0,
+        height_spectral_slope=4.0,
+        height_seed=1001,
+        shoreline_taper_m=1.0,
         max_faces=4,
         standoff=3.5,
         headland_width=7.5,
@@ -66,6 +96,10 @@ def main() -> None:
         tree_assets=tree_assets,
         weed_assets=weed_assets,
     )
+    bins, assignments = quantize_friction(mesh)
+    save_surface_friction_plot(mesh, mesh_dir / f"{stem}_friction.png",
+                               [bins[i][2] for i in assignments])
+    save_surface_height_plot(mesh, mesh_dir / f"{stem}_height.png")
     save_ground_mesh_wireframe(
         mesh,
         str(mesh_dir / f"{stem}_ground_wireframe.png"),

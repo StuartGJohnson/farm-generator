@@ -1,6 +1,7 @@
 """Bake the vector hydrology network into a 2.5D triangular USD mesh.
 
-The IR deliberately remains vector-only. This module builds an explicit PSLG
+The IR stores vector geometry and output-independent surface friction fields.
+This module builds an explicit PSLG
 for channel features, then adds an isotropic triangular point distribution in
 unconstrained regions before constrained Delaunay triangulation.
 """
@@ -17,11 +18,15 @@ import random
 import condeltri
 import numpy as np
 from scipy.stats import qmc
+from scipy.spatial import cKDTree
 from shapely import node, segmentize, set_precision
 from shapely.geometry import LineString, MultiLineString, Point, Polygon, box
 from shapely.ops import nearest_points, substring, unary_union
 
-from farm_ir.schema import FarmScene, HydrologyEdge, RoadClass
+from farm_ir.schema import FarmScene, HydrologyEdge, RoadClass, SurfaceFriction, SurfaceHeightField
+from generation.surface_friction import face_surface_regions, sample_mesh_friction
+from generation.surface_height import sample_height
+from .friction import UsdFrictionConfig, friction_usda
 
 
 @dataclass(frozen=True)
@@ -33,6 +38,11 @@ class GroundMesh:
     crossing_breakline_edges: list[tuple[int, int]]
     face_classes: list[str]
     water_surfaces: list[WaterSurfaceMesh]
+    surface_friction: SurfaceFriction | None = None
+    face_friction: list[float] | None = None
+    face_surface_regions: list[str] | None = None
+    surface_height: SurfaceHeightField | None = None
+    height_weights: list[float] | None = None
 
 
 @dataclass(frozen=True)
@@ -670,6 +680,57 @@ def _triangulate_water_regions(
     return meshes
 
 
+def _shoreline_taper_weights(points, water_surfaces, bounds, road_area, taper_m,
+                             untapered_indices=()):
+    """Attenuate terrain at natural banks, excluding map and road cut edges.
+
+    Water and ground are separate meshes. Their true shoreline constraints
+    coincide in XY, so both must have the water elevation there. A smoothstep
+    over ``taper_m`` avoids making a sharp ridge at that constrained contour.
+    """
+    weights = np.ones(len(points), dtype=float)
+    if taper_m <= 0 or not water_surfaces or not points:
+        return weights
+    domain_edge = box(*bounds).boundary
+    road_edge = road_area.boundary if road_area is not None and not road_area.is_empty else None
+    segments = []
+    for surface in water_surfaces:
+        for a, b in surface.boundary_edges:
+            start = np.asarray(surface.points[a][:2], dtype=float)
+            end = np.asarray(surface.points[b][:2], dtype=float)
+            if np.array_equal(start, end):
+                continue
+            middle = Point(*(0.5 * (start + end)))
+            if domain_edge.distance(middle) <= 2e-6:
+                continue
+            if road_edge is not None and road_edge.distance(middle) <= 2e-6:
+                continue
+            segments.append((start, end))
+    if not segments:
+        return weights
+
+    starts = np.asarray([segment[0] for segment in segments])
+    vectors = np.asarray([segment[1] - segment[0] for segment in segments])
+    lengths2 = np.einsum("ij,ij->i", vectors, vectors)
+    half_lengths = np.sqrt(lengths2).max() / 2
+    midpoint_tree = cKDTree(starts + vectors / 2)
+    candidates = midpoint_tree.query_ball_point(
+        np.asarray([point[:2] for point in points]), taper_m + half_lengths
+    )
+    untapered = set(untapered_indices)
+    for i, (point, nearby) in enumerate(zip(points, candidates)):
+        if i in untapered or not nearby:
+            continue
+        xy = np.asarray(point[:2], dtype=float)
+        delta = xy - starts[nearby]
+        t = np.clip(np.einsum("ij,ij->i", delta, vectors[nearby]) / lengths2[nearby], 0, 1)
+        closest = starts[nearby] + t[:, None] * vectors[nearby]
+        distance = np.sqrt(np.min(np.sum((closest - xy)**2, axis=1)))
+        fraction = min(distance / taper_m, 1.0)
+        weights[i] = fraction * fraction * (3 - 2 * fraction)
+    return weights
+
+
 def build_water_surface_meshes(
     scene: FarmScene,
     bounds: tuple[float, float, float, float],
@@ -688,10 +749,12 @@ def build_water_surface_meshes(
 def build_ground_mesh(
     scene: FarmScene,
     bounds: tuple[float, float, float, float],
-    flat_resolution: float = 1.0,
+    flat_resolution: float | None = None,
     undulation: ChannelUndulationConfig | None = None,
 ) -> GroundMesh:
     """Create a breakline-constrained Delaunay mesh over ``bounds``."""
+    if flat_resolution is None:
+        flat_resolution = scene.surface_friction.farm_resolution_m if scene.surface_friction else 1.0
     if flat_resolution <= 0:
         raise ValueError("flat_resolution must be positive")
     minx, miny, maxx, maxy = bounds
@@ -888,9 +951,17 @@ def build_ground_mesh(
                     road_edge_splits[(triangle_index, side_index)] = split_vertices
                     road_vertices.update(split_vertices)
         for index in sorted(road_vertices):
-            road_index[index] = len(points)
-            x, y, _ = points[index]
-            points.append((x, y, 0.0))
+            # Flat crop/road breaklines are one continuous ground surface.
+            # Share their vertex indices so shoreline attenuation and any
+            # future displacement cannot give the two sides different Z.
+            # Only channel-profile vertices need a second, raised road copy;
+            # those pairs form the vertical crossing walls below.
+            if abs(points[index][2]) <= 1e-8:
+                road_index[index] = index
+            else:
+                road_index[index] = len(points)
+                x, y, _ = points[index]
+                points.append((x, y, 0.0))
         # Replace, rather than overlay, every road-interior terrain face.
         base_triangle_count = len(triangles)
         original_triangles = triangles[:]
@@ -990,6 +1061,22 @@ def build_ground_mesh(
         seed,
     )
 
+    # Classify the original hydrology profile before adding terrain offsets.
+    # A raised channel bottom or depressed crop face must keep its material.
+    regions = face_surface_regions(points, triangles, face_classes)
+    face_friction = (sample_mesh_friction(scene.surface_friction, points, triangles,
+                                          face_classes, regions)
+                     if scene.surface_friction else None)
+    height_weights = None
+    if scene.surface_height is not None:
+        offsets = sample_height(scene.surface_height, [point[:2] for point in points])
+        height_weights = _shoreline_taper_weights(
+            points, water_surfaces, bounds, road_area,
+            scene.surface_height.shoreline_taper_m, road_index.values(),
+        )
+        points = [(x, y, z + float(offset * weight))
+                  for (x, y, z), offset, weight in zip(points, offsets, height_weights)]
+
     return GroundMesh(
         points=points,
         triangles=triangles,
@@ -998,6 +1085,11 @@ def build_ground_mesh(
         crossing_breakline_edges=crossing_breakline_edges,
         face_classes=face_classes,
         water_surfaces=water_surfaces,
+        surface_friction=scene.surface_friction,
+        face_friction=face_friction,
+        face_surface_regions=regions,
+        surface_height=scene.surface_height,
+        height_weights=height_weights.tolist() if height_weights is not None else None,
     )
 
 
@@ -1009,6 +1101,7 @@ def write_ground_mesh_usda(
     scene: FarmScene | None = None,
     tree_assets: tuple[Path, ...] = (),
     weed_assets: tuple[Path, ...] = (),
+    friction_config: UsdFrictionConfig = UsdFrictionConfig(),
 ) -> None:
     """Write a textured, lit USD world containing the ground and water meshes."""
     os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
@@ -1027,14 +1120,16 @@ def write_ground_mesh_usda(
     face_colors = []
     face_materials = []
     texture_coordinates = []
-    for face_class, triangle in zip(mesh.face_classes, mesh.triangles):
-        if face_class == "road":
+    face_regions = (mesh.face_surface_regions if mesh.face_surface_regions is not None else
+                    face_surface_regions(mesh.points, mesh.triangles, mesh.face_classes))
+    for face_class, region, triangle in zip(mesh.face_classes, face_regions, mesh.triangles):
+        if region == "road":
             color = (0.30, 0.24, 0.17)
             material = "road"
         elif face_class == "crossing_wall":
             color = (0.24, 0.24, 0.22)
             material = "channel"
-        elif min(mesh.points[i][2] for i in triangle) < -1e-9:
+        elif region == "channel":
             color = (0.34, 0.20, 0.08)
             material = "channel"
         else:
@@ -1124,6 +1219,21 @@ def write_ground_mesh_usda(
     vegetation_block = ""
     if scene is not None and (tree_assets or weed_assets):
         seed = scene.provenance.global_seed
+        def with_ground_height(positions):
+            if mesh.surface_height is None or not positions:
+                return positions
+            offsets = sample_height(mesh.surface_height, [point[:2] for point in positions])
+            road_area = next(
+                (patch.polygon for patch in build_road_surface_patches(scene, mesh.surface_height.bounds)
+                 if not patch.is_crossing), None
+            )
+            weights = _shoreline_taper_weights(
+                positions, mesh.water_surfaces, mesh.surface_height.bounds, road_area,
+                mesh.surface_height.shoreline_taper_m,
+            )
+            return [(x, y, z + float(offset * weight))
+                    for (x, y, z), offset, weight in zip(positions, offsets, weights)]
+
         tree_positions = [(tree.position[0], tree.position[1], 0.0) for tree in scene.trees.values()]
         tree_rng = random.Random(seed + 4101)
         tree_scales = [tree_rng.uniform(0.92, 1.08) for _ in tree_positions]
@@ -1188,6 +1298,8 @@ def write_ground_mesh_usda(
                 weed_scales.append(weed_rng.uniform(0.75, 1.2))
                 accepted += 1
 
+        tree_positions = with_ground_height(tree_positions)
+        weed_positions = with_ground_height(weed_positions)
         instancers = [
             point_instancer("Trees", tree_assets, tree_positions, seed + 101, tree_scales),
             point_instancer("Weeds", weed_assets, weed_positions, seed + 202, weed_scales),
@@ -1322,6 +1434,10 @@ def write_ground_mesh_usda(
     rel material:binding = </World/Looks/ChannelMaterial>
 }}'''
     water_block = "\n\n".join(prim.rstrip() for prim in water_prims)
+    physics_materials, friction_metadata = "", ""
+    if mesh.surface_friction is not None:
+        physics_materials, subsets, friction_metadata = friction_usda(mesh, friction_config)
+        crossing_subset = ""  # Included in the channel friction subsets, without overlap.
     text = f'''#usda 1.0
 (
     defaultPrim = "World"
@@ -1341,6 +1457,8 @@ def Xform "World"
         uniform token physxVehicleContext:updateMode = "velocityChange"
         uniform token physxVehicleContext:verticalAxis = "posZ"
     }}
+
+{indent(physics_materials, 4)}
 
     def Scope "Lights"
     {{
@@ -1368,7 +1486,7 @@ def Xform "World"
     }}
 
     def Mesh "{prim_name}" (
-        prepend apiSchemas = ["PhysicsCollisionAPI", "PhysicsMeshCollisionAPI"]
+        prepend apiSchemas = ["PhysicsCollisionAPI", "PhysicsMeshCollisionAPI", "MaterialBindingAPI"]
     )
     {{
         uniform bool doubleSided = 1
@@ -1398,6 +1516,8 @@ def Xform "World"
         uniform token subdivisionScheme = "none"
 
 {indent(subsets, 8)}
+
+{indent(friction_metadata, 8)}
 
 {indent(crossing_subset, 8)}
     }}
@@ -1568,11 +1688,12 @@ def export_scene_ground(
     scene: FarmScene,
     bounds: tuple[float, float, float, float],
     path: str,
-    flat_resolution: float = 1.0,
+    flat_resolution: float | None = None,
     undulation: ChannelUndulationConfig | None = None,
     *,
     tree_assets: tuple[Path, ...] = (),
     weed_assets: tuple[Path, ...] = (),
+    friction_config: UsdFrictionConfig = UsdFrictionConfig(),
 ) -> GroundMesh:
     mesh = build_ground_mesh(scene, bounds, flat_resolution, undulation)
     write_ground_mesh_usda(
@@ -1581,5 +1702,6 @@ def export_scene_ground(
         scene=scene,
         tree_assets=tree_assets,
         weed_assets=weed_assets,
+        friction_config=friction_config,
     )
     return mesh

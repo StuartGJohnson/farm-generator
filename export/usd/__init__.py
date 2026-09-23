@@ -1,5 +1,7 @@
 """USD export and exporter-side terrain baking."""
 
+from .friction import UsdFrictionConfig
+
 from .ground_mesh import (
     ChannelUndulationConfig,
     ChannelFace,
@@ -20,6 +22,7 @@ from .ground_mesh import (
 )
 
 __all__ = [
+    "UsdFrictionConfig",
     "ChannelUndulationConfig",
     "ChannelFace",
     "GroundMesh",

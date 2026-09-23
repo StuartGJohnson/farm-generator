@@ -140,7 +140,7 @@ def run(scene: FarmScene, config, rng) -> FarmScene:
             node_b=nid_b,
             polyline=[(float(V[0]), float(V[1])), (float(W[0]), float(W[1]))],
             width=config.road_width,
-            surface=config.road_surface,
+            surface=config.road_surface_type,
             road_class=RoadClass.CROSSING_SPUR,
         )
 
