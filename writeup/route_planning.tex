@@ -1,0 +1,1007 @@
+\documentclass{article}
+
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{geometry}
+\usepackage{enumitem}
+\usepackage{indentfirst}
+
+\geometry{margin=1in}
+
+\title{Farm Route Planning as a Directed Arc-Routing Problem}
+\date{}
+
+\begin{document}
+\maketitle
+
+\section{Purpose}
+
+This document specifies construction and solution of the farm-level route-planning problem.
+
+The planner takes a farm task containing a set of fields to service, an implement configuration, a start pose, and an end pose. It produces a single ordered tractor route through crop-row service paths, field maneuvering regions, and the farm road network.
+
+The optimization is formulated as a directed arc-routing problem and solved using OR-Tools CP-SAT.
+The purpose of CP-SAT is to determine which directed graph arcs the tractor traverses, and how many times each arc is traversed, such that:
+\begin{enumerate}
+\item every required farming task is serviced at least once;
+\item the tractor starts at the specified start pose;
+\item the tractor finishes at the specified end pose;
+\item the selected traversals form one connected route;
+\item all movement is through explicitly permitted graph arcs; and
+\item total route distance is minimized.
+\end{enumerate}
+
+The geometric generation of road arcs, crop-row arcs, and Reeds--Shepp (RS) connection arcs occurs before CP-SAT is invoked. Each graph arc therefore contains both a traversal cost and the geometric tractor path associated with that traversal.
+
+CP-SAT determines how many times each directed graph arc is traversed. The selected arc multiplicities are then converted into an ordered tractor route by constructing the corresponding directed multigraph and computing an Euler trail from the specified start vertex to the specified end vertex. The stored geometries of the ordered arcs are concatenated to produce the farm-level tractor path.
+
+Thus the route-generation pipeline is
+
+\begin{enumerate}
+\item{farm geometry and task}
+\item{directed routing graph}
+\item{CP-SAT traversal optimization}
+\item{directed Euler-trail reconstruction}
+\item{tractor path}
+\end{enumerate}
+
+The resulting path is subsequently supplied to the vehicle trajectory-following or control subsystem for execution.
+
+\section{Farm Task}
+
+The input farm task is
+$$
+\mathcal{F}
+=
+\left(
+    \mathcal{L},
+    \tau,
+    p_s,
+    p_t
+\right),
+$$
+where
+\begin{itemize}
+\item $\mathcal{L}$ is the list of fields to be serviced;
+\item $\tau$ is the field task;
+\item $p_s$ is the tractor start pose;
+\item $p_t$ is the tractor end pose.
+\end{itemize}
+
+For the current implementation,
+$$
+\tau =
+\left(
+    \text{ImplementSide},
+    \text{ImplementRange}
+\right),
+$$
+with
+$$
+\text{ImplementSide}
+\in
+\{\text{Left},\text{Right},\text{Both}\}.
+$$
+The default implement range is
+$$
+\text{ImplementRange}
+=
+\frac{\text{row spacing}}{2}.
+$$
+
+A pose is an SE(2) tractor pose,
+$$
+p=(x,y,\theta).
+$$
+
+\section{Logical Service Requirements}
+
+The set of farming operations that must be completed is denoted
+$$
+\mathcal{Q}
+=
+\{q_1,q_2,\ldots,q_K\}.
+$$
+An element $q\in\mathcal{Q}$ is a \emph{logical service requirement}. It is not itself a graph node or graph edge.
+For example, a requirement can mean:
+\begin{quote}
+Inspect this side of this tree row using the left-mounted implement.
+\end{quote}
+or
+\begin{quote}
+Traverse a path from which this tree-row side lies within the range of an implement mounted on both sides.
+\end{quote}
+
+The geometry generator determines which directed tractor traversals satisfy each requirement.
+The separation between logical tasks and physical paths is important.
+
+Several service requirements may be satisfied by one physical tractor traversal. Conversely, the same physical path may be traversed in the opposite direction without satisfying a particular service requirement.
+
+\subsection{One-sided implements}
+
+For a left- or right-mounted implement, direction matters.
+Suppose a physical row path has endpoints $A$ and $B$.
+Both physical traversals may be legal:
+$$
+A\rightarrow B
+$$
+and
+$$
+B\rightarrow A.
+$$
+However, only one of these directions may place the trees on the implement side of the tractor.
+Thus both arcs may exist in the travel graph, while only one is marked as satisfying the corresponding service requirement.
+
+This permits, for example,
+$$
+A\rightarrow B
+$$
+to perform the farming task, followed later by
+$$
+B\rightarrow A
+$$
+as a deadhead traversal needed to leave the field.
+
+\subsection{Overlapping tasks}
+
+For \texttt{ImplementSide=Both}, candidate service paths associated with neighboring tree rows may overlap.
+Logical service requirements must not be discarded merely because their physical paths overlap.
+Instead, geometrically equivalent physical paths are canonicalized into a single graph arc, and that graph arc records every service requirement it satisfies.
+
+Thus one traversal can satisfy several requirements simultaneously.
+
+\section{Directed Routing Graph}
+
+Construct a directed multigraph
+$$
+G=(V,A).
+$$
+Multiple directed arcs between the same pair of graph vertices are permitted.
+
+Each vertex represents a routing state.
+Each directed arc represents one physically permitted tractor movement.
+Partition the arc set as
+$$
+A =
+A_{\mathrm{road}}
+\cup
+A_{\mathrm{row}}
+\cup
+A_{\mathrm{RS}}.
+$$
+
+Additional arc types may be introduced later without changing the optimization formulation.
+Each arc $a\in A$ stores at least
+$$
+a =
+\left(
+    u_a,
+    v_a,
+    \gamma_a,
+    \ell_a,
+    T_a,
+    F_a,
+    C_a
+\right),
+$$
+where
+\begin{itemize}
+\item $u_a\in V$ is the tail vertex;
+\item $v_a\in V$ is the head vertex;
+\item $\gamma_a$ is the geometric path followed by the tractor;
+\item $\ell_a$ is the path length in meters;
+\item $T_a$ is the arc type;
+\item $F_a$ is an optional field identifier; and
+\item $C_a\subseteq\mathcal{Q}$ is the set of service requirements automatically satisfied when this arc is traversed.
+\end{itemize}
+
+For ordinary road and RS transit arcs,
+$$
+C_a=\emptyset.
+$$
+For crop-row traversals, $C_a$ may contain one or more service requirements.
+
+\section{Graph Vertices and Tractor Pose}
+
+A graph vertex is a routing state rather than necessarily a unique $(x,y)$ location.
+
+Where heading matters, especially at row endpoints, two vertices may occupy the same position while having different headings.
+
+For example, the same physical row endpoint can have states
+$$
+(x,y,\theta)
+$$
+and
+$$
+(x,y,\theta+\pi).
+$$
+These must not be merged because they represent different tractor states and have different RS connections.
+
+The initial implementation may treat ordinary road intersections as position-only routing states and leave detailed road-intersection turn feasibility to the downstream trajectory planner.
+Field row endpoints and field/road RS interfaces must preserve the heading required by the RS calculation.
+
+\section{Road Graph Construction}
+
+The road network exists independently of the set of fields being serviced.
+
+Split road geometry at
+
+\begin{itemize}
+\item road intersections;
+\item field-road connection points;
+\item StartPose or EndPose projections onto a road; and
+\item other topology changes.
+\end{itemize}
+
+A bidirectional road section between vertices $u$ and $v$ produces two directed arcs:
+$$
+u\rightarrow v
+$$
+and
+$$
+v\rightarrow u.
+$$
+Both arcs normally have cost equal to the road polyline length.
+
+A one-way road creates only the permitted directed arc.
+Road arcs remain available even when the road passes through a field that is not in the current \texttt{field\_list}.
+
+No non-road field transit is created in an unselected field.
+
+\section{Crop-Row Traversal Arcs}
+
+For every selected field, generate tractor-path centerlines from the tree-row geometry and the implement configuration.
+Candidate tractor paths are obtained by offsetting the appropriate tree-row centerline by \texttt{ImplementRange}.
+Each canonical physical row path produces directed traversal arcs in each physically legal direction.
+
+For a physical path with endpoint states $u$ and $v$, these may be
+$$
+a^+ : u\rightarrow v
+$$
+and
+$$
+a^- : v'\rightarrow u',
+$$
+where $u'$ and $v'$ represent the opposite-heading tractor states at the same physical endpoint locations.
+
+The service-coverage sets
+$$
+C_{a^+}
+\quad\text{and}\quad
+C_{a^-}
+$$
+are determined by implement geometry.
+
+For a one-sided implement, one direction may satisfy a service requirement while the reverse direction is merely a legal transit traversal.
+
+For a two-sided implement, one physical traversal may satisfy several service requirements simultaneously.
+
+\subsection{Canonicalization of overlapping row paths}
+
+Candidate row paths that describe the same physical directed tractor trajectory should be merged into one physical arc.
+
+Path equivalence should use configurable tolerances for
+\begin{itemize}
+\item endpoint position;
+\item endpoint heading; and
+\item path geometry.
+\end{itemize}
+When equivalent candidate arcs are merged, their coverage sets are unioned:
+$$
+C_a
+=
+C_{a_1}\cup C_{a_2}\cup\cdots.
+$$
+
+Do not merge arbitrary graph vertices merely because their Euclidean positions are close. Vertex merging means the tractor may transition between those routing states with zero movement and is therefore a semantic operation, not merely geometric deduplication.
+
+\section{Reeds--Shepp Connection Arcs}
+
+For each selected field, form a set of field interface states consisting of appropriate
+\begin{itemize}
+\item row endpoint poses;
+\item field-road connection poses;
+\item StartPose, if located in the field; and
+\item EndPose, if located in the field.
+\end{itemize}
+For candidate ordered pairs of interface states $(p_i,p_j)$ in the same selected field:
+\begin{enumerate}
+\item compute the Reeds--Shepp path from $p_i$ to $p_j$;
+\item compute its geometric length;
+\item check the complete path against the field's permitted driving region;
+\item preferably check the swept tractor footprint rather than only the tractor reference point;
+\item reject the connection if it leaves the permitted region; and
+\item otherwise add a directed RS arc to $G$.
+\end{enumerate}
+
+Thus
+$$
+a_{ij}^{\mathrm{RS}}\in A
+$$
+if and only if the corresponding RS maneuver is considered physically legal.
+An RS arc stores the actual RS geometry $\gamma_a$, not merely its scalar distance.
+
+The first implementation should treat the complete selected field as the maneuvering region, including headlands and sidelands, subject to explicitly forbidden regions.
+
+For a field not contained in the farm task's field list,
+$$
+A_{\mathrm{row}} = \emptyset,
+\qquad
+A_{\mathrm{RS}} = \emptyset
+$$
+for that field.
+Only its road network remains usable.
+
+\subsection{RS candidate pruning}
+
+The mathematically complete graph considers every relevant ordered endpoint pair in a selected field.
+
+A practical implementation may use a configured maximum Euclidean separation
+$$
+d_{\mathrm{candidate}}(i,j)
+\leq R_{\mathrm{RS}}
+$$
+to avoid generating obviously undesirable long-range RS connections.
+Such pruning changes the feasible graph and therefore must be treated as an explicit planning policy rather than as an invisible optimization approximation.
+
+\section{Start and End}
+
+The graph must contain distinguished vertices
+$$
+s\in V
+$$
+and
+$$
+t\in V
+$$
+representing StartPose and EndPose.
+
+If a pose lies on a road, split the road geometry and insert the pose into the road graph.
+If a pose lies inside a selected field, include it in the appropriate RS interface-state set.
+If a pose cannot legally connect to the constructed graph, graph construction fails before CP-SAT is invoked.
+
+The special case
+$$
+s=t
+$$
+represents a closed mission.
+
+\section{Arc Costs}
+
+Initially, the optimization objective is total geometric distance.
+
+For each arc $a$,
+$$
+\ell_a = \operatorname{length}(\gamma_a).
+$$
+CP-SAT uses integer coefficients. Therefore convert distances into integer units before model construction.
+
+For example, using centimeters,
+$$
+c_a
+=
+\operatorname{round}
+\left(
+100\,\ell_a
+\right).
+$$
+The optimization cost therefore differs from true metric distance by at most the chosen quantization resolution.
+
+The model should retain $\ell_a$ in floating-point meters for reporting and route reconstruction while using $c_a$ for CP-SAT.
+
+All real movement arcs should have positive cost.
+
+Future versions may extend
+$$
+c_a
+$$
+with penalties for reversing, undesirable surfaces, gear changes, field exits, or other operational considerations. These extensions do not change the graph formulation.
+
+\section{CP-SAT Decision Variables}
+
+For every directed arc $a\in A$, define an integer traversal-count variable
+$$
+x_a
+\in
+\{0,1,\ldots,M_a\}.
+$$
+The interpretation is
+$$
+x_a
+=
+\text{number of times the tractor traverses arc }a.
+$$
+
+Road arcs, RS arcs, and row arcs may all be traversed more than once.
+A repeated row traversal is therefore represented naturally by
+$$
+x_a>1
+$$
+or by use of both directional row arcs.
+
+The model must provide a finite upper bound $M_a$ because CP-SAT integer variables are bounded.
+For the initial implementation a conservative common bound may be used, for example
+$$
+M_a = 2K+2,
+$$
+where
+$$
+K=|\mathcal{Q}|.
+$$
+This bound should be configurable, and the implementation should report if an optimal or feasible solution saturates an arc bound, since saturation may indicate that the bound is too restrictive.
+
+\section{Service Constraints}
+
+For every service requirement $q\in\mathcal{Q}$, define
+$$
+A(q)
+=
+\{a\in A : q\in C_a\}.
+$$
+The required-service constraint is
+$$
+\sum_{a\in A(q)} x_a \geq 1
+\qquad
+\forall q\in\mathcal{Q}.
+$$
+Thus every farming task must be serviced at least once.
+This formulation deliberately permits repeated service-path traversal.
+It also permits one physical traversal to satisfy several requirements when the same arc belongs to several $A(q)$ sets.
+
+If
+$$
+A(q)=\emptyset
+$$
+for any required task, graph construction has produced an infeasible mission and CP-SAT should not be invoked.
+
+\section{Vehicle Flow Constraints}
+
+For a vertex $v$, define
+$$
+\delta^+(v)
+=
+\{a\in A : u_a=v\},
+$$
+and
+$$
+\delta^-(v)
+=
+\{a\in A : v_a=v\}.
+$$
+
+For an open route with $s\neq t$, define
+$$
+b_v =
+\begin{cases}
++1, & v=s,\\
+-1, & v=t,\\
+0,  & \text{otherwise}.
+\end{cases}
+$$
+
+Impose
+$$
+\sum_{a\in\delta^+(v)}x_a
+-
+\sum_{a\in\delta^-(v)}x_a
+=
+b_v
+\qquad
+\forall v\in V.
+$$
+
+For a closed route, $s=t$, use
+$$
+b_v=0
+\qquad
+\forall v.
+$$
+
+These constraints provide the degree conditions required for the selected directed multigraph to possess an Euler trail from $s$ to $t$, provided the selected graph is also connected.
+
+\section{Connectivity Constraints}
+
+Flow balance alone is insufficient because CP-SAT could otherwise construct multiple disconnected route components.
+
+Introduce a binary variable
+$$
+z_v\in\{0,1\}
+$$
+for every vertex, where
+$$
+z_v=1
+$$
+means the vertex participates in the selected route.
+
+For every incident arc $a$ at vertex $v$, impose
+$$
+x_a \leq M_a z_v.
+$$
+Also impose
+$$
+z_v
+\leq
+\sum_{a\in\delta^+(v)\cup\delta^-(v)}x_a.
+$$
+Set
+$$
+z_s=1.
+$$
+For a nontrivial open mission also set
+$$
+z_t=1.
+$$
+Next introduce an artificial integer connectivity-flow variable
+$$
+f_a\in\{0,\ldots,|V|-1\}
+$$
+for every arc.
+This flow has no physical interpretation. Its only purpose is to prove that every selected route vertex is reachable from the start vertex.
+
+Artificial flow may use an arc only if the tractor uses that arc:
+$$
+f_a
+\leq
+(|V|-1)x_a
+\qquad
+\forall a\in A.
+$$
+Every selected vertex other than the root consumes one unit of artificial flow:
+$$
+\sum_{a\in\delta^-(v)}f_a
+-
+\sum_{a\in\delta^+(v)}f_a
+=
+z_v
+\qquad
+\forall v\neq s.
+$$
+The start vertex supplies the total required artificial flow:
+$$
+\sum_{a\in\delta^+(s)}f_a
+-
+\sum_{a\in\delta^-(s)}f_a
+=
+\sum_{v\in V\setminus\{s\}}z_v.
+$$
+
+These constraints force all used vertices into one route component rooted at StartPose.
+
+\section{Objective}
+
+The initial objective is
+$$
+\min
+\sum_{a\in A}c_a x_a
+$$
+where $c_a$ is the integer-scaled geometric path length.
+
+Unlike a TSP-style formulation, crop-row lengths are included in the objective.
+
+This is necessary because a row may be traversed more than once, and different physical service paths may have different lengths.
+
+\section{Complete CP-SAT Model}
+
+The optimization problem is therefore
+$$
+\begin{aligned}
+\min \quad
+&
+\sum_{a\in A}c_a x_a
+\\[2mm]
+\text{subject to}\quad
+&
+\sum_{a\in A(q)}x_a \geq 1
+&&
+\forall q\in\mathcal{Q},
+\\[2mm]
+&
+\sum_{a\in\delta^+(v)}x_a
+-
+\sum_{a\in\delta^-(v)}x_a
+=
+b_v
+&&
+\forall v\in V,
+\\[2mm]
+&
+x_a\leq M_a z_{u_a}
+&&
+\forall a\in A,
+\\
+&
+x_a\leq M_a z_{v_a}
+&&
+\forall a\in A,
+\\
+&
+z_v
+\leq
+\sum_{a\in\delta^+(v)\cup\delta^-(v)}x_a
+&&
+\forall v\in V,
+\\
+&
+f_a\leq(|V|-1)x_a
+&&
+\forall a\in A,
+\\
+&
+\sum_{a\in\delta^-(v)}f_a
+-
+\sum_{a\in\delta^+(v)}f_a
+=
+z_v
+&&
+\forall v\neq s,
+\\
+&
+\sum_{a\in\delta^+(s)}f_a
+-
+\sum_{a\in\delta^-(s)}f_a
+=
+\sum_{v\neq s}z_v,
+\\[2mm]
+&
+x_a\in\{0,\ldots,M_a\},
+&&
+\forall a\in A,
+\\
+&
+z_v\in\{0,1\},
+&&
+\forall v\in V,
+\\
+&
+f_a\in\{0,\ldots,|V|-1\},
+&&
+\forall a\in A.
+\end{aligned}
+$$
+
+This is the complete first-version mathematical optimization model.
+
+\section{CP-SAT Construction Procedure}
+
+The implementation shall perform the following steps in order.
+\begin{enumerate}
+\item Parse and validate the FarmTask.
+\item Generate the logical service requirement set $\mathcal{Q}$.
+\item Generate candidate row-path geometry from tree-row geometry and ImplementRange.
+\item Canonicalize geometrically duplicate physical row paths while retaining all logical service requirements.
+\item Construct directed row traversal arcs and their service coverage sets $C_a$.
+\item Construct the directed road graph.
+\item Insert road/field interface points.
+\item Insert StartPose and EndPose into the appropriate graph geometry.
+\item For each selected field, generate feasible RS arcs between candidate oriented interface states.
+\item Reject every RS candidate that violates the field driving-region constraint.
+\item Verify that every service requirement has at least one compatible service arc.
+\item Assign integer distance costs $c_a$.
+\item Create CP-SAT traversal variables $x_a$.
+\item Add service constraints.
+\item Add start/end vehicle-flow constraints.
+\item Add route-connectivity variables and constraints.
+\item Add the total-distance objective.
+\item Invoke CP-SAT.
+\item If the solver status is neither FEASIBLE nor OPTIMAL, report route-generation failure.
+\item Extract all nonzero traversal counts $x_a$.
+\item Reconstruct an ordered Euler trail.
+\item Convert the ordered arc sequence into the final geometric route.
+\item Validate the resulting route independently of CP-SAT.
+
+\end{enumerate}
+
+\section{Approximate Python Model Construction}
+
+The implementation should correspond closely to the following structure.
+
+\begin{verbatim}
+from ortools.sat.python import cp_model
+
+model = cp_model.CpModel()
+
+# Traversal counts
+
+x = {
+a.id: model.new_int_var(0, a.max_uses, f"x_{a.id}")
+for a in arcs
+}
+
+# Service requirements
+
+for q in service_requirements:
+compatible = [a for a in arcs if q.id in a.service_ids]
+model.add(sum(x[a.id] for a in compatible) >= 1)
+
+# Vehicle flow
+
+for v in vertices:
+outflow = sum(x[a.id] for a in outgoing[v.id])
+inflow  = sum(x[a.id] for a in incoming[v.id])
+
+if start_id != end_id and v.id == start_id:
+    rhs = 1
+elif start_id != end_id and v.id == end_id:
+    rhs = -1
+else:
+    rhs = 0
+
+model.add(outflow - inflow == rhs)
+
+# Used-vertex variables
+
+z = {
+v.id: model.new_bool_var(f"z_{v.id}")
+for v in vertices
+}
+
+for a in arcs:
+model.add(x[a.id] <= a.max_uses * z[a.u])
+model.add(x[a.id] <= a.max_uses * z[a.v])
+
+for v in vertices:
+incident = incoming[v.id] + outgoing[v.id]
+model.add(z[v.id] <= sum(x[a.id] for a in incident))
+
+model.add(z[start_id] == 1)
+if end_id != start_id:
+model.add(z[end_id] == 1)
+
+# Artificial connectivity flow
+
+FMAX = len(vertices) - 1
+
+f = {
+a.id: model.new_int_var(0, FMAX, f"f_{a.id}")
+for a in arcs
+}
+
+for a in arcs:
+model.add(f[a.id] <= FMAX * x[a.id])
+
+for v in vertices:
+fin  = sum(f[a.id] for a in incoming[v.id])
+fout = sum(f[a.id] for a in outgoing[v.id])
+
+if v.id != start_id:
+    model.add(fin - fout == z[v.id])
+
+root_demand = sum(
+z[v.id] for v in vertices if v.id != start_id
+)
+
+root_in = sum(f[a.id] for a in incoming[start_id])
+root_out = sum(f[a.id] for a in outgoing[start_id])
+
+model.add(root_out - root_in == root_demand)
+
+# Integer distance objective
+
+model.minimize(
+sum(a.cost_mm * x[a.id] for a in arcs)
+)
+
+solver = cp_model.CpSolver()
+status = solver.solve(model)
+\end{verbatim}
+
+Production code should separate graph construction from CP-SAT construction. CP-SAT-specific code must not contain GIS or Reeds--Shepp geometry calculations.
+
+\section{Solver Output}
+
+CP-SAT returns traversal multiplicities
+$$
+x_a^*
+$$
+rather than an ordered route.
+
+Construct a new directed multigraph
+$$
+G^*
+$$
+by inserting exactly $x_a^*$ copies of every arc $a$ for which
+$$
+x_a^*>0.
+$$
+
+For example, if
+$$
+x_a^*=3,
+$$
+the optimized route contains three distinguishable copies of that physical arc.
+
+The flow and connectivity constraints guarantee the graph structure needed for an Euler trail from $s$ to $t$.
+
+\section{Route Reconstruction}
+
+Use Hierholzer's algorithm, or an equivalent directed Euler-trail implementation, on $G^*$ beginning at $s$.
+
+The result is an ordered arc sequence
+$$
+R =
+(a_1,a_2,\ldots,a_N)
+$$
+such that
+$$
+v_{a_i}=u_{a_{i+1}}
+$$
+for every adjacent pair and every selected arc copy occurs exactly once.
+
+For an open mission,
+$$
+u_{a_1}=s,
+\qquad
+v_{a_N}=t.
+$$
+
+For a closed mission, the Euler trail is an Euler circuit rooted at $s$.
+
+The geometric tractor route is
+$$
+\Gamma
+=
+\gamma_{a_1}
+\oplus
+\gamma_{a_2}
+\oplus
+\cdots
+\oplus
+\gamma_{a_N},
+$$
+where $\oplus$ concatenates consecutive path geometries while removing duplicate endpoint samples.
+
+\section{Service Annotation of the Reconstructed Route}
+
+While traversing the ordered arc sequence, maintain a set
+$$
+Q_{\mathrm{done}}.
+$$
+Whenever an arc $a_i$ is encountered, add
+$$
+C_{a_i}
+$$
+to this set.
+
+Thus,
+$$
+Q_{\mathrm{done}}
+\leftarrow
+Q_{\mathrm{done}}\cup C_{a_i}.
+$$
+At the end of reconstruction, verify
+$$
+Q_{\mathrm{done}}=\mathcal{Q}.
+$$
+If an arc occurs more than once, the first compatible occurrence may be annotated as the servicing pass and later occurrences may be marked as deadhead traversals.
+
+For the current inspection-task model, any compatible traversal is assumed to perform service automatically.
+
+A future implementation may introduce explicit implement-on/off decision variables if traversal and service need to be distinguished operationally.
+
+\section{Route Output}
+
+The primary route output should retain arc semantics rather than immediately reducing the result to a single point array.
+
+For example,
+
+\begin{verbatim}
+Route:
+start_pose
+end_pose
+total_distance_m
+optimality_status
+segments:
+- arc_id
+arc_type
+field_id
+geometry
+distance_m
+service_ids
+occurrence_index
+\end{verbatim}
+
+A derived continuous path may then be generated by concatenating segment geometry.
+This path can subsequently be resampled and converted to a ROS
+\texttt{nav\_msgs/Path} or another representation required by the trajectory-following layer.
+The farm route optimizer determines the desired topological/geometric route.
+It does not replace the downstream vehicle trajectory controller.
+
+\section{Required Validation}
+
+After solving and route reconstruction, independently check:
+\begin{enumerate}
+\item The first route state agrees with StartPose.
+\item The final route state agrees with EndPose.
+\item Every consecutive pair of route segments is graph-connected.
+\item Every service requirement is covered.
+\item Every selected RS path lies within its allowed driving region.
+\item No row or field-transit arc appears in an unselected field.
+\item Arc occurrence counts in the reconstructed route equal the CP-SAT values $x_a^*$.
+\item The reconstructed route distance equals
+\[
+\sum_a \ell_a x_a^*
+\]
+within numerical tolerance.
+\item The integer CP-SAT objective agrees with
+\[
+\sum_a c_a x_a^*.
+\]
+\item No route arc violates its directionality or service semantics.
+\end{enumerate}
+
+\section{Minimum Unit Tests}
+
+The implementation must include at least the following synthetic tests.
+
+\subsection{Single required row}
+
+One service row is connected to the start/end road network.
+
+Verify that the row is serviced and that repeated traversal is permitted when required to return to the endpoint.
+
+\subsection{One-sided implement}
+
+The row is physically traversable in both directions, but only one direction satisfies the service requirement.
+
+Verify that CP-SAT chooses the service-compatible direction at least once.
+
+Verify that the opposite direction may still appear as deadhead travel.
+
+\subsection{Shared two-sided service path}
+
+Two logical service requirements are covered by one physical directed row arc.
+
+Verify that one traversal satisfies both requirements.
+
+\subsection{Road bridge used repeatedly}
+
+Several required tasks are accessible only through one road segment.
+
+Verify that CP-SAT may assign
+$$
+x_a>1
+$$
+to that road arc.
+
+\subsection{Unselected-field shortcut}
+
+Create a geometrically shorter route through the interior of a field not present in \texttt{field\_list}.
+
+Because no field-interior arcs are created there, verify that the optimizer uses the road network instead.
+
+\subsection{Invalid RS connection}
+
+Create an RS candidate whose path leaves the allowed field polygon.
+
+Verify that the arc is absent from the optimization graph.
+
+\subsection{Open mission}
+
+Use distinct StartPose and EndPose.
+
+Verify that the reconstructed Euler trail begins at $s$ and terminates at $t$.
+
+\subsection{Closed mission}
+
+Set StartPose equal to EndPose.
+
+Verify that the reconstructed route is an Euler circuit.
+
+\section{Design Boundary}
+
+The route-planning subsystem consists of four explicit stages:
+\begin{enumerate}
+\item{GIS/task geometry}
+\item{directed routing graph}
+\item{CP-SAT arc optimization}
+\item{Euler route reconstruction}
+\end{enumerate}
+
+The geometric graph builder decides what movements are physically and semantically legal.
+CP-SAT decides how many times each legal movement is used.
+Euler reconstruction converts those traversal counts into a specific ordered route.
+A downstream trajectory-following subsystem is responsible for executing that route on the tractor.
+
+These responsibilities must remain separate in the implementation.
+
+\end{document}
