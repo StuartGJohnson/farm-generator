@@ -11,7 +11,7 @@ from isaacsim import SimulationApp
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--world", default="debug_out/mesh/farm_seed_1_120m2_ground.usda"
+        "--world", default="debug_out/farms/farm_seed_1_120m2/world/farm.usda"
     )
     parser.add_argument("--tractor", default="debug_out/tractor/tractor.usda")
     parser.add_argument("--config", default="configs/tractor_default.yaml")

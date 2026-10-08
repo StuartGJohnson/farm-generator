@@ -1,6 +1,12 @@
-"""Generate one large, presentation-oriented farm scene."""
+"""Generate a portable farm with USD, GIS, orthophoto, and diagnostics."""
 
+import argparse
 from pathlib import Path
+import shutil
+import subprocess
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from export.usd import (
     ChannelUndulationConfig,
@@ -13,15 +19,25 @@ from visualization.debug_view import save_scene_png
 from visualization.surface_friction import save_surface_friction_plot
 from visualization.surface_height import save_surface_height_plot
 from export.usd.friction import quantize_friction
+from gis import export_gis
 
 
 def main() -> None:
-    seed = 1
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--seed", type=int, default=1)
+    parser.add_argument("--gsd", type=float, default=0.05, help="orthophoto pixel size in metres")
+    parser.add_argument("--output-root", type=Path, default=Path("debug_out/farms"))
+    parser.add_argument("--vector-only", action="store_true", help="skip Isaac rendering for GIS development")
+    args = parser.parse_args()
+    seed = args.seed
     bounds = (0.0, 0.0, 120.0, 120.0)
     stem = f"farm_seed_{seed}_120m2"
     scene_dir = Path("debug_out") / "farm_scenes"
     mesh_dir = Path("debug_out") / "mesh"
     asset_dir = Path("debug_out") / "procedural_assets"
+    farm_dir = args.output_root / stem
+    world_dir = farm_dir / "world"
+    world_dir.mkdir(parents=True, exist_ok=True)
     scene_dir.mkdir(parents=True, exist_ok=True)
     mesh_dir.mkdir(parents=True, exist_ok=True)
 
@@ -84,10 +100,18 @@ def main() -> None:
         title=f"farm-gen showcase — seed {used_seed}, 120 m × 120 m",
     )
     save_farm(scene, config, str(scene_dir / f"{stem}.yaml"))
+    save_farm(scene, config, str(farm_dir / "farm.yaml"))
+    repository_assets = Path(__file__).resolve().parents[1] / "assets"
+    bundled_assets = farm_dir / "assets"
+    bundled_procedural = farm_dir / "procedural_assets"
+    shutil.copytree(repository_assets, bundled_assets, dirs_exist_ok=True)
+    shutil.copytree(asset_dir, bundled_procedural, dirs_exist_ok=True)
+    tree_assets = tuple(sorted(bundled_procedural.glob("trees/*/*.usda")))
+    weed_assets = tuple(sorted(bundled_procedural.glob("weeds/*/*.usda")))
     mesh = export_scene_ground(
         scene,
         bounds,
-        str(mesh_dir / f"{stem}_ground.usda"),
+        str(world_dir / "farm.usda"),
         undulation=ChannelUndulationConfig(
             max_amplitude=0.10,
             min_wavelength=1.0,
@@ -95,7 +119,17 @@ def main() -> None:
         ),
         tree_assets=tree_assets,
         weed_assets=weed_assets,
+        asset_root=bundled_assets,
     )
+    rgb_path = farm_dir / "gis" / "_orthophoto_rgb.png"
+    if not args.vector_only:
+        subprocess.run([
+            sys.executable, "-m", "gis.render_orthophoto", str(world_dir / "farm.usda"),
+            str(rgb_path), "--bounds", *(str(v) for v in bounds), "--gsd", str(args.gsd),
+        ], check=True)
+    export_gis(scene, bounds, farm_dir, rgb_path=rgb_path if not args.vector_only else None,
+               gsd_m=args.gsd, tiles=not args.vector_only)
+    rgb_path.unlink(missing_ok=True)
     bins, assignments = quantize_friction(mesh)
     save_surface_friction_plot(mesh, mesh_dir / f"{stem}_friction.png",
                                [bins[i][2] for i in assignments])

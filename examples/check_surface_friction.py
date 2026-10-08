@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--world", default="debug_out/mesh/farm_seed_1_120m2_ground.usda")
+    parser.add_argument("--world", default="debug_out/farms/farm_seed_1_120m2/world/farm.usda")
     parser.add_argument("--output-dir", default="debug_out/friction_check")
     args = parser.parse_args()
     from isaacsim import SimulationApp

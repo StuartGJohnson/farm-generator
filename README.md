@@ -5,10 +5,10 @@ See `CLAUDE.md` for the full architecture/design reference.
 
 ## Setup
 
-Farm and vegetation generation use the `usd2508` conda environment. Tractor
-generation and interactive simulation use the separate `isaacsim61-cu13`
-environment described in [Tractor generation and bringup](#tractor-generation-and-bringup),
-because those workflows require Isaac Sim 6.1's bundled USD and PhysX schemas.
+The complete showcase export, including headless orthophoto rendering, uses
+`isaacsim61-cu13`. The older IR and vegetation-only examples also work in
+`usd2508`. GIS writing uses the system `/usr/bin/python3` with Ubuntu GDAL and
+QGIS bindings; the helper is invoked automatically by the showcase script.
 
 ```bash
 conda activate usd2508
@@ -201,11 +201,33 @@ by `examples/generate_showcase_farm.py`. This is modeled on flat, irrigated farm
 typical of the Sacramento Delta in California. Seed 1 produced 4 parcels, 16 channel
 segments, 6 channel crossings, 453 trees selected from four procedural tree
 variants, and 8,356 weeds concentrated along the optimized tree rows. The
-complete run—including IR generation, ground and water meshing, USDA writing,
-and diagnostic rendering—took approximately 2 minutes 10 seconds on the
-development machine. The resulting USDA contains 33,616 ground vertices and
-52,003 ground triangles and is written as
-`debug_out/mesh/farm_seed_1_120m2_ground.usda`.
+showcase bundle is written under
+`debug_out/farms/farm_seed_1_120m2/`.
+
+The bundle contains `world/farm.usda`, `assets/`, `procedural_assets/`,
+`farm.yaml`, and `gis/` with `farm.gpkg`, `orthophoto.tif`, `farm.qgz`,
+`tiles/{16,17,18}/`, `map_frame.json`, and `semantic_reference.json`.
+The USDA and QGIS project use relative asset paths so the directory can be
+moved as a unit. The GeoPackage has separate fields, tree rows, roads and road
+centerlines, trees, channels and channel centerlines, and crossings. Their IDs,
+names, field membership, and network endpoint IDs support semantic queries.
+Frontage roads carry `field_id`; crossing spurs and crossing footprints carry
+`field_a` and `field_b`. Trees carry both `field_id` and `row_id`, and row
+centerlines carry `field_id`. Rows used for navigation run from the first tree
+trunk to the last; a row with only one tree keeps its row record with null
+line geometry. The QGIS project labels fields and rows and includes relations
+for selecting each field's roads and rows, then each row's trees.
+`gis/map_frame.json` records the EPSG:32610 coordinate of the local ROS map
+origin; subtract that coordinate from GIS eastings and northings to recover
+local map X and Y. The orthophoto is rendered by Isaac Sim with a north-up
+orthographic camera at 5 cm GSD by default. XYZ tiles use Web Mercator for
+Mapviz. `python -m pytest tests/test_gis.py` checks semantic counts after
+reloading the GeoPackage with GDAL.
+
+Run `conda activate isaacsim61-cu13` and then
+`python examples/generate_showcase_farm.py`. Use `--gsd 0.1` for a quicker
+10 cm render, or `--vector-only` to inspect GIS vectors without launching
+Isaac Sim.
 
 ![Plan-view mesh detail from x=60–100 m and y=60–100 m](debug_out/mesh/farm_seed_1_120m2_ground_zoom.png)
 

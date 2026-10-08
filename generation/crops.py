@@ -200,6 +200,7 @@ def _generate_tree_grid(origin: np.ndarray, row_dir: np.ndarray, col_dir: np.nda
             continue  # this row is too short for headland clearance at both ends
 
         row_tree_count = 0
+        row_number = len(row_centerlines) + 1
         for k in range(k_max + 1):
             i = spec.headland_width + k * spec.tree_spacing
             if i < i_lo - _BOUNDARY_EPS or i > i_hi + _BOUNDARY_EPS:
@@ -221,6 +222,7 @@ def _generate_tree_grid(origin: np.ndarray, row_dir: np.ndarray, col_dir: np.nda
                 position=(float(p[0]), float(p[1])),
                 species=str(species),
                 age=float(rng.uniform(2.0, 15.0)),
+                row_number=row_number,
             ))
             row_tree_count += 1
 
@@ -279,7 +281,7 @@ def run(scene: FarmScene, config, rng: np.random.Generator) -> FarmScene:
                 canopy_radius=config.canopy_radius,
                 trunk_dbh=config.trunk_dbh,
                 height=config.tree_height,
-                tags={"parcel_id": pid},
+                tags={"parcel_id": pid, "row_number": str(t["row_number"])},
             )
             parcel.refs.append(tid)
 

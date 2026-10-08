@@ -1102,11 +1102,12 @@ def write_ground_mesh_usda(
     tree_assets: tuple[Path, ...] = (),
     weed_assets: tuple[Path, ...] = (),
     friction_config: UsdFrictionConfig = UsdFrictionConfig(),
+    asset_root: Path | None = None,
 ) -> None:
     """Write a textured, lit USD world containing the ground and water meshes."""
     os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
     output_dir = os.path.dirname(os.path.abspath(path))
-    assets_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "assets"))
+    assets_dir = os.path.abspath(asset_root or os.path.join(os.path.dirname(__file__), "..", "..", "assets"))
 
     def asset_reference(filename):
         return os.path.relpath(os.path.join(assets_dir, filename), output_dir).replace(os.sep, "/")
@@ -1694,6 +1695,7 @@ def export_scene_ground(
     tree_assets: tuple[Path, ...] = (),
     weed_assets: tuple[Path, ...] = (),
     friction_config: UsdFrictionConfig = UsdFrictionConfig(),
+    asset_root: Path | None = None,
 ) -> GroundMesh:
     mesh = build_ground_mesh(scene, bounds, flat_resolution, undulation)
     write_ground_mesh_usda(
@@ -1703,5 +1705,6 @@ def export_scene_ground(
         tree_assets=tree_assets,
         weed_assets=weed_assets,
         friction_config=friction_config,
+        asset_root=asset_root,
     )
     return mesh
