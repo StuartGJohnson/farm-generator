@@ -620,7 +620,7 @@ the tasks. Set `--seed N` for a different fixed task set.
 
 The command writes orthophoto-backed plots, ordered route JSON files, and a
 summary `manifest.json` under `debug_out/routes/farm_seed_1_120m2/`. Cyan
-shows road travel, magenta shows row service, orange shows Reeds–Shepp
+shows road travel, magenta shows row service, orange shows Reeds–Shepp 
 maneuvers, and dashed red shows reversing. Dashed yellow outlines the tree
 convex hull excluded from Reeds–Shepp rear-axle paths. A plot marked
 `FEASIBLE` shows an *optimality gap*: the found objective minus the best lower
@@ -648,4 +648,10 @@ IDs, local poses, distance, and maneuver driving directions. See
 
 ## AI assistance
 
-ChatGPT 5.6 (OpenAI, 08/2026), Codex CLI (gpt-5.6-sol, OpenAI, 08/2026), ChatGPT 6 (OpenAI, 09/2026), Codex CLI (gpt-6-sol/astra, OpenAI, 09/2026), Claude Code 2.1.248 CLI (Anthropic, 08/20206) and Google Antigravity 1.0.14 CLI (Google, 08/2026) were used to assist in the creation of this repo. In particular, the python code is entirely AI created, with git operations, feedback, debugging help, and generation of .md/.txt file instructions (in collaboration with AI!) by Stuart Johnson.
+ChatGPT 5.6 (OpenAI, 08/2026), Codex CLI (gpt-5.6-sol, OpenAI, 08/2026), ChatGPT 6 (OpenAI, 09/2026), Codex CLI (gpt-6-sol/astra, OpenAI, 09/2026), Claude Code 2.1.248 CLI (Anthropic, 08/20206) and Google Antigravity 1.0.14 CLI (Google, 08/2026) were used to assist in the creation of this repo. In particular, the python code is entirely AI created, with git operations, feedback, debugging help, and generation of .md/.txt/.tex file instructions (in collaboration with AI!) by Stuart Johnson (SJ). Generally speaking, my procedure is:
+- SJ figures out what needs to be done, including algorithms and specifications - in collaboration with the chatbot version of an AI, 
+- the chatbot and SJ generate a document (.md, .txt, .tex) with the description of the task. These first two steps are where most human time and effort is spent.
+- the task description is passed on to the coding CLI of an AI as instructions and deep background
+- debugging and adjustments are made collaboratively via CLI prompts as the coding CLI implements code, tests and README.md updates
+- code is reviewed by SJ (but, I can't really keep up with the AI here)
+- SJ does repo updates via git
