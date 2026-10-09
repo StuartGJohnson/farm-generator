@@ -595,7 +595,12 @@ python -m pytest tests/test_gis.py -q
 ## Farm task routes from GIS
 
 `route_planning/` reads only the generated GIS files and implements the
-directed arc-routing formulation in `writeup/route_planning.tex`. It builds
+directed arc-routing formulation in `writeup/route_planning.tex`. The PDF version
+of this document is:
+
+[route_planning.pdf](writeup/route_planning.pdf)
+
+`route_planning/` builds
 road and tree-row service arcs from the GeoPackage, connects them with
 tractor-feasible Reeds–Shepp maneuvers, and uses CP-SAT to route a selected
 list of fields between road-aligned tractor poses. The GIS bundle supplies
