@@ -549,6 +549,98 @@ The standalone scripts in `examples/autocompute_tractor_frames.py` and
 an already open Isaac Sim stage; normal generation and driving do not require
 them.
 
+## Generating GIS assets
+
+`examples/generate_showcase_farm.py` builds the farm scene, bundled USD assets,
+and GIS directory in one run. Build the procedural tree and weed library first:
+
+```bash
+conda activate isaacsim61-cu13
+python examples/generate_procedural_assets.py
+python examples/generate_showcase_farm.py --seed 1 --gsd 0.05
+```
+
+The result is `debug_out/farms/farm_seed_1_120m2/`, including `farm.yaml`,
+`world/farm.usda`, bundled assets, and `gis/`. The GIS directory contains
+`farm.gpkg` (semantic vectors), `orthophoto.tif` (north-up GeoTIFF), `farm.qgz`
+(styled QGIS project), and XYZ `tiles/` at zoom levels 16–18. The vectors,
+GeoTIFF, and QGIS project use EPSG:32610; XYZ tiles use Web Mercator.
+`map_frame.json` records the offset between UTM and local ROS map coordinates.
+`semantic_reference.json` holds counts used to verify the exported features.
+
+For a faster raster at 10 cm per pixel, use `--gsd 0.1`. For vector and QGIS
+development without the Isaac Sim camera render or map tiles, use a separate
+output root:
+
+```bash
+python examples/generate_showcase_farm.py --seed 1 --gsd 0.1
+python examples/generate_showcase_farm.py --seed 1 --vector-only --output-root /tmp/farm-vector-check
+```
+
+`gis/export.py` turns the generated scene into named field, row, road, tree,
+channel, and crossing features. It invokes `gis/gdal_export.py` under system
+Python to write the GeoPackage, georeference the orthophoto, build tiles, and
+save the QGIS project with labels and field/row relations. The conda Python
+cannot load the system GDAL/QGIS bindings directly. `gis/render_orthophoto.py`
+renders the north-up image in a separate headless Isaac Sim process, while
+`gis/verify.py` reloads the finished GIS bundle to check feature counts,
+relationships, coordinates, and QGIS layers. `gis/__init__.py` exposes the
+export function to the showcase script. To verify an existing bundle:
+
+```bash
+/usr/bin/python3 gis/verify.py debug_out/farms/farm_seed_1_120m2/gis
+python -m pytest tests/test_gis.py -q
+```
+
+## Farm task routes from GIS
+
+`route_planning/` reads only the generated GIS files and implements the
+directed arc-routing formulation in `writeup/route_planning.tex`. It builds
+road and tree-row service arcs from the GeoPackage, connects them with
+tractor-feasible Reeds–Shepp maneuvers, and uses CP-SAT to route a selected
+list of fields between road-aligned tractor poses. The GIS bundle supplies
+the farm geometry; tractor dimensions come from `configs/tractor_default.yaml`.
+
+Run three seeded showcase missions with a 60-second solver limit
+per task:
+
+```bash
+conda activate isaacsim61-cu13
+python -m route_planning --farm debug_out/farms/farm_seed_1_120m2/gis
+```
+
+The default seed is 17. It fixes all three field lists and road-aligned
+start/stop poses before solving, so different solver outcomes cannot change
+the tasks. Set `--seed N` for a different fixed task set.
+
+The command writes orthophoto-backed plots, ordered route JSON files, and a
+summary `manifest.json` under `debug_out/routes/farm_seed_1_120m2/`. Cyan
+shows road travel, magenta shows row service, orange shows Reeds–Shepp
+maneuvers, and dashed red shows reversing. Dashed yellow outlines the tree
+convex hull excluded from Reeds–Shepp rear-axle paths. A plot marked
+`FEASIBLE` shows an *optimality gap*: the found objective minus the best lower
+bound, divided by the found objective. This percentage is the largest
+improvement still possible relative to the found solution, based on the
+current bound. The displayed bound is rounded up to the next tenth of a
+percent. `OPTIMAL` means
+the solver proved there is no gap for its routing graph.
+
+### Route 01: Field 004
+
+![Route 01 through Field 004](debug_out/routes/farm_seed_1_120m2/route_01.png)
+
+### Route 02: Fields 001 and 003
+
+![Route 02 through Fields 001 and 003](debug_out/routes/farm_seed_1_120m2/route_02.png)
+
+### Route 03: Fields 003 and 004
+
+![Route 03 through Fields 003 and 004](debug_out/routes/farm_seed_1_120m2/route_03.png)
+
+The JSON files retain ordered road, row, and Reeds–Shepp segments, service
+IDs, local poses, distance, and maneuver driving directions. See
+`route_planning/README.md` for current geometric policy and limitations.
+
 ## AI assistance
 
 ChatGPT 5.6 (OpenAI, 08/2026), Codex CLI (gpt-5.6-sol, OpenAI, 08/2026), ChatGPT 6 (OpenAI, 09/2026), Codex CLI (gpt-6-sol/astra, OpenAI, 09/2026), Claude Code 2.1.248 CLI (Anthropic, 08/20206) and Google Antigravity 1.0.14 CLI (Google, 08/2026) were used to assist in the creation of this repo. In particular, the python code is entirely AI created, with git operations, feedback, debugging help, and generation of .md/.txt file instructions (in collaboration with AI!) by Stuart Johnson.

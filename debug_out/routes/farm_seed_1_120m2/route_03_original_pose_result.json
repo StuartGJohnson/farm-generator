@@ -1,0 +1,9 @@
+{
+  "status": "OPTIMAL",
+  "distance_m": 1180.385715766722,
+  "reverse_distance_m": 8.374060875358067,
+  "road_in_place_reversal": true,
+  "solver_wall_time_s": 28.154942893,
+  "best_bound_cost": 126105.0,
+  "objective_cost": 126105
+}

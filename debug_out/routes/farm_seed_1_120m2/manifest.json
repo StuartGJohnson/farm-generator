@@ -1,0 +1,109 @@
+[
+  {
+    "name": "route_01",
+    "fields": [
+      "parcel_003"
+    ],
+    "start": {
+      "x": 35.43745966187153,
+      "y": 78.76323116506582,
+      "yaw": 3.116137841771624
+    },
+    "end": {
+      "x": 3.5,
+      "y": 26.501613227983544,
+      "yaw": -1.5707963267948966
+    },
+    "distance_m": 653.8506707385961,
+    "reverse_distance_m": 3.352158325948059,
+    "gear_changes": 4,
+    "reverse_cost_multiplier": 8.0,
+    "gear_change_penalty_m": 2.0,
+    "tractor_config_path": "/home/sjohnson/farm-generator/configs/tractor_default.yaml",
+    "turn_radius_m": 2.7,
+    "footprint_bounds_rear_axle_m": [
+      -0.8,
+      -0.9500000000000001,
+      3.2,
+      0.9500000000000001
+    ],
+    "status": "OPTIMAL",
+    "objective_cost": 68533,
+    "best_bound_cost": 68533.0,
+    "solver_wall_time_s": 3.239798705,
+    "segments": 29,
+    "saturated_arc_ids": []
+  },
+  {
+    "name": "route_02",
+    "fields": [
+      "parcel_000",
+      "parcel_002"
+    ],
+    "start": {
+      "x": 99.76550843662872,
+      "y": 116.5,
+      "yaw": -3.141592653589793
+    },
+    "end": {
+      "x": 82.7660847399696,
+      "y": 57.27330179330565,
+      "yaw": -1.6119671481414803
+    },
+    "distance_m": 1644.419661834091,
+    "reverse_distance_m": 5.58890687000535,
+    "gear_changes": 11,
+    "reverse_cost_multiplier": 8.0,
+    "gear_change_penalty_m": 2.0,
+    "tractor_config_path": "/home/sjohnson/farm-generator/configs/tractor_default.yaml",
+    "turn_radius_m": 2.7,
+    "footprint_bounds_rear_axle_m": [
+      -0.8,
+      -0.9500000000000001,
+      3.2,
+      0.9500000000000001
+    ],
+    "status": "FEASIBLE",
+    "objective_cost": 170558,
+    "best_bound_cost": 149949.0,
+    "solver_wall_time_s": 60.018002463,
+    "segments": 78,
+    "saturated_arc_ids": []
+  },
+  {
+    "name": "route_03",
+    "fields": [
+      "parcel_002",
+      "parcel_003"
+    ],
+    "start": {
+      "x": 47.34376853098274,
+      "y": 38.143204796476,
+      "yaw": 2.9984695121379907
+    },
+    "end": {
+      "x": 97.89033884747457,
+      "y": 3.5,
+      "yaw": 0.0
+    },
+    "distance_m": 1289.2761099713455,
+    "reverse_distance_m": 6.120511425501388,
+    "gear_changes": 11,
+    "reverse_cost_multiplier": 8.0,
+    "gear_change_penalty_m": 2.0,
+    "tractor_config_path": "/home/sjohnson/farm-generator/configs/tractor_default.yaml",
+    "turn_radius_m": 2.7,
+    "footprint_bounds_rear_axle_m": [
+      -0.8,
+      -0.9500000000000001,
+      3.2,
+      0.9500000000000001
+    ],
+    "status": "FEASIBLE",
+    "objective_cost": 135417,
+    "best_bound_cost": 126333.0,
+    "solver_wall_time_s": 60.012065844000006,
+    "segments": 61,
+    "saturated_arc_ids": []
+  }
+]

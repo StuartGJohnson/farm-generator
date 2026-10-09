@@ -1,0 +1,85 @@
+We now need to begin the generation of working tractor models in isaacsim. First, there is an important change since our last update. Whilst we were previously using the usd2508 conda env, we now need to start using the isaacsim61-cu13 conda env (the shell in which you are running is already in this conda env). This new conda env provides all necessary issacsim 6.1 and usd packages for writing python code to load, define and manipulate our tractor and the world in which it lives.
+
+The current shell is running on a linux box which should make it possible for you to run isaacsim via the isaacsim command. It is not clear that this is advisable for testing or otherwise. However, "isaacsim --no-window" starts up in 15 seconds or so. Furthermore, in order for the ROS2 bridge to work, one must set these in the current shell (they are set in this shell):
+
+export ROS_DISTRO=humble
+export RMW_IMPLEMENTATION=rmw_fastrtps_cpp
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/home/sjohnson/anaconda3/envs/isaacsim61-cu13/lib/python3.12/site-packages/isaacsim/exts/isaacsim.ros2.core/humble/lib
+
+
+The tractor generation code should work as follows: a tractor specification yaml file (see below) will set the sensors, size and layout of the tractor. You will generate python code which will convert that tractor spec file into 1) tractor usda files, 2) isaacsim python code which will use python and python-defined isaacsim action graphs
+to bring up the tractor in a defined world (generally provided via our farm generation code), and 3) a tractor urdf file for an actual tractor implementation. Note that, for human testing, it might be handy that the tractor usda can fully define the tractor, but we can discuss this. The end purpose of the tractor generation code is to investigate tractor HW and SW (ros2) design (before an actual tractor is built) to achieve certain goals/metrics in the simulated farm. In
+other words, we will be performing a joint partial optimization (or, at least, comparison) over the robot HW and SW design. For example, what do we gain from adding a lidar, or which sensor/SW selection gives us robustness in the presence of high position uncertainty from our GNSS-RTK system. Or, which sensor layout is best.
+The tractor generation and simulation code must be repeatable (deterministic) - which is one reason I am not asking you
+to generate the end product (the simulation) via generative AI on every tractor specification.
+
+We need to generate usda files for our tractor, and a urdf file for consumption by a ros2 SW stack (e.g., robot_state_publisher). Note this implies we are strict about naming consistency between the urdf and the usda/isaacsim code. The tractor specifications will be defined in a yaml file. We shall intentionally start simple, and verify that our tractor works in isaacsim. The tractor specification is by intention rather generic. You are welcome to embellish the tractor body with a simple mesh/texture if you wish (anything random in your implementation must accept a random seed and be repeatable). Note we are not overly concerned with the appearance of the tractor - although this could effect sensors.
+
+
+The tractor is composed of a main body and a sensor pod mounted above the tractor. Currently, all sensors are embedded in the sensor pod - with the camera lenses flush with the pod's vertical surfaces. Note that the tractor body is the lower section of
+the tractor and volumes may need to be carved out of the tractor body to allow for the tires. When constructing the moment of inertia(s) of the tractor and tires, assume a density of water - there are parts of the tractor that are denser than this, but overall let's assume water density. The placement of the tractor axles within the tractor body should be such that when the tractor suspension has settled - the tractor body should be horizontal (with the given tractor_body_ground_clearance).
+
+For IsaacSim 6.1, we should be using the PhysX 5, Vehicle 2 system, with appropriate settings for tractor tires. Note that we will be defining variable traction via the surface mesh in the world from the farm generation code already present in the repo. For starters, we could just assume appropriate settings for grass or gravel. The tractor vehicle should have some reasonable sort of suspension and ackermann kinematics. All of this should be at your fingertips with PhysX 5, Vehicle 2. The tractor does not currently need a complex, multi-geared transmission. Let's keep this simple, assuming perhaps an electric drive with sufficient torque at all RPMs. Some appropriate suspension from the Physx 5 system should be used, given that the tractor has through-axles and central differentials. For our first implementation, use a 2WD rear drive arrangement.
+
+
+tractor config yaml:
+
+livery - color/graphics scheme on the tractor body - you can use your imagination here, say give a couple of string options
+	(maybe something like tiger_stripes and cheetah_spots) (default tiger_stripes)
+wheelbase  - the distance from front to rear axles along the ground (default 2.7m)
+front_tire_dia  (default 1m)
+front_tire_width (default .2m)
+front_tire_depth (default .1m)
+rear_tire_dia (default 1.6)
+rear_tire_width (default .3m)
+rear_tire_depth (default 0.15m)
+front_track_width - distance between front tire centers (default 1m)
+rear_track_width - distance between rear tires (default 1.6m)
+turning_radius (default 2.7m)
+sensor_pod_length - the length of the sensor pod (default 2m)
+sensor_pod_width - the width of the sensor pod (default 1.5m)
+sensor_pod_height - the height of the pod (default 0.2m)
+sensor_pod_height_above_ground - the height of the pod above ground (default 2.3m)
+tractor_body_length - (default 3.5m)
+tractor_body_width - (default 1.5m)
+tractor_body_height - (default 1m)
+tractor_body_ground_clearance - (default 0.3 m)
+tractor_body_front_axle - position of the front axle behind the front of the tractor body (default 0.3m)
+front_camera - yes/no (all cameras embedded in the vertical perimeter of the sensor_pod) (default yes)
+rear_camera - yes/no  (default no)
+left_camera - yes/no (default no)
+right_camera - yes/no (default no)
+camera_pitch - angle down from horizontal facing in degrees (for all cameras) (default 10)
+camera_hfov - horizontal fov (for all cameras) (default 90)
+camera_resolution - [x,y] default:[1280,720]
+
+In later versions, we will add lidar, GNSS and other complexities. This is already plenty complex. Also, the cameras are all
+rgb cameras. Again, we will add more types of cameras in future versions.
+
+Code structure/etc:
+
+One could argue that tractor generation should be in a different repo than farm-generation. However,
+an integral part of a farming world is combining the farm AND the tractor. Hence, we are in the
+current farm-generation repo. I think the best way to do this is put the tractor sw in it's own set
+of directories/files. perhaps tractor_generation, etc. In the end, we will have final world bringup script which places the tractor in a given world. perhaps these final bringup scripts should be in a directory called "bringup". One of these will eventually bring up the isaacsim simulation as a ros2 node.
+
+Testing: (human)
+In order to test the tractor in isaacsim, we will need a way to move the tractor via teleop - let's say use the standard
+keyboard keys: aswd. We will need a test script which launches isaacsim in non-headless mode. We should have a version of this which implements the teleop without using ros2. I believe this to be possible. Before doing this test, I believe it
+should be possible for me to start isaacsim in non-headless mode, load a world (I will use debug_out/mesh/farm_seed_1_120m2_ground.usda), then load the tractor usda into my loaded world. This will be my first round of testing.
+I am assuming, of course, that loading a tractor usda file can define all tractor aspects. You should inform
+me of possible issues.
+
+Testing: (unit/functional)
+some amount of unit and functional testing is called for. For example, it might be useful to generate diagnostic images of
+the tractor for debugging purposes. The way I can give you good feedback short of manual isaacsim runs. I thnk you can use isaacsim tools for this - recall that this is isaacsim 6.1, and also that you generally have to instantiate SimulationApp() before many things work in isaacsim. Hopefully Nvidia will have you (re)design IsaacSim at some point. Also, try to run any rendering code in headless mode.
+
+
+
+
+
+
+
+
+
+

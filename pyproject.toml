@@ -18,13 +18,15 @@ dependencies = [
     "pillow>=9.0",
     "pyyaml>=6.0",
     "condeltri>=0.0.5",
+    "ortools>=9.15",
+    "rsplan>=1.0.10,<1.1",
 ]
 
 [project.optional-dependencies]
 dev = ["pytest>=7.0"]
 
 [tool.setuptools.packages.find]
-include = ["farm_ir*", "generation*", "visualization*", "export*", "gis*", "tractor_generation*", "bringup*"]
+include = ["farm_ir*", "generation*", "visualization*", "export*", "gis*", "route_planning*", "tractor_generation*", "bringup*"]
 
 [tool.setuptools.package-data]
 tractor_generation = ["assets/livery/*.png", "assets/livery/*.md", "assets/wheels/*.png", "assets/wheels/*.md"]

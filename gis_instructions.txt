@@ -1,0 +1,70 @@
+Instructions for code updates: farm_generator.
+
+The current document specifies the generation of GIS assets during farm simulator construction. Note all gis outputs should be in a single CRS - such as EPSG:32610 (WGS84 for the Sacramento Delta). The farm generator should generate the GIS assets positioned somewhere within the Sacramento Delta of California. ROS2 coordinates should be offset (-) from the EPSG coordinates of the farm origin.
+
+Inpect code in the current repo from previous updates.
+
+conda env to use (activated in this shell): isaacsim61_cu13.
+	This conda env has been updated to include env variables for isaacsim in the activate step. Previous instructions in the README.md specifying extra steps for isaacsim startup are unncessary. Also, the env should include packages needed for this and other upcoming updates.
+
+
+Reference code for farm generation:  examples/generate_showcase_farm.py
+	This code should be updated (or perhaps a new version calling new gis generation code should be introduced) to generate gis assets as defined below. In addition to current diagnostic plots for generation components, a new output containing all necessary farm files (as defined below) should be generated. Note that assets should be bundled with the farm for modularity and deployability. These mimic the assets in the current repo filesystem.
+
+A typical farm generation output should be (with a proper name at the root directory - I am using the generate_showcase_farm.py example):
+
+farm_seed_1_120m2/
+├── world/
+│   └── farm.usda
+├── assets/
+│   └── ...
+├── procedural_assets/
+│   └── ...
+│
+├── gis/
+│   ├── farm.gpkg
+│   ├── orthophoto.tif
+│   ├── farm.qgz
+│   └── tiles/
+│       ├── 16/
+│       ├── 17/
+│       └── 18/
+│
+└── farm.yaml
+
+Vector data:
+
+where farm.gpkg (GeoPackage) should contain:
+
+fields                  POLYGON
+row_centerlines         LINESTRING
+roads                   POLYGON
+road_centerlines        LINESTRING
+trees                   POINT
+irrigation_channels     POLYGON
+channel_centerlines     LINESTRING
+crossings               POLYGON
+
+Logically distinct objects should be in seperate layers for handy viewing in qgis. farm.qgz is a qgis package, which can be opened directly in qgis and has appropriate links to other files in the directory.
+
+The vector data should be the single source of truth for semantic understanding of the farm map. This will include - at some point - ROS2 assets like occupancy maps. The semantic map will be used for all route planning (an upcoming task), and runtime assessment of tractor/farm state (via, e.g. mapviz). Details on these needs will be made in another task specification document. But, we will need to know the road graph, the tree rows, the field polygons, etc. GIS generation should include the definition of reasonable names and numbering schemes (for fields and tree rows, for example). GIS products in the qgis layers should have clear names, and one can consider the qgis package as the human operator's reference for places and things in the farm (for example, for farm task specification).
+
+A standard mapping library like gdal (python) is preferred for gis operations (and is available in the conda env above).
+
+Raster data:
+
+Raster data should be generated using isaacsim in headless mode. An overhead camera viewing along -Z with an orthographic projection should be used. The raster (maximum) resolution should be specified by an GSD (ground sample distance) with a default of 5cm. orthophoto.tif is a geotiff suitable for use in the qgis package farm.qgz (to be generated). Since these assets will be used by mapviz during robot operation, gis/tiles should be generated for that purpose. These raster assets are intended to be an analog of aerial imagery that would be available for an actual farm. The qgis package should come up with the raster in the background of the vector layers.
+
+For now, we will avoid serializing terrain height as a raster file.
+
+Note also that qgis is installed (/usr/bin/qgis) - this may be convenient for testing (e.g., via qgis_process).
+
+Testing and implementation:
+
+When constructing the farm via procedural generation (e.g., code in generation/), there will be a number of points in the code where semantic map information is clearly defined in python. It is conceivable that, for handoff to other executables (e.g. ros2 nodes) that there is a more direct way to serialize some aspects of farm state (e.g. occupancy maps, terrain height, various containers of objects). However, a GIS-file route is strongly preferred (any points of difficulty should be discussed). I assume that python packages (e.g. gdal) can service the serialization/deserialization needs to and from GIS files and map semantics. At some point, users may wish to add map semantic info from additional GIS sources which informs farm tasks (like spatial maps of crop state, for example). If we need farm static information difficult to serialize via GIS files, we shall address this as the need arises (e.g., ros2 nodes).
+
+Testing should verify semantic map information. For example, when the GIS information for known example farm generation runs, tests should verify basic semantic information about the farm by reloading the GIS assets and computing the desired query. THe reference values for each query should be computed during farm generation and stored. For example, how many trees are in each field. In a later task, we will implement and verify more complex route planning on the gis files.
+
+Code development does not necessarily require moving all tests/generation examples to GIS asset generation. Previous tests/debugging outputs which make sense should be retained. Do not duplicate code - move common code into new classes or shared source.
+
+

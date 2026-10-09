@@ -1,0 +1,77 @@
+The current task is to add surface height variation (SHV) to the ground mesh in the farm simulation, and couple the variation to vehicle behavior via physx 5 vehicle 2 best practices. The ultimate goal of this feature in the simulator is to cause variable tractor response to control input in the simulation. In combination with terrian height variation, this will exercise any tractor path controller that is in development using this simulator.
+
+First of all, SHV is going to be controlled by some new farm simulation parameters. Note this is upstream of any conversion to USD (or anything else). We will need random spatial variation with carefully controlled spectra and of a deterministic value across the farm given a random seed. The new parameters will be (with default values):
+
+
+height_mean: 0.0
+height_variation_range_m: 0.2
+height_scale_m: 3.0
+height_spectral_slope: 4.0
+height_seed: 1001
+
+
+These should be added to the FarmGenerationConfig dataclass.
+
+
+Our first task is to generate a field that follows a power law:
+
+Define the height variation as a 2D random field with an isotropic power spectrum.
+
+Let:
+
+L0 = height_scale_m
+
+If spatial frequency is represented in cycles per meter, define:
+
+f0 = 1 / L0
+
+For a 2D spatial frequency with components fx and fy:
+
+f = sqrt(fx² + fy²)
+
+Use the target power spectrum:
+
+P(f) ∝ [1 + (f / f0)²]^(-β / 2)
+
+where:
+
+β = height_spectral_slope
+
+Interpretation:
+
+L0 is the characteristic spatial scale where the spectrum transitions from approximately flat at large spatial scales to approximately power-law behavior at smaller spatial scales.
+For f << f0, P(f) is approximately constant.
+For f >> f0, P(f) is approximately proportional to f^(-β).
+Larger β produces a smoother field with less high-spatial-frequency variation.
+Larger L0 produces larger spatial patches of similar height.
+
+A practical FFT implementation can:
+
+Generate a 2D white-noise field.
+FFT the field.
+Compute f = sqrt(fx² + fy²) for each Fourier component.
+Multiply each Fourier coefficient by sqrt(P(f)).
+Inverse FFT to obtain the spatial field.
+Normalize or smoothly bound the resulting field.
+Map it to the requested height range around height_mean.
+
+To prevent aliasing, we should also truncate the field to the nyquist, which is rougly twice the value in farm_resolution_m (already in the code).
+
+The requested height interval is:
+
+height_min = height_mean - height_variation_range_m / 2
+
+height_max = height_mean + height_variation_range_m / 2
+
+The continuous height field should be deterministic for a given height_seed.
+
+For implementation with numpy.fft.fftfreq(), use frequencies in cycles per meter directly. This avoids introducing 2π factors internally.
+
+
+This gives us a height field defined at every point in the farm. A diagnostic plot should be made of this height field.
+
+Now we need to apply this height field to all mesh vertices. There is one catch. We should not apply the height field to the water surface mesh. The water will still be level.
+
+all examples should be regenerated, including the 120m^2 case. In examples/generate_showcase_farm.py, make the setting and addition of the new height settings clear and explicit, in the same way as was done for the friction settings.
+
+

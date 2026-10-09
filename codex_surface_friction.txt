@@ -1,0 +1,113 @@
+The current task is to add surface friction variation (SFV) to the ground mesh in the farm simulation, and couple the variation to vehicle behavior via physx 5 vehicle 2 best practices. The ultimate goal of this feature in the simulator is to cause variable tractor response to control input in the simulation. In combination with terrian height variation (to be added later), this will exercise any tractor path controller that is in development using this simulator.
+
+First of all, SFV is going to be controlled by some new farm simulation parameters. Note this is upstream of any conversion to USD (or anything else). We will need random spatial variation with carefully controlled spectra and of a deterministic value across the farm given a random seed. The new parameters will be (with default values):
+
+crop_surface:
+  friction_mean: 0.65
+  friction_variation_range: 0.30
+  friction_scale_m: 5.0
+  friction_spectral_slope: 4.0
+  friction_seed: 1001
+
+road_surface:
+  friction_mean: 1.05
+  friction_variation_range: 0.20
+  friction_scale_m: 5.0
+  friction_spectral_slope: 4.0
+  friction_seed: 2001
+
+
+These should be added to the FarmGenerationConfig dataclass. As well, we should add a 
+
+farm_resolution_m = 1.0
+
+and use this value replace the argument to (for example) export_scene_ground  - where this is the "flat_resolution" argument.
+
+We can also assume for now the channel regions have a single mu:
+
+channel_friction: 0.3
+
+
+We shall start by assuming that the friction value being defined is (eventually) the friction argument for the physx vehicle 2 tire model. But, that is a USD detail.
+
+In order to simplify calculations, let define crop and road friction values over the entire farm, but only sample the relevant field over the meshed sub-regions for crop and road. This should be clean, because we are sampling the triangles at their centroids - none of which land on crop or road boundaries. Out first task is to generate a field that follows a power law:
+
+Define the spatial friction variation as a 2D random field with an isotropic power spectrum.
+
+User-facing parameters (one for crop, one for road):
+
+friction_mean
+friction_variation_range
+friction_scale_m
+friction_spectral_slope
+friction_seed
+
+Let:
+
+L0 = friction_scale_m
+
+If spatial frequency is represented in cycles per meter, define:
+
+f0 = 1 / L0
+
+For a 2D spatial frequency with components fx and fy:
+
+f = sqrt(fx² + fy²)
+
+Use the target power spectrum:
+
+P(f) ∝ [1 + (f / f0)²]^(-β / 2)
+
+where:
+
+β = friction_spectral_slope
+
+Interpretation:
+
+L0 is the characteristic spatial scale where the spectrum transitions from approximately flat at large spatial scales to approximately power-law behavior at smaller spatial scales.
+For f << f0, P(f) is approximately constant.
+For f >> f0, P(f) is approximately proportional to f^(-β).
+Larger β produces a smoother field with less high-spatial-frequency variation.
+Larger L0 produces larger spatial patches of similar friction.
+
+A practical FFT implementation can:
+
+Generate a 2D white-noise field.
+FFT the field.
+Compute f = sqrt(fx² + fy²) for each Fourier component.
+Multiply each Fourier coefficient by sqrt(P(f)).
+Inverse FFT to obtain the spatial field.
+Normalize or smoothly bound the resulting field.
+Map it to the requested friction range around friction_mean.
+
+To prevent aliasing, we should also truncate the field to the nyquist, which is rougly twice the value in farm_resolution_m (see above).
+
+The requested friction interval is:
+
+friction_min = friction_mean - friction_variation_range / 2
+
+friction_max = friction_mean + friction_variation_range / 2
+
+The continuous friction field should be deterministic for a given friction_seed.
+
+For implementation with numpy.fft.fftfreq(), use frequencies in cycles per meter directly. This avoids introducing 2π factors internally.
+
+
+At this point, we can sample these spatial fields (via DFT, I suppose) at each mesh centroid. This will result in a vaiue for friction for both crop areas and road areas. I think some dignostic plots of these would be useful. Note these fields exist upstream of the final selected output type (e.g. USD). Plots of these field in plan view would be handy. I am not quite sure how to do this where we crop each contour plot by the type of the area (crop/road) involved. And note also that the new parameter channel_friction should define a constant value of surface friction for the channels (regardless of whether or not they are submerged). This means the plot of these 3 regions might be a little tricky. Use your imagination.
+
+Finally, we need to convert these new fields to materials and tire friction parameters for physx 5/vehicle 2 and so USD output. My investigation of this indicates the following:
+
+- we should pick a value of delta_mu to discretize the friction values for each region across the range of values in the 2d field. Probably we should pick and expose a parameter n_sample_fields so that delta_mu = mu_range/ n_sample_fields. n_sample_fields is perhaps 10, and so we will define n_sample_fields as a config argument for usd output. If mu_range is zero, this is a special case, we get 1 material for that region. 
+
+- each material should be a physics material, perhaps with it's static and dynamic friction set to the discretized mu, and restitution set to 0.0.
+
+- each material should be bound to the proper subset of the mesh triangles (indicated by sampling the continous field at the mesh triangle centroid).
+
+- in some manner, the friction value of each material should be used in the Vehicle2 tire friction table. (I am still unclear on this after discussing with your alter-ego chatgpt). It is also possible there is some complexity around the friction-vs-clip curve, but I think this belongs to the tire model, not the surface.
+
+At this point, we now need to regenerate tests and plots. My ultimate test will be driving the tractor via teleop using your launch file for the 120m^2 farm simulation.
+
+Feel free to ask for clarification on any topic.
+
+
+
