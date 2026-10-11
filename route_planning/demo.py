@@ -72,8 +72,22 @@ def main():
     parser.add_argument("--farm", type=Path, default=Path("debug_out/farms/farm_seed_1_120m2"))
     parser.add_argument("--output-dir", type=Path, default=Path("debug_out/routes/farm_seed_1_120m2"))
     parser.add_argument("--seed", type=int, default=17)
+    parser.add_argument("--cases", type=int, choices=(1, 2, 3), default=3,
+                        help="number of seeded showcase tasks to plan")
     parser.add_argument("--solver-time", type=float, default=60)
     parser.add_argument("--reverse-multiplier", type=float, default=8.0)
+    parser.add_argument("--reverse-event-penalty", type=float, default=50.0,
+                        help="equivalent metres added per reverse episode in an RS path")
+    parser.add_argument("--field-rs-forward-only", action="store_true",
+                        help="discard field RS connections containing any reverse motion")
+    parser.add_argument("--road-turn-setback", type=float, default=2.7,
+                        help="distance from each road junction to a turn state, in metres")
+    parser.add_argument("--road-interface-offset", type=float, default=2.7,
+                        help="road sample offset from each row endpoint projection, in metres")
+    parser.add_argument("--turn-radius-step", type=float, default=0.35,
+                        help="radius increment for additional RS candidates, in metres")
+    parser.add_argument("--turn-radius-expansions", type=int, default=2,
+                        help="number of radii above the tractor's minimum radius")
     parser.add_argument("--tractor-config", type=Path, default=DEFAULT_TRACTOR_CONFIG_PATH)
     parser.add_argument("--gear-change-penalty", type=float, default=2.0,
                         help="Penalty per forward/reverse shift, in equivalent meters")
@@ -81,6 +95,12 @@ def main():
     args = parser.parse_args()
     config = PlannerConfig(solver_time_s=args.solver_time,
                            reverse_cost_multiplier=args.reverse_multiplier,
+                           reverse_event_penalty_m=args.reverse_event_penalty,
+                           field_rs_forward_only=args.field_rs_forward_only,
+                           road_turn_setback_m=args.road_turn_setback,
+                           road_interface_offset_m=args.road_interface_offset,
+                           turn_radius_step_m=args.turn_radius_step,
+                           turn_radius_expansions=args.turn_radius_expansions,
                            gear_change_penalty_m=args.gear_change_penalty,
                            tractor_config_path=args.tractor_config)
     footprint = TractorFootprint.from_config(config.tractor)
@@ -89,7 +109,7 @@ def main():
     output = args.output_dir
     output.mkdir(parents=True, exist_ok=True)
     manifest = []
-    for index, task in enumerate(tasks, 1):
+    for index, task in enumerate(tasks[:args.cases], 1):
         try:
             route = plan_route(farm, task, config)
         except (ValueError, RuntimeError) as exc:
@@ -104,10 +124,17 @@ def main():
                          "distance_m": route.total_distance_m,
                          "reverse_distance_m": sum(s.reverse_distance_m for s in route.segments),
                          "gear_changes": sum(s.gear_changes for s in route.segments),
+                         "reverse_events": sum(s.reverse_events for s in route.segments),
                          "reverse_cost_multiplier": route.reverse_cost_multiplier,
                          "gear_change_penalty_m": route.gear_change_penalty_m,
+                         "reverse_event_penalty_m": route.reverse_event_penalty_m,
+                         "field_rs_forward_only": config.field_rs_forward_only,
                          "tractor_config_path": str(config.tractor_config_path),
                          "turn_radius_m": config.turn_radius_m,
+                         "turn_radius_step_m": config.turn_radius_step_m,
+                         "turn_radius_expansions": config.turn_radius_expansions,
+                         "road_turn_setback_m": config.road_turn_setback_m,
+                         "road_interface_offset_m": config.road_interface_offset_m,
                          "footprint_bounds_rear_axle_m": footprint.at(Pose(0, 0, 0)).bounds,
                          "status": route.optimality_status,
                          "objective_cost": route.objective_cost,

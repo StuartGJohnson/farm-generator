@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
@@ -40,11 +41,15 @@ class FarmTask:
 class PlannerConfig:
     tractor_config_path: str | Path = DEFAULT_TRACTOR_CONFIG_PATH
     turn_radius_m: Optional[float] = None
+    turn_radius_step_m: float = 0.35
+    turn_radius_expansions: int = 2
     rs_step_m: float = 0.35
     tractor_half_width_m: Optional[float] = None
     trunk_clearance_m: float = 0.2
     rs_candidate_radius_m: float = 15.0
+    road_turn_setback_m: float = 2.7
     road_interface_candidates: int = 2
+    road_interface_offset_m: float = 2.7
     max_arc_uses: Optional[int] = None
     solver_time_s: float = 60.0
     cost_scale_per_m: int = 100
@@ -52,9 +57,22 @@ class PlannerConfig:
     road_pose_tolerance_m: float = 0.05
     reverse_cost_multiplier: float = 8.0
     gear_change_penalty_m: float = 2.0
+    reverse_event_penalty_m: float = 50.0
+    field_rs_forward_only: bool = False
     tractor: TractorConfig = field(init=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:
+        if not math.isfinite(self.turn_radius_step_m) or self.turn_radius_step_m <= 0:
+            raise ValueError("turn_radius_step_m must be positive and finite")
+        if (not isinstance(self.turn_radius_expansions, int) or
+                self.turn_radius_expansions < 0):
+            raise ValueError("turn_radius_expansions must be a nonnegative integer")
+        if (not math.isfinite(self.reverse_event_penalty_m) or
+                self.reverse_event_penalty_m < 0):
+            raise ValueError("reverse_event_penalty_m must be nonnegative and finite")
+        if (not math.isfinite(self.road_interface_offset_m) or
+                self.road_interface_offset_m < 0):
+            raise ValueError("road_interface_offset_m must be nonnegative and finite")
         tractor = load_tractor_config(self.tractor_config_path)
         object.__setattr__(self, "tractor", tractor)
         if self.turn_radius_m is None:
@@ -107,6 +125,7 @@ class FarmMap:
     orthophoto_path: Optional[str] = None
     orthophoto_extent: Optional[tuple[float, float, float, float]] = None
     irrigation_channels: dict[str, Polygon] = field(default_factory=dict)
+    road_surfaces: dict[str, Polygon] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -131,6 +150,7 @@ class Arc:
     driving_directions: tuple[int, ...] = ()
     reverse_distance_m: float = 0.0
     gear_changes: int = 0
+    reverse_events: int = 0
 
 
 @dataclass
@@ -155,6 +175,7 @@ class RouteSegment:
     driving_directions: tuple[int, ...] = ()
     reverse_distance_m: float = 0.0
     gear_changes: int = 0
+    reverse_events: int = 0
 
 
 @dataclass
@@ -170,6 +191,8 @@ class Route:
     gear_change_penalty_m: float = 0.0
     best_bound_cost: Optional[float] = None
     solver_wall_time_s: Optional[float] = None
+    road_turn_setback_m: float = 2.7
+    reverse_event_penalty_m: float = 0.0
 
     def continuous_path(self) -> list[Pose]:
         result = []

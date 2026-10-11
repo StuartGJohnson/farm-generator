@@ -7,17 +7,22 @@ from dataclasses import replace
 from pathlib import Path
 
 import pytest
-from shapely.geometry import Point, Polygon, box
+from shapely.geometry import LineString, Point, Polygon, box
+from shapely.ops import unary_union
+from shapely.strtree import STRtree
+from tractor_generation.config import load_tractor_config
 
 from route_planning import (FarmTask, ImplementSide, PlannerConfig, Pose,
                             load_farm_map, plan_route)
 from route_planning.diagnostic import (load_route_json, optimality_gap_percent,
                                        save_route_json)
 from route_planning.demo import sample_tasks
-from route_planning.graph import build_routing_graph
-from route_planning.model import Arc, Route, RoutingGraph, Vertex
+from route_planning.graph import _setback_station, build_routing_graph
+from route_planning.model import Arc, FarmMap, Road, Route, RoutingGraph, Vertex
 from route_planning.optimize import optimize_arc_counts
-from route_planning.path_feasibility import TractorFootprint, path_feasibility
+from route_planning.ordering import ordered_field_graph
+from route_planning.path_feasibility import (TractorFootprint, path_feasibility,
+                                             road_turn_region, tree_convex_hulls)
 from route_planning.reconstruct import reconstruct_route
 from route_planning.rs import connection
 
@@ -92,7 +97,8 @@ def test_invalid_rs_path_crosses_outside_u_shaped_field():
 def test_reverse_penalty_prefers_longer_forward_rs_candidate():
     start, end = Pose(0, 0, 0), Pose(2, 3, -math.pi / 2)
     field = box(-20, -20, 20, 20)
-    base = PlannerConfig(reverse_cost_multiplier=1, gear_change_penalty_m=0)
+    base = PlannerConfig(reverse_cost_multiplier=1, gear_change_penalty_m=0,
+                         reverse_event_penalty_m=0)
     shortest = connection(start, end, field, [], base)
     forward_favored = connection(start, end, field, [],
                                  replace(base, reverse_cost_multiplier=8))
@@ -120,6 +126,19 @@ def test_rear_axle_footprint_and_channel_clearance():
                                 [Point(2.2, 2.2).buffer(0.1)], footprint)
 
 
+def test_two_meter_trial_tractor_only_changes_turning_radius():
+    default = load_tractor_config("configs/tractor_default.yaml")
+    trial_path = "configs/tractor_route_2m.yaml"
+    trial = load_tractor_config(trial_path)
+    assert trial == replace(default, turning_radius=2.0)
+    assert PlannerConfig(tractor_config_path=trial_path).turn_radius_m == 2.0
+    assert PlannerConfig(tractor_config_path=trial_path).turn_radius_expansions == 2
+    with pytest.raises(ValueError, match="turn_radius_step_m"):
+        PlannerConfig(turn_radius_step_m=0)
+    with pytest.raises(ValueError, match="turn_radius_expansions"):
+        PlannerConfig(turn_radius_expansions=-1)
+
+
 def test_rs_rear_axle_must_stay_outside_tree_hull():
     footprint = TractorFootprint.from_config(PlannerConfig().tractor)
     field = box(-10, -10, 20, 10)
@@ -130,6 +149,54 @@ def test_rs_rear_axle_must_stay_outside_tree_hull():
                                 tree_hull=tree_hull_interior)
     assert path_feasibility(along_headland, field, [], footprint,
                             tree_hull=tree_hull_interior)
+
+
+def test_short_crossing_uses_midpoint_and_only_road_bridges_channel():
+    assert _setback_station(4.0, True, 2.7) == 2.0
+    assert _setback_station(4.0, False, 2.7) == 2.0
+    assert _setback_station(7.0, True, 2.7) == 2.7
+    assert _setback_station(7.0, False, 2.7) == 4.3
+    road = Road("cross", LineString([(4, 5), (8, 5)]), "a", "b",
+                "crossing_spur", None, "left", "right")
+    farm = FarmMap({"left": box(0, 0, 5, 10), "right": box(7, 0, 12, 10)},
+                   {}, {"cross": road}, {}, {}, 0, 0,
+                   irrigation_channels={"channel": box(5, 0, 7, 10)},
+                   road_surfaces={"cross": box(4, 4, 8, 6)})
+    allowed = road_turn_region(farm)
+    assert allowed.covers(box(5, 4.5, 7, 5.5))
+    assert not allowed.covers(Point(6, 2))
+
+
+@pytest.mark.skipif(not Path("debug_out/farms/farm_seed_1_120m2/gis/farm.gpkg").exists(),
+                    reason="showcase GIS bundle has not been generated")
+def test_two_meter_minimum_retains_wider_first_junction_turn():
+    farm = load_farm_map("debug_out/farms/farm_seed_1_120m2/gis")
+    incoming = farm.roads["redge_0009"].line
+    outgoing = farm.roads["redge_0019"].line
+    a = incoming.interpolate(2.7)
+    b = outgoing.interpolate(2.7)
+    start = Pose(a.x, a.y, math.atan2(incoming.coords[0][1] - incoming.coords[-1][1],
+                                      incoming.coords[0][0] - incoming.coords[-1][0]))
+    end = Pose(b.x, b.y, math.atan2(outgoing.coords[-1][1] - outgoing.coords[0][1],
+                                    outgoing.coords[-1][0] - outgoing.coords[0][0]))
+    config = PlannerConfig(tractor_config_path="configs/tractor_route_2m.yaml")
+    region = road_turn_region(farm)
+    obstacles = [Point(tree.x, tree.y).buffer(config.trunk_clearance_m)
+                 for tree in farm.trees.values()]
+    hull = unary_union(list(tree_convex_hulls(farm, tuple(farm.fields)).values()))
+    def first_turn(settings):
+        return connection(start, end, region, obstacles, settings, STRtree(obstacles),
+                          permitted_region=region,
+                          footprint=TractorFootprint.from_config(settings.tractor),
+                          tree_hull=hull, forward_only=True)
+
+    assert first_turn(replace(config, turn_radius_expansions=0)) is None
+    assert first_turn(replace(config, turn_radius_step_m=0.7,
+                              turn_radius_expansions=1)) is not None
+    candidate = first_turn(config)
+    assert candidate is not None
+    assert candidate[3] == 0
+    assert all(direction > 0 for direction in candidate[2])
 
 
 def test_route_optimizer_prices_reverse_distance():
@@ -145,6 +212,60 @@ def test_route_optimizer_prices_reverse_distance():
     assert "short_reverse" in cheap_reverse.counts
     assert "long_forward" in expensive_reverse.counts
     assert "short_reverse" not in expensive_reverse.counts
+
+
+def test_reverse_event_penalty_changes_arc_choice():
+    graph = _toy_graph("A", "C", [
+        ("short_reverse", "A", "B", set(), 5),
+        ("long_forward", "A", "B", set(), 8),
+        ("service", "B", "C", {"q"}, 2),
+    ], {"q"})
+    graph.arcs["short_reverse"] = replace(graph.arcs["short_reverse"],
+                                           reverse_distance_m=0.25,
+                                           reverse_events=1)
+    base = PlannerConfig(reverse_cost_multiplier=1,
+                         gear_change_penalty_m=0,
+                         reverse_event_penalty_m=0)
+    low = optimize_arc_counts(graph, base)
+    high = optimize_arc_counts(graph, replace(base, reverse_event_penalty_m=20))
+    assert "short_reverse" in low.counts
+    assert "long_forward" in high.counts
+    with pytest.raises(ValueError, match="reverse_event_penalty_m"):
+        PlannerConfig(reverse_event_penalty_m=-1)
+
+
+def test_ordered_field_stages_complete_each_field_before_switching():
+    positions = {name: Pose(x, 0, 0) for name, x in
+                 (("S", 0), ("A", 1), ("B", 2), ("T", 3))}
+    vertices = {name: Vertex(name, pose, True) for name, pose in positions.items()}
+    vertices["RA"] = Vertex("RA", positions["A"], True, "field_a")
+    vertices["RB"] = Vertex("RB", positions["B"], True, "field_b")
+    arcs = {}
+    for name, u, v in (("sa", "S", "A"), ("ab", "A", "B"),
+                       ("ba", "B", "A"), ("at", "A", "T")):
+        arcs[name] = Arc(name, u, v, (positions[u], positions[v]), 1, "road")
+    for name, vertex, road, field in (("row_a", "RA", "A", "field_a"),
+                                      ("row_b", "RB", "B", "field_b")):
+        arcs[name] = Arc(name, vertex, vertex,
+                         (positions[road], positions[road]), 1, "row",
+                         field, frozenset({name}))
+        for suffix, u, v in (("in", road, vertex), ("out", vertex, road)):
+            arcs[f"{field}_{suffix}"] = Arc(f"{field}_{suffix}", u, v,
+                                            (positions[road], positions[road]),
+                                            1, "rs", field)
+    base = RoutingGraph(vertices, arcs, {"row_a", "row_b"}, "S", "T",
+                        {"field_a", "field_b"})
+    task = FarmTask(("field_a", "field_b"), ImplementSide.BOTH,
+                    positions["S"], positions["T"])
+    graph = ordered_field_graph(base, task)
+    solution = optimize_arc_counts(graph, PlannerConfig(solver_time_s=2))
+    route = reconstruct_route(graph, task, solution)
+    kinds = [(segment.kind, segment.field_id) for segment in route.segments
+             if segment.kind in ("row", "field_switch")]
+    assert kinds == [("row", "field_a"), ("field_switch", "field_b"),
+                     ("row", "field_b")]
+    assert sum(segment.distance_m for segment in route.segments
+               if segment.kind == "field_switch") == 0
 
 
 def test_optimality_gap_uses_found_objective_as_denominator():
@@ -182,6 +303,27 @@ def test_showcase_tasks_are_fixed_by_seed():
 
 @pytest.mark.skipif(not Path("debug_out/farms/farm_seed_1_120m2/gis/farm.gpkg").exists(),
                     reason="showcase GIS bundle has not been generated")
+def test_offset_road_interface_lets_partial_row_exit_forward():
+    farm = load_farm_map("debug_out/farms/farm_seed_1_120m2/gis")
+    task = sample_tasks(farm, 17, ImplementSide.BOTH)[0]
+    graph = build_routing_graph(
+        farm, task, PlannerConfig(tractor_config_path="configs/tractor_route_2m.yaml",
+                                  field_rs_forward_only=True))
+    partial_row_end = next(vertex for vertex in graph.vertices.values()
+                           if vertex.field_id == "parcel_003"
+                           and abs(vertex.pose.x - 45.05057) < 0.01
+                           and abs(vertex.pose.y - 86.02881) < 0.01
+                           and abs(abs(vertex.pose.yaw) - math.pi) < 0.01)
+    exits = [arc for arc in graph.arcs.values()
+             if arc.kind == "rs" and arc.u == partial_row_end.id
+             and graph.vertices[arc.v].field_id is None]
+    assert any(graph.vertices[arc.v].pose.x < partial_row_end.pose.x - 2
+               and arc.reverse_distance_m == 0 and arc.reverse_events == 0
+               for arc in exits)
+
+
+@pytest.mark.skipif(not Path("debug_out/farms/farm_seed_1_120m2/gis/farm.gpkg").exists(),
+                    reason="showcase GIS bundle has not been generated")
 def test_real_gis_has_no_unselected_field_transit(tmp_path):
     farm = load_farm_map("debug_out/farms/farm_seed_1_120m2/gis")
     assert farm.irrigation_channels
@@ -198,6 +340,16 @@ def test_real_gis_has_no_unselected_field_transit(tmp_path):
     assert len(row_lanes) == 2 * (len(selected_rows) + 1)
     assert sum(len(a.service_ids) == 2 for a in row_lanes) == 2 * (len(selected_rows) - 1)
     assert any(a.kind == "road" and a.field_id not in task.field_ids for a in graph.arcs.values())
+    turn_arcs = [arc for arc in graph.arcs.values() if arc.kind == "road_turn"]
+    assert turn_arcs
+    assert sum(arc.id.startswith("turn_rnode_0000_") for arc in turn_arcs) == 4
+    assert all(graph.vertices[arc.u].oriented and graph.vertices[arc.v].oriented
+               for arc in turn_arcs)
+    assert all(not vertex_id.startswith("rnode_") for vertex_id in graph.vertices)
+    assert all(arc.u != arc.v for arc in turn_arcs)
+    assert all(arc.reverse_distance_m == 0 and arc.gear_changes == 0 and
+               all(direction > 0 for direction in arc.driving_directions)
+               for arc in turn_arcs)
     assert all(a.field_id in task.field_ids for a in graph.arcs.values() if a.kind in ("row", "rs"))
     assert any(len(a.service_ids) >= 2 for a in graph.arcs.values() if a.kind == "row")
     from route_planning.path_feasibility import tree_convex_hulls
@@ -224,6 +376,10 @@ def test_real_gis_has_no_unselected_field_transit(tmp_path):
     assert sum(s.reverse_distance_m for s in reloaded.segments) == sum(
         s.reverse_distance_m for s in route.segments)
     assert reloaded.reverse_cost_multiplier == route.reverse_cost_multiplier
+    assert reloaded.reverse_event_penalty_m == route.reverse_event_penalty_m
+    assert sum(s.reverse_events for s in reloaded.segments) == sum(
+        s.reverse_events for s in route.segments)
+    assert reloaded.road_turn_setback_m == route.road_turn_setback_m
     assert reloaded.traversal_counts == route.traversal_counts
     assert all(len(segment.driving_directions) == len(segment.poses)
                for segment in reloaded.segments)

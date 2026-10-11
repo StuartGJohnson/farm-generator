@@ -12,7 +12,8 @@ from shapely.strtree import STRtree
 
 from .model import FarmMap, FarmTask, PlannerConfig, Route, RouteSegment, RoutingGraph
 from .optimize import TraversalSolution, arc_cost
-from .path_feasibility import TractorFootprint, path_feasibility, tree_convex_hulls
+from .path_feasibility import (TractorFootprint, path_feasibility,
+                               road_turn_region, tree_convex_hulls)
 
 
 def reconstruct_route(graph: RoutingGraph, task: FarmTask,
@@ -35,12 +36,14 @@ def reconstruct_route(graph: RoutingGraph, task: FarmTask,
         segments.append(RouteSegment(arc_id, occurrence, arc.kind, arc.field_id,
                                      arc.poses, arc.distance_m, arc.service_ids,
                                      arc.driving_directions or tuple(1 for _ in arc.poses),
-                                     arc.reverse_distance_m, arc.gear_changes))
+                                     arc.reverse_distance_m, arc.gear_changes,
+                                     arc.reverse_events))
     total = sum(s.distance_m for s in segments)
     return Route(task, segments, total, solution.objective_cost,
                  solution.status, solution.counts, solution.saturated_arc_ids,
                  config.reverse_cost_multiplier, config.gear_change_penalty_m,
-                 solution.best_bound_cost, solution.solver_wall_time_s)
+                 solution.best_bound_cost, solution.solver_wall_time_s,
+                 config.road_turn_setback_m, config.reverse_event_penalty_m)
 
 
 def validate_route(route: Route, graph: RoutingGraph, farm: FarmMap,
@@ -65,6 +68,16 @@ def validate_route(route: Route, graph: RoutingGraph, farm: FarmMap,
             assert abs(yaw_error) < 1e-3, f"Heading discontinuity at {shared_id}"
     coverage = set().union(*(segment.service_ids for segment in segments))
     assert coverage == graph.requirements
+    stage = 0
+    for segment in segments:
+        if segment.kind == "field_switch":
+            stage += 1
+            assert stage < len(route.task.field_ids)
+            assert segment.field_id == route.task.field_ids[stage]
+            assert segment.distance_m == 0 and not segment.service_ids
+        elif segment.kind in ("row", "rs"):
+            assert segment.field_id == route.task.field_ids[stage]
+    assert stage == len(route.task.field_ids) - 1
     selected_fields = set(route.task.field_ids)
     footprint = TractorFootprint.from_config(config.tractor)
     channel_union = unary_union(list(farm.irrigation_channels.values()))
@@ -74,6 +87,11 @@ def validate_route(route: Route, graph: RoutingGraph, farm: FarmMap,
                        for t in farm.trees.values() if t.field_id == fid]
                  for fid in selected_fields}
     obstacle_indices = {fid: STRtree(items) for fid, items in obstacles.items()}
+    turn_region = road_turn_region(farm)
+    turn_obstacles = [Point(t.x, t.y).buffer(config.trunk_clearance_m)
+                      for t in farm.trees.values()]
+    turn_index = STRtree(turn_obstacles)
+    turn_tree_hull = unary_union(list(tree_convex_hulls(farm, tuple(farm.fields)).values()))
     for segment in segments:
         arc = graph.arcs[segment.arc_id]
         assert segment.poses == arc.poses
@@ -85,6 +103,7 @@ def validate_route(route: Route, graph: RoutingGraph, farm: FarmMap,
         assert segment.service_ids == arc.service_ids
         assert segment.reverse_distance_m == arc.reverse_distance_m
         assert segment.gear_changes == arc.gear_changes
+        assert segment.reverse_events == arc.reverse_events
         assert 0 <= segment.reverse_distance_m <= segment.distance_m + 1e-5
         assert len(segment.driving_directions) == len(segment.poses)
         assert all(direction in (-1, 1) for direction in segment.driving_directions)
@@ -95,11 +114,20 @@ def validate_route(route: Route, graph: RoutingGraph, farm: FarmMap,
             assert path_feasibility(segment.poses, permitted_fields[fid],
                                     obstacles[fid], footprint, obstacle_indices[fid],
                                     tree_hulls[fid])
+        if segment.kind == "road_turn":
+            assert segment.reverse_events == 0
+            assert path_feasibility(segment.poses, turn_region, turn_obstacles,
+                                    footprint, turn_index, turn_tree_hull)
+        if segment.kind == "road" and segment.field_id is None:
+            assert path_feasibility(segment.poses, turn_region, turn_obstacles,
+                                    footprint, turn_index, turn_tree_hull)
     assert Counter(s.arc_id for s in segments) == route.traversal_counts
     assert math.isclose(route.total_distance_m,
                         sum(graph.arcs[arc_id].distance_m * count
                             for arc_id, count in route.traversal_counts.items()), abs_tol=1e-5)
     assert route.reverse_cost_multiplier == config.reverse_cost_multiplier
     assert route.gear_change_penalty_m == config.gear_change_penalty_m
+    assert route.reverse_event_penalty_m == config.reverse_event_penalty_m
+    assert route.road_turn_setback_m == config.road_turn_setback_m
     assert route.objective_cost == sum(arc_cost(graph.arcs[arc_id], config) * count
                                        for arc_id, count in route.traversal_counts.items())

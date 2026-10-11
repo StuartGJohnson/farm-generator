@@ -46,8 +46,10 @@ def load_farm_map(path: str | Path) -> FarmMap:
         trees[p["id"]] = Tree(p["id"], p["field_id"], p["row_id"], point.x, point.y)
     channels = {feature["properties"]["id"]: local(feature["geometry"])
                 for feature in layers["irrigation_channels"]}
+    road_surfaces = {feature["properties"]["id"]: local(feature["geometry"])
+                     for feature in layers["roads"]}
     raster = gis_dir / "orthophoto.tif"
     return FarmMap(fields, field_names, roads, rows, trees, east, north,
                    str(raster) if raster.exists() else None,
                    tuple(doc["raster_extent"]) if doc["raster_extent"] else None,
-                   channels)
+                   channels, road_surfaces)

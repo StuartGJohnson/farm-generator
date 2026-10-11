@@ -594,17 +594,48 @@ python -m pytest tests/test_gis.py -q
 
 ## Farm task routes from GIS
 
-`route_planning/` reads only the generated GIS files and implements the
-directed arc-routing formulation in `writeup/route_planning.tex`. The PDF version
-of this document is:
+`route_planning/` reads only the generated GIS files. It builds on the
+directed arc-routing formulation in `writeup/route_planning.tex`; the current
+implementation also includes the refinements summarized below. The PDF version
+of the writeup is:
 
 [route_planning.pdf](writeup/route_planning.pdf)
 
-`route_planning/` builds
-road and tree-row service arcs from the GeoPackage, connects them with
-tractor-feasible Reeds–Shepp maneuvers, and uses CP-SAT to route a selected
-list of fields between road-aligned tractor poses. The GIS bundle supplies
-the farm geometry; tractor dimensions come from `configs/tractor_default.yaml`.
+The planner builds directed road and tree-row service arcs from the GeoPackage,
+connects them with tractor-feasible Reeds–Shepp (RS) maneuvers, and uses CP-SAT
+to route an ordered list of fields between road-aligned tractor poses. Each
+tree row has service requirements on both sides. The GIS bundle supplies the
+farm geometry; tractor dimensions come from `configs/tractor_default.yaml`
+unless `--tractor-config` selects another configuration.
+
+### Current routing refinements
+
+- Road junctions have directed turn connections between road poses set back
+  from the intersection. The RS search samples the tractor's minimum turn
+  radius and, by default, two wider radii in 0.35 m increments. Junction turns
+  must be forward-only. The tractor's swept footprint must clear irrigation
+  channels and remain on the crossing or in permitted field margins. Change
+  the 2.7 m setback with `--road-turn-setback`, and the radius samples with
+  `--turn-radius-step` and `--turn-radius-expansions`.
+- Field connections use road access points at each row endpoint's road
+  projection and 2.7 m to either side. The offset points let the tractor enter
+  or leave a row while facing along the road without forcing a short reverse
+  maneuver. Change their spacing with `--road-interface-offset`. Field RS
+  paths must keep the tractor footprint inside the irrigation-channel boundary
+  and out of the tree-row convex hull.
+- CP-SAT uses a separate copy of the road graph for each requested field.
+  Only that stage's field can be serviced; after its tasks are complete, the
+  route switches stages at its road exit interface without moving the tractor.
+  The solver still chooses the route and field access points jointly.
+- A maneuver's score adds travel distance, extra cost for reverse distance,
+  internal gear changes, and reverse episodes. The defaults are 8 times cost
+  for reverse distance, 2 m per gear change, and 50 m per reverse episode.
+  These are objective costs expressed in equivalent meters. Use
+  `--reverse-multiplier`, `--gear-change-penalty`, and
+  `--reverse-event-penalty` to tune them; `--field-rs-forward-only` excludes
+  reverse field connections entirely. An `OPTIMAL` result is optimal for the
+  constructed, sampled routing graph, rather than for every possible
+  continuous tractor trajectory.
 
 Run three seeded showcase missions with a 60-second solver limit
 per task:
@@ -614,7 +645,7 @@ conda activate isaacsim61-cu13
 python -m route_planning --farm debug_out/farms/farm_seed_1_120m2/gis
 ```
 
-The default seed is 17. It fixes all three field lists and road-aligned
+The default seed is 17. It fixes all three ordered field lists and road-aligned
 start/stop poses before solving, so different solver outcomes cannot change
 the tasks. Set `--seed N` for a different fixed task set.
 
@@ -630,9 +661,25 @@ current bound. The displayed bound is rounded up to the next tenth of a
 percent. `OPTIMAL` means
 the solver proved there is no gap for its routing graph.
 
+All three routes below were rerun with a 2.0 m turning-radius trial configuration:
+
+```bash
+python -m route_planning --cases 3 --solver-time 60 \
+  --tractor-config configs/tractor_route_2m.yaml
+```
+
+With the 50 m reverse-event penalty and offset road interfaces, Route 01 is
+optimal for its generated routing graph at 695.0 m. Routes 02 and 03 are
+feasible at 1555.9 m and 1274.5 m; their displayed optimality gaps are at
+most 11.5% and 4.6%, respectively. All three routes have zero reverse travel,
+and the two-field routes complete one field before servicing the next. The
+road turn setback remains 2.7 m. The RS search also considers wider turns
+than the tractor's minimum radius. Use `--cases 1` for a quick rerun of
+Route 01 alone.
+
 ### Route 01: Field 004
 
-![Route 01 through Field 004](debug_out/routes/farm_seed_1_120m2/route_01.png)
+![Route 01 through Field 004 with road junction turns](debug_out/routes/farm_seed_1_120m2/route_01.png)
 
 ### Route 02: Fields 001 and 003
 

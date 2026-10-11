@@ -8,6 +8,7 @@ from typing import Sequence
 
 from shapely.geometry import LineString, MultiPoint, Polygon
 from shapely.geometry.base import BaseGeometry
+from shapely.ops import unary_union
 from shapely.strtree import STRtree
 from tractor_generation.config import TractorConfig
 
@@ -19,6 +20,17 @@ def tree_convex_hulls(farm: FarmMap, field_ids: Sequence[str]) -> dict[str, Base
     return {fid: MultiPoint([(tree.x, tree.y) for tree in farm.trees.values()
                              if tree.field_id == fid]).convex_hull.buffer(-1e-6)
             for fid in field_ids}
+
+
+def road_turn_region(farm: FarmMap) -> BaseGeometry:
+    """Land and roads outside channels, bridged only by crossing surfaces."""
+    dry_roads = [surface for road_id, surface in farm.road_surfaces.items()
+                 if farm.roads[road_id].road_class != "crossing_spur"]
+    crossings = [surface for road_id, surface in farm.road_surfaces.items()
+                 if farm.roads[road_id].road_class == "crossing_spur"]
+    dry_land = unary_union([*farm.fields.values(), *dry_roads])
+    channels = unary_union(list(farm.irrigation_channels.values()))
+    return dry_land.difference(channels).union(unary_union(crossings))
 
 
 @dataclass(frozen=True)

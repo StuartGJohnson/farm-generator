@@ -12,9 +12,12 @@ from .model import Arc, PlannerConfig, RoutingGraph
 
 def arc_cost(arc: Arc, config: PlannerConfig) -> int:
     """Quantized travel cost, with reverse travel and shifts priced explicitly."""
+    if arc.kind == "field_switch":
+        return 0
     effective_distance = (arc.distance_m +
                           (config.reverse_cost_multiplier - 1) * arc.reverse_distance_m +
-                          config.gear_change_penalty_m * arc.gear_changes)
+                          config.gear_change_penalty_m * arc.gear_changes +
+                          config.reverse_event_penalty_m * arc.reverse_events)
     return max(1, round(config.cost_scale_per_m * effective_distance))
 
 

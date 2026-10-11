@@ -16,7 +16,8 @@ from shapely.strtree import STRtree
 from .model import (Arc, FarmMap, FarmTask, ImplementSide, PlannerConfig,
                     Pose, RoutingGraph, Vertex)
 from .rs import connection as rs_connection
-from .path_feasibility import TractorFootprint, tree_convex_hulls
+from .path_feasibility import (TractorFootprint, path_feasibility,
+                               road_turn_region, tree_convex_hulls)
 
 
 def _angle(x, y):
@@ -39,6 +40,11 @@ def _tangent(line: LineString, station: float) -> float:
 
 def _pose(point, yaw):
     return Pose(float(point[0]), float(point[1]), _wrap(yaw))
+
+
+def _setback_station(length: float, at_start: bool, setback: float) -> float:
+    """Use the midpoint if two end setbacks would overlap."""
+    return min(setback, length / 2) if at_start else max(length - setback, length / 2)
 
 
 def infer_implement_range(farm: FarmMap, field_ids: tuple[str, ...]) -> float:
@@ -152,7 +158,8 @@ def build_routing_graph(farm: FarmMap, task: FarmTask,
         raise ValueError("Task must list distinct fields")
     if any(field_id not in farm.fields for field_id in task.field_ids):
         raise ValueError("Task names an unknown field")
-    if (config.turn_radius_m <= 0 or config.rs_step_m <= 0 or config.cost_scale_per_m <= 0 or
+    if (config.turn_radius_m <= 0 or config.road_turn_setback_m <= 0 or
+            config.rs_step_m <= 0 or config.cost_scale_per_m <= 0 or
             config.reverse_cost_multiplier < 1 or config.gear_change_penalty_m < 0):
         raise ValueError("Invalid planner geometry or cost configuration")
     graph = RoutingGraph(start_id="", end_id="", selected_fields=set(task.field_ids))
@@ -201,14 +208,23 @@ def build_routing_graph(farm: FarmMap, task: FarmTask,
                         _distance(poses[0], poses[1]), "row", field_id,
                         frozenset(covers)))
 
-    # Split GIS road centerlines at start/end and projected field interfaces.
-    splits = {road.id: {0.0: road.node_a, road.line.length: road.node_b}
-              for road in farm.roads.values()}
+    # Road travel stops short of each junction. Directed RS arcs below replace
+    # position-only switches between incident GIS road centerlines.
+    splits = {road.id: {} for road in farm.roads.values()}
+    junction_legs = defaultdict(list)
     for road in farm.roads.values():
-        for node_id, point in ((road.node_a, road.line.coords[0]),
-                               (road.node_b, road.line.coords[-1])):
-            if node_id not in graph.vertices:
-                graph.vertices[node_id] = Vertex(node_id, _pose(point, 0), False)
+        for at_start, node_id in ((True, road.node_a), (False, road.node_b)):
+            station = _setback_station(road.line.length, at_start,
+                                       config.road_turn_setback_m)
+            if station not in splits[road.id]:
+                identifier = f"setback_{road.id}_{'a' if at_start else 'b'}"
+                point = road.line.interpolate(station)
+                graph.vertices[identifier] = Vertex(
+                    identifier, Pose(point.x, point.y, _tangent(road.line, station)), False)
+                splits[road.id][station] = identifier
+            junction_legs[node_id].append((road, station,
+                                           "r" if at_start else "f",
+                                           "f" if at_start else "r"))
 
     def insert_on_road(road, station, prefix):
         station = max(0.0, min(road.line.length, station))
@@ -224,11 +240,9 @@ def build_routing_graph(farm: FarmMap, task: FarmTask,
     road_direction_states = {}
 
     def road_state(road, station, direction):
-        """Preserve travel heading at road splits; junctions remain shared."""
+        """Preserve travel heading at every road split, including setbacks."""
         station = min(splits[road.id], key=lambda value: abs(value - station))
         base_id = splits[road.id][station]
-        if station <= 1e-5 or road.line.length - station <= 1e-5:
-            return base_id
         key = (road.id, base_id, direction)
         if key not in road_direction_states:
             point = road.line.interpolate(station)
@@ -248,6 +262,10 @@ def build_routing_graph(farm: FarmMap, task: FarmTask,
         tangent = _tangent(road.line, station)
         if min(abs(_wrap(pose.yaw - tangent)), abs(_wrap(pose.yaw - tangent - math.pi))) > 0.2:
             raise ValueError(f"{label} heading is not road aligned")
+        lo = _setback_station(road.line.length, True, config.road_turn_setback_m)
+        hi = _setback_station(road.line.length, False, config.road_turn_setback_m)
+        if not lo + 0.25 < station < hi - 0.25:
+            raise ValueError(f"{label} pose lies inside a road turn setback")
         insert_on_road(road, station, f"{label}_road")
         return road, station, tangent
 
@@ -279,8 +297,9 @@ def build_routing_graph(farm: FarmMap, task: FarmTask,
     terminal_connection(start_road, start_station, start_tangent, task.start, "start", True)
     terminal_connection(end_road, end_station, end_tangent, task.end, "end", False)
 
-    # Each row endpoint sees the closest frontage road connections for its
-    # own selected field. Their projections are graph vertices after splitting.
+    # Each row endpoint sees its own nearby frontage-road states. A projection
+    # alone can demand a near U-turn at a short row; offsets along the road
+    # permit a forward exit or entry with room to align the tractor.
     interfaces = defaultdict(set)
     for vertex in list(graph.vertices.values()):
         if not vertex.oriented or vertex.field_id is None:
@@ -293,13 +312,24 @@ def build_routing_graph(farm: FarmMap, task: FarmTask,
         for road in nearest[:config.road_interface_candidates]:
             if road.line.length <= 0.2:
                 continue
-            station = road.line.project(Point(vertex.pose.x, vertex.pose.y))
-            # An RS connection needs a heading-bearing road state. A projected
-            # road endpoint is a position-only junction, so move the interface
-            # a short distance onto the road before constructing the turn.
-            station = max(0.1, min(road.line.length - 0.1, station))
-            interface_id = insert_on_road(road, station, "interface")
-            interfaces[vertex.field_id].add((interface_id, road.id, station))
+            projection = road.line.project(Point(vertex.pose.x, vertex.pose.y))
+            # Keep row/road interfaces outside both junction turn zones.
+            lo = _setback_station(road.line.length, True, config.road_turn_setback_m)
+            hi = _setback_station(road.line.length, False, config.road_turn_setback_m)
+            for station in (projection,
+                            projection - config.road_interface_offset_m,
+                            projection + config.road_interface_offset_m):
+                if not lo + 0.1 < station < hi - 0.1:
+                    continue
+                interface_id = insert_on_road(road, station, "interface")
+                interfaces[vertex.id].add((interface_id, road.id, station))
+
+    footprint = TractorFootprint.from_config(config.tractor)
+    turn_region = road_turn_region(farm)
+    turn_obstacles = [Point(t.x, t.y).buffer(config.trunk_clearance_m)
+                      for t in farm.trees.values()]
+    turn_index = STRtree(turn_obstacles)
+    turn_tree_hull = unary_union(list(tree_convex_hulls(farm, tuple(farm.fields)).values()))
 
     for road in farm.roads.values():
         stations = sorted(splits[road.id])
@@ -320,6 +350,10 @@ def build_routing_graph(farm: FarmMap, task: FarmTask,
                     poses = (graph.vertices[u].pose, *poses[1:])
                 if graph.vertices[v].oriented:
                     poses = (*poses[:-1], graph.vertices[v].pose)
+                if road.road_class == "crossing_spur" and not path_feasibility(
+                        poses, turn_region, turn_obstacles, footprint,
+                        turn_index, turn_tree_hull):
+                    continue
                 add_arc(Arc(f"road_{road.id}_{j:03d}_{direction}", u, v, poses,
                             segment.length, "road", road.field_id))
 
@@ -333,7 +367,25 @@ def build_routing_graph(farm: FarmMap, task: FarmTask,
     channel_union = unary_union(list(farm.irrigation_channels.values()))
     permitted_fields = {fid: farm.fields[fid].difference(channel_union) for fid in task.field_ids}
     tree_hulls = tree_convex_hulls(farm, task.field_ids)
-    footprint = TractorFootprint.from_config(config.tractor)
+    for node_id, legs in sorted(junction_legs.items()):
+        for incoming_road, incoming_station, incoming_direction, _ in legs:
+            u = road_state(incoming_road, incoming_station, incoming_direction)
+            for outgoing_road, outgoing_station, _, outgoing_direction in legs:
+                if incoming_road.id == outgoing_road.id:
+                    continue
+                v = road_state(outgoing_road, outgoing_station, outgoing_direction)
+                candidate = rs_connection(graph.vertices[u].pose, graph.vertices[v].pose,
+                                          turn_region, turn_obstacles, config, turn_index,
+                                          permitted_region=turn_region, footprint=footprint,
+                                          tree_hull=turn_tree_hull, forward_only=True)
+                if candidate is None:
+                    continue
+                poses, length, directions, reverse_m, gear_changes, reverse_events = candidate
+                add_arc(Arc(f"turn_{node_id}_{incoming_road.id}_{outgoing_road.id}",
+                            u, v, poses, length, "road_turn",
+                            driving_directions=directions,
+                            reverse_distance_m=reverse_m, gear_changes=gear_changes,
+                            reverse_events=reverse_events))
     rs_seen = set()
 
     def add_rs(u, v, start_pose, end_pose, field_id):
@@ -347,13 +399,15 @@ def build_routing_graph(farm: FarmMap, task: FarmTask,
         candidate = rs_connection(start_pose, end_pose, farm.fields[field_id],
                                   tree_geometries[field_id], config, tree_indices[field_id],
                                   permitted_region=permitted_fields[field_id],
-                                  footprint=footprint, tree_hull=tree_hulls[field_id])
+                                  footprint=footprint, tree_hull=tree_hulls[field_id],
+                                  forward_only=config.field_rs_forward_only)
         if candidate is None:
             return
-        poses, length, directions, reverse_m, gear_changes = candidate
+        poses, length, directions, reverse_m, gear_changes, reverse_events = candidate
         add_arc(Arc(f"rs_{rs_counter:05d}", u, v, poses, length,
                     "rs", field_id, driving_directions=directions,
-                    reverse_distance_m=reverse_m, gear_changes=gear_changes))
+                    reverse_distance_m=reverse_m, gear_changes=gear_changes,
+                    reverse_events=reverse_events))
         rs_counter += 1
 
     row_vertices = [v for v in graph.vertices.values() if v.oriented and v.field_id is not None]
@@ -364,9 +418,11 @@ def build_routing_graph(farm: FarmMap, task: FarmTask,
                         key=lambda other: _distance(vertex.pose, other.pose))
         for other in nearby[:8]:
             add_rs(vertex.id, other.id, vertex.pose, other.pose, vertex.field_id)
-        field_interfaces = sorted(interfaces[vertex.field_id],
-                                  key=lambda item: _distance(vertex.pose, graph.vertices[item[0]].pose))
-        for interface_id, road_id, station in field_interfaces[:config.road_interface_candidates]:
+        field_interfaces = sorted(interfaces[vertex.id],
+                                  key=lambda item: (_distance(vertex.pose,
+                                                              graph.vertices[item[0]].pose),
+                                                    item[1], item[2], item[0]))
+        for interface_id, road_id, station in field_interfaces:
             road_pose = graph.vertices[interface_id].pose
             road = farm.roads[road_id]
             for direction in ("f", "r"):

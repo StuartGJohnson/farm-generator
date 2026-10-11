@@ -1,6 +1,7 @@
 [
   {
     "name": "route_01",
+    "seed": 17,
     "fields": [
       "parcel_003"
     ],
@@ -14,13 +15,20 @@
       "y": 26.501613227983544,
       "yaw": -1.5707963267948966
     },
-    "distance_m": 653.8506707385961,
-    "reverse_distance_m": 3.352158325948059,
-    "gear_changes": 4,
+    "distance_m": 694.9550503961394,
+    "reverse_distance_m": 0.0,
+    "gear_changes": 0,
+    "reverse_events": 0,
     "reverse_cost_multiplier": 8.0,
     "gear_change_penalty_m": 2.0,
-    "tractor_config_path": "/home/sjohnson/farm-generator/configs/tractor_default.yaml",
-    "turn_radius_m": 2.7,
+    "reverse_event_penalty_m": 50.0,
+    "field_rs_forward_only": false,
+    "tractor_config_path": "configs/tractor_route_2m.yaml",
+    "turn_radius_m": 2.0,
+    "turn_radius_step_m": 0.35,
+    "turn_radius_expansions": 2,
+    "road_turn_setback_m": 2.7,
+    "road_interface_offset_m": 2.7,
     "footprint_bounds_rear_axle_m": [
       -0.8,
       -0.9500000000000001,
@@ -28,14 +36,15 @@
       0.9500000000000001
     ],
     "status": "OPTIMAL",
-    "objective_cost": 68533,
-    "best_bound_cost": 68533.0,
-    "solver_wall_time_s": 3.239798705,
-    "segments": 29,
+    "objective_cost": 69498,
+    "best_bound_cost": 69498.0,
+    "solver_wall_time_s": 25.39278878,
+    "segments": 43,
     "saturated_arc_ids": []
   },
   {
     "name": "route_02",
+    "seed": 17,
     "fields": [
       "parcel_000",
       "parcel_002"
@@ -50,13 +59,20 @@
       "y": 57.27330179330565,
       "yaw": -1.6119671481414803
     },
-    "distance_m": 1644.419661834091,
-    "reverse_distance_m": 5.58890687000535,
-    "gear_changes": 11,
+    "distance_m": 1555.8790891196713,
+    "reverse_distance_m": 0.0,
+    "gear_changes": 0,
+    "reverse_events": 0,
     "reverse_cost_multiplier": 8.0,
     "gear_change_penalty_m": 2.0,
-    "tractor_config_path": "/home/sjohnson/farm-generator/configs/tractor_default.yaml",
-    "turn_radius_m": 2.7,
+    "reverse_event_penalty_m": 50.0,
+    "field_rs_forward_only": false,
+    "tractor_config_path": "configs/tractor_route_2m.yaml",
+    "turn_radius_m": 2.0,
+    "turn_radius_step_m": 0.35,
+    "turn_radius_expansions": 2,
+    "road_turn_setback_m": 2.7,
+    "road_interface_offset_m": 2.7,
     "footprint_bounds_rear_axle_m": [
       -0.8,
       -0.9500000000000001,
@@ -64,14 +80,17 @@
       0.9500000000000001
     ],
     "status": "FEASIBLE",
-    "objective_cost": 170558,
-    "best_bound_cost": 149949.0,
-    "solver_wall_time_s": 60.018002463,
-    "segments": 78,
-    "saturated_arc_ids": []
+    "objective_cost": 155591,
+    "best_bound_cost": 137795.0,
+    "solver_wall_time_s": 60.019206327000006,
+    "segments": 79,
+    "saturated_arc_ids": [
+      "field_switch_interface_redge_0002_017_f@0"
+    ]
   },
   {
     "name": "route_03",
+    "seed": 17,
     "fields": [
       "parcel_002",
       "parcel_003"
@@ -86,13 +105,20 @@
       "y": 3.5,
       "yaw": 0.0
     },
-    "distance_m": 1289.2761099713455,
-    "reverse_distance_m": 6.120511425501388,
-    "gear_changes": 11,
+    "distance_m": 1274.5325501753807,
+    "reverse_distance_m": 0.0,
+    "gear_changes": 0,
+    "reverse_events": 0,
     "reverse_cost_multiplier": 8.0,
     "gear_change_penalty_m": 2.0,
-    "tractor_config_path": "/home/sjohnson/farm-generator/configs/tractor_default.yaml",
-    "turn_radius_m": 2.7,
+    "reverse_event_penalty_m": 50.0,
+    "field_rs_forward_only": false,
+    "tractor_config_path": "configs/tractor_route_2m.yaml",
+    "turn_radius_m": 2.0,
+    "turn_radius_step_m": 0.35,
+    "turn_radius_expansions": 2,
+    "road_turn_setback_m": 2.7,
+    "road_interface_offset_m": 2.7,
     "footprint_bounds_rear_axle_m": [
       -0.8,
       -0.9500000000000001,
@@ -100,10 +126,12 @@
       0.9500000000000001
     ],
     "status": "FEASIBLE",
-    "objective_cost": 135417,
-    "best_bound_cost": 126333.0,
-    "solver_wall_time_s": 60.012065844000006,
-    "segments": 61,
-    "saturated_arc_ids": []
+    "objective_cost": 127457,
+    "best_bound_cost": 121718.0,
+    "solver_wall_time_s": 60.01923249,
+    "segments": 66,
+    "saturated_arc_ids": [
+      "field_switch_interface_redge_0008_005_f@0"
+    ]
   }
 ]

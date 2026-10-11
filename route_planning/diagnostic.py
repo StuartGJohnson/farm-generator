@@ -47,8 +47,11 @@ def save_route_json(route: Route, farm: FarmMap, path: str | Path) -> None:
         "total_distance_m": route.total_distance_m,
         "reverse_distance_m": sum(s.reverse_distance_m for s in route.segments),
         "gear_changes": sum(s.gear_changes for s in route.segments),
+        "reverse_events": sum(s.reverse_events for s in route.segments),
         "reverse_cost_multiplier": route.reverse_cost_multiplier,
         "gear_change_penalty_m": route.gear_change_penalty_m,
+        "reverse_event_penalty_m": route.reverse_event_penalty_m,
+        "road_turn_setback_m": route.road_turn_setback_m,
         "objective_cost": route.objective_cost,
         "best_bound_cost": route.best_bound_cost,
         "solver_wall_time_s": route.solver_wall_time_s,
@@ -57,7 +60,8 @@ def save_route_json(route: Route, farm: FarmMap, path: str | Path) -> None:
             "arc_id": s.arc_id, "occurrence_index": s.occurrence_index,
             "arc_type": s.kind, "field_id": s.field_id,
             "distance_m": s.distance_m, "reverse_distance_m": s.reverse_distance_m,
-            "gear_changes": s.gear_changes, "service_ids": sorted(s.service_ids),
+            "gear_changes": s.gear_changes, "reverse_events": s.reverse_events,
+            "service_ids": sorted(s.service_ids),
             "poses": [[p.x, p.y, p.yaw] for p in s.poses],
             "driving_directions": list(s.driving_directions),
         } for s in route.segments],
@@ -76,13 +80,16 @@ def load_route_json(path: str | Path) -> Route:
                              s["field_id"], tuple(Pose(*p) for p in s["poses"]),
                              s["distance_m"], frozenset(s["service_ids"]),
                              tuple(s.get("driving_directions", [1] * len(s["poses"]))),
-                             s.get("reverse_distance_m", 0.0), s.get("gear_changes", 0))
+                             s.get("reverse_distance_m", 0.0), s.get("gear_changes", 0),
+                             s.get("reverse_events", 0))
                 for s in doc["segments"]]
     return Route(task, segments, doc["total_distance_m"], doc["objective_cost"],
                  doc["status"], dict(Counter(s.arc_id for s in segments)),
                  doc["saturated_arc_ids"], doc.get("reverse_cost_multiplier", 1.0),
                  doc.get("gear_change_penalty_m", 0.0),
-                 doc.get("best_bound_cost"), doc.get("solver_wall_time_s"))
+                 doc.get("best_bound_cost"), doc.get("solver_wall_time_s"),
+                 doc.get("road_turn_setback_m", 2.7),
+                 doc.get("reverse_event_penalty_m", 0.0))
 
 
 def save_route_plot(route: Route, farm: FarmMap, path: str | Path) -> None:
@@ -118,15 +125,25 @@ def save_route_plot(route: Route, farm: FarmMap, path: str | Path) -> None:
             ax.plot(x, y, color="#efc348", linestyle="--", lw=1.2,
                     alpha=0.9, zorder=5)
     done = set()
-    colors = {"road": "#1fb9ed", "rs": "#ff9c2d", "row": "#e72d97", "deadhead": "#b969e2"}
+    colors = {"road": "#1fb9ed", "road_turn": "#27d9ce", "rs": "#ff9c2d",
+              "row": "#e72d97", "deadhead": "#b969e2"}
     for index, segment in enumerate(route.segments, 1):
+        if segment.kind == "field_switch":
+            point = segment.poses[0]
+            ax.scatter([point.x], [point.y], s=35, marker="D",
+                       facecolor="#ffffff", edgecolor="#111827", zorder=10)
+            ax.annotate(f"NEXT: {farm.field_names.get(segment.field_id, segment.field_id)}",
+                        (point.x, point.y), xytext=(6, 6), textcoords="offset points",
+                        color="#111827", fontsize=7, weight="bold",
+                        bbox={"facecolor": "white", "alpha": 0.85, "pad": 2}, zorder=11)
+            continue
         service = segment.kind == "row" and bool(segment.service_ids - done)
         category = "deadhead" if segment.kind == "row" and not service else segment.kind
         points = segment.poses
         x, y = [p.x for p in points], [p.y for p in points]
         ax.plot(x, y, color="#141819", lw=5.0, alpha=0.7, zorder=6)
         ax.plot(x, y, color=colors[category], lw=2.9, zorder=7)
-        if segment.kind == "rs":
+        if segment.kind in ("rs", "road_turn"):
             for i in range(1, len(points)):
                 if segment.driving_directions[i] < 0:
                     ax.plot(x[i - 1:i + 1], y[i - 1:i + 1], color="#ff374c",
@@ -151,7 +168,8 @@ def save_route_plot(route: Route, farm: FarmMap, path: str | Path) -> None:
                 bbox={"facecolor": "#932c32", "alpha": 0.9, "pad": 2}, zorder=12)
     handles = [Line2D([0], [0], color=colors[k], lw=3, label=label) for k, label in (
         ("road", "Road travel"), ("row", "Row service"),
-        ("deadhead", "Row deadhead"), ("rs", "Reeds–Shepp rear axle"))]
+        ("deadhead", "Row deadhead"), ("rs", "Field Reeds–Shepp"),
+        ("road_turn", "Road junction turn"))]
     handles.append(Line2D([0], [0], color="#ff374c", lw=3.5,
                           linestyle="--", label="Reverse travel"))
     handles.append(Line2D([0], [0], color="#efc348", lw=1.2,
@@ -166,7 +184,7 @@ def save_route_plot(route: Route, farm: FarmMap, path: str | Path) -> None:
         status += f" • optimality gap ≤ {math.ceil(gap * 10) / 10:.1f}%"
     ax.set_title(f"Farm route: {field_names}\n{route.total_distance_m:.1f} m total • "
                  f"{reverse_m:.1f} m reverse • {status} • "
-                 f"{len(route.segments)} traversals",
+                 f"{sum(s.kind != 'field_switch' for s in route.segments)} traversals",
                  fontsize=14, weight="bold")
     ax.set_xlabel("Local east / ROS map X (m)")
     ax.set_ylabel("Local north / ROS map Y (m)")

@@ -7,7 +7,7 @@ from pathlib import Path
 from osgeo import gdal, ogr
 
 
-LAYERS = ("fields", "row_centerlines", "road_centerlines", "trees",
+LAYERS = ("fields", "row_centerlines", "roads", "road_centerlines", "trees",
           "irrigation_channels", "crossings")
 
 
