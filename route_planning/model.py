@@ -57,7 +57,8 @@ class PlannerConfig:
     road_pose_tolerance_m: float = 0.05
     reverse_cost_multiplier: float = 8.0
     gear_change_penalty_m: float = 2.0
-    reverse_event_penalty_m: float = 50.0
+    reverse_event_penalty_m: float = 100.0
+    row_repeat_penalty_m: float = 50.0
     field_rs_forward_only: bool = False
     tractor: TractorConfig = field(init=False, repr=False, compare=False)
 
@@ -70,6 +71,9 @@ class PlannerConfig:
         if (not math.isfinite(self.reverse_event_penalty_m) or
                 self.reverse_event_penalty_m < 0):
             raise ValueError("reverse_event_penalty_m must be nonnegative and finite")
+        if (not math.isfinite(self.row_repeat_penalty_m) or
+                self.row_repeat_penalty_m < 0):
+            raise ValueError("row_repeat_penalty_m must be nonnegative and finite")
         if (not math.isfinite(self.road_interface_offset_m) or
                 self.road_interface_offset_m < 0):
             raise ValueError("road_interface_offset_m must be nonnegative and finite")
@@ -151,6 +155,7 @@ class Arc:
     reverse_distance_m: float = 0.0
     gear_changes: int = 0
     reverse_events: int = 0
+    lane_id: Optional[str] = None
 
 
 @dataclass
@@ -193,6 +198,8 @@ class Route:
     solver_wall_time_s: Optional[float] = None
     road_turn_setback_m: float = 2.7
     reverse_event_penalty_m: float = 0.0
+    row_repeat_penalty_m: float = 0.0
+    row_repeat_count: int = 0
 
     def continuous_path(self) -> list[Pose]:
         result = []

@@ -29,6 +29,31 @@ class TraversalSolution:
     saturated_arc_ids: list[str]
     best_bound_cost: float
     solver_wall_time_s: float
+    row_repeat_count: int = 0
+
+
+def _row_lanes(graph: RoutingGraph) -> dict[str, list[Arc]]:
+    lanes = defaultdict(list)
+    for arc in graph.arcs.values():
+        if arc.kind == "row" and arc.lane_id is not None:
+            lanes[arc.lane_id].append(arc)
+    return dict(lanes)
+
+
+def _required_lane_visits(lane_arcs: list[Arc]) -> int:
+    required = set().union(*(arc.service_ids for arc in lane_arcs))
+    return (0 if not required else
+            1 if any(required <= arc.service_ids for arc in lane_arcs) else 2)
+
+
+def row_repeat_counts(graph: RoutingGraph, counts: dict[str, int]) -> dict[str, int]:
+    """Excess visits to each physical lane, combining both directions."""
+    repeats = {}
+    for lane_id, lane_arcs in _row_lanes(graph).items():
+        baseline = _required_lane_visits(lane_arcs)
+        total = sum(counts.get(arc.id, 0) for arc in lane_arcs)
+        repeats[lane_id] = max(0, total - baseline)
+    return repeats
 
 
 def optimize_arc_counts(graph: RoutingGraph,
@@ -80,7 +105,16 @@ def optimize_arc_counts(graph: RoutingGraph,
         else:
             model.add(inflow - outflow == z[vertex])
     costs = {a.id: arc_cost(a, config) for a in arcs}
-    model.minimize(sum(costs[a.id] * x[a.id] for a in arcs))
+    excess = {}
+    for lane_id, lane_arcs in _row_lanes(graph).items():
+        baseline = _required_lane_visits(lane_arcs)
+        upper = sum(limits[arc.id] for arc in lane_arcs)
+        excess[lane_id] = model.new_int_var(0, upper, f"row_excess_{lane_id}")
+        model.add_max_equality(excess[lane_id],
+                               [sum(x[arc.id] for arc in lane_arcs) - baseline, 0])
+    repeat_cost = round(config.cost_scale_per_m * config.row_repeat_penalty_m)
+    model.minimize(sum(costs[a.id] * x[a.id] for a in arcs) +
+                   repeat_cost * sum(excess.values()))
     solver = cp_model.CpSolver()
     solver.parameters.max_time_in_seconds = config.solver_time_s
     solver.parameters.num_search_workers = 8
@@ -93,4 +127,5 @@ def optimize_arc_counts(graph: RoutingGraph,
                  if count == limits[arc_id] and not arc_id.startswith("terminal_")]
     return TraversalSolution(counts, int(solver.objective_value),
                              solver.status_name(status), saturated,
-                             solver.best_objective_bound, solver.wall_time)
+                             solver.best_objective_bound, solver.wall_time,
+                             sum(solver.value(value) for value in excess.values()))

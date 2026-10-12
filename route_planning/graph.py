@@ -206,7 +206,7 @@ def build_routing_graph(farm: FarmMap, task: FarmTask,
             v = row_state(poses[1], field_id)
             add_arc(Arc(f"row_{index:04d}_{direction}", u, v, poses,
                         _distance(poses[0], poses[1]), "row", field_id,
-                        frozenset(covers)))
+                        frozenset(covers), lane_id=f"row_{index:04d}"))
 
     # Road travel stops short of each junction. Directed RS arcs below replace
     # position-only switches between incident GIS road centerlines.

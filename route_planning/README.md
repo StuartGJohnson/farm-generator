@@ -13,18 +13,20 @@ it never reads `farm.yaml` or USD. The default demo writes three seeded
 random missions to `debug_out/routes/farm_seed_1_120m2/`. Each has a PNG route
 plot and a JSON route with ordered arcs, local ENU poses, service IDs, distance,
 and forward/reverse samples for RS maneuvers. `manifest.json` records tasks and
-solver status, best objective bound, solve time, and reverse distance. Each
-mission gets a 60-second CP-SAT limit by default. `--seed` fixes all three
+solver status, best objective bound, solve time, and reverse distance. The
+seeded showcase uses CP-SAT limits of 60, 90, and 60 seconds for cases 1–3;
+`--solver-time` overrides all three. `--seed` fixes all three
 ordered field lists and road-aligned start/stop poses before planning starts.
 The route completes every tree-side service requirement in one field before
 switching to the next field. A switch occurs at a road pose and adds no
 tractor movement; the ordered JSON records it as `field_switch`. Pose
 candidates that point more than 120 degrees away from the selected fields
 are discarded during task sampling. Solver results never cause a new task
-to be drawn. Use `--cases 1` to regenerate only the first task. Use `--seed`, `--solver-time`,
+to be drawn. Use `--cases 1` to regenerate only the first task, or
+`--case-index 3` to regenerate only the third task. Use `--seed`, `--solver-time`,
 `--reverse-multiplier`, `--road-turn-setback`, `--turn-radius-step`,
 `--turn-radius-expansions`, `--road-interface-offset`,
-`--reverse-event-penalty`, `--field-rs-forward-only`,
+`--reverse-event-penalty`, `--row-repeat-penalty`, `--field-rs-forward-only`,
 `--gear-change-penalty`, `--output-dir`,
 `--tractor-config`, and `--implement-side {left,right,both}` to vary the diagnostic run. Reverse
 stretches are dashed red on the route plots. If a solved route contains a
@@ -59,13 +61,23 @@ The package follows `writeup/route_planning.tex` in four modules:
    switch at a road exit interface from that field advances to the next
    stage. This is a copy of graph state, not a second physical road. `optimize.py` solves
    directed arc multiplicities with CP-SAT service, balance, and connectivity
-   constraints over this staged graph.
+   constraints over this staged graph. It also counts traversals beyond the
+   service minimum for each physical crop lane, combining both directions.
+   The default 50 m equivalent penalty per excess traversal encourages road
+   travel for transit. One-sided implement tasks may need both directions
+   for service; those required passes are not counted as repeats.
 4. `reconstruct.py` builds an ordered Euler route and checks it independently.
 
 The tractor configuration supplies the default 2.7 m minimum turn radius.
 For the 2.0 m route-planning trial, run
 `python -m route_planning --cases 1 --solver-time 60 --tractor-config configs/tractor_route_2m.yaml`.
 This changes only the turning radius; the road turn setback stays at 2.7 m.
+The current seeded plots under `debug_out/routes/farm_seed_1_120m2/` use the
+default 100 m reverse-event and 50 m row-repeat penalties. All three have no
+reverse travel or row repeats. Route 01 is 698.9 m and optimal, Route 02 is
+1555.1 m and feasible after its 90-second limit, and Route 03 is 1273.8 m
+and optimal for their respective sampled graphs. Regenerate just Route 02 with
+`--case-index 2`.
 RS poses track the non-steering rear axle. `path_feasibility.py` builds the
 convex outer envelope of the straight-ahead body and tires and checks its
 swept footprint against the field polygon minus the GIS irrigation channels,
@@ -79,7 +91,7 @@ adjacent field headlands and sidelands remain available to the turn. The
 default road turn setback is 2.7 m. Other defaults include 0.35 m RS sampling and a 15 m RS
 candidate radius. Reeds–Shepp alternatives are ranked using
 an 8x reverse-distance multiplier, a 2 m equivalent penalty per internal gear
-change, and a 50 m equivalent penalty per contiguous reverse episode. The
+change, and a 100 m equivalent penalty per contiguous reverse episode. The
 same costs are used by the route optimizer. `--reverse-event-penalty` controls
 the last cost. `--field-rs-forward-only` discards every reversing field RS
 candidate while road junctions remain forward-only in either mode. The default implement

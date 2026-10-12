@@ -6,6 +6,7 @@ import argparse
 import json
 import math
 import random
+from dataclasses import replace
 from pathlib import Path
 
 from .diagnostic import save_route_json, save_route_plot
@@ -13,6 +14,13 @@ from .gis import load_farm_map
 from .model import DEFAULT_TRACTOR_CONFIG_PATH, FarmTask, ImplementSide, PlannerConfig, Pose
 from .path_feasibility import TractorFootprint
 from .planner import plan_route
+
+
+def solver_time_for_case(index: int, override_s: float | None) -> float:
+    """Give the harder second showcase mission a longer default solve."""
+    if index not in (1, 2, 3):
+        raise ValueError(f"Unknown showcase case {index}")
+    return override_s if override_s is not None else (90.0 if index == 2 else 60.0)
 
 
 def _road_pose(road, fraction, reverse):
@@ -74,10 +82,15 @@ def main():
     parser.add_argument("--seed", type=int, default=17)
     parser.add_argument("--cases", type=int, choices=(1, 2, 3), default=3,
                         help="number of seeded showcase tasks to plan")
-    parser.add_argument("--solver-time", type=float, default=60)
+    parser.add_argument("--case-index", type=int, choices=(1, 2, 3),
+                        help="plan only this seeded showcase task (within --cases)")
+    parser.add_argument("--solver-time", type=float,
+                        help="override per-case limits (default: 60/90/60 seconds)")
     parser.add_argument("--reverse-multiplier", type=float, default=8.0)
-    parser.add_argument("--reverse-event-penalty", type=float, default=50.0,
+    parser.add_argument("--reverse-event-penalty", type=float, default=100.0,
                         help="equivalent metres added per reverse episode in an RS path")
+    parser.add_argument("--row-repeat-penalty", type=float, default=50.0,
+                        help="equivalent metres added per excess physical crop-lane traversal")
     parser.add_argument("--field-rs-forward-only", action="store_true",
                         help="discard field RS connections containing any reverse motion")
     parser.add_argument("--road-turn-setback", type=float, default=2.7,
@@ -93,9 +106,10 @@ def main():
                         help="Penalty per forward/reverse shift, in equivalent meters")
     parser.add_argument("--implement-side", choices=[side.value for side in ImplementSide], default="both")
     args = parser.parse_args()
-    config = PlannerConfig(solver_time_s=args.solver_time,
+    config = PlannerConfig(solver_time_s=60.0,
                            reverse_cost_multiplier=args.reverse_multiplier,
                            reverse_event_penalty_m=args.reverse_event_penalty,
+                           row_repeat_penalty_m=args.row_repeat_penalty,
                            field_rs_forward_only=args.field_rs_forward_only,
                            road_turn_setback_m=args.road_turn_setback,
                            road_interface_offset_m=args.road_interface_offset,
@@ -106,12 +120,17 @@ def main():
     footprint = TractorFootprint.from_config(config.tractor)
     farm = load_farm_map(args.farm)
     tasks = sample_tasks(farm, args.seed, ImplementSide(args.implement_side))
+    if args.case_index is not None and args.case_index > args.cases:
+        parser.error("--case-index must be within --cases")
     output = args.output_dir
     output.mkdir(parents=True, exist_ok=True)
     manifest = []
     for index, task in enumerate(tasks[:args.cases], 1):
+        if args.case_index is not None and index != args.case_index:
+            continue
+        case_config = replace(config, solver_time_s=solver_time_for_case(index, args.solver_time))
         try:
-            route = plan_route(farm, task, config)
+            route = plan_route(farm, task, case_config)
         except (ValueError, RuntimeError) as exc:
             raise RuntimeError(f"Mission {index} from seed {args.seed} could not be planned") from exc
         if _has_in_place_reversal(route):
@@ -128,6 +147,8 @@ def main():
                          "reverse_cost_multiplier": route.reverse_cost_multiplier,
                          "gear_change_penalty_m": route.gear_change_penalty_m,
                          "reverse_event_penalty_m": route.reverse_event_penalty_m,
+                         "row_repeat_penalty_m": route.row_repeat_penalty_m,
+                         "row_repeat_count": route.row_repeat_count,
                          "field_rs_forward_only": config.field_rs_forward_only,
                          "tractor_config_path": str(config.tractor_config_path),
                          "turn_radius_m": config.turn_radius_m,
@@ -140,12 +161,20 @@ def main():
                          "objective_cost": route.objective_cost,
                          "best_bound_cost": route.best_bound_cost,
                          "solver_wall_time_s": route.solver_wall_time_s,
+                         "solver_time_limit_s": case_config.solver_time_s,
                          "segments": len(route.segments),
                          "saturated_arc_ids": route.saturated_arc_ids})
         print(f"{stem}: {task.field_ids}, {route.total_distance_m:.1f} m total, "
               f"{sum(s.reverse_distance_m for s in route.segments):.1f} m reverse, "
-              f"{route.optimality_status}, {len(route.segments)} segments", flush=True)
-    (output / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
+              f"{route.row_repeat_count} row repeats, {route.optimality_status}, "
+              f"{len(route.segments)} segments", flush=True)
+    manifest_path = output / "manifest.json"
+    if args.case_index is not None and manifest_path.exists():
+        previous = json.loads(manifest_path.read_text())
+        current_names = {entry["name"] for entry in manifest}
+        manifest = sorted([entry for entry in previous if entry["name"] not in current_names] +
+                          manifest, key=lambda entry: entry["name"])
+    manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
 
 
 if __name__ == "__main__":

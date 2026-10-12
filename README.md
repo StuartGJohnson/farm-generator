@@ -627,18 +627,23 @@ unless `--tractor-config` selects another configuration.
   Only that stage's field can be serviced; after its tasks are complete, the
   route switches stages at its road exit interface without moving the tractor.
   The solver still chooses the route and field access points jointly.
-- A maneuver's score adds travel distance, extra cost for reverse distance,
-  internal gear changes, and reverse episodes. The defaults are 8 times cost
-  for reverse distance, 2 m per gear change, and 50 m per reverse episode.
-  These are objective costs expressed in equivalent meters. Use
-  `--reverse-multiplier`, `--gear-change-penalty`, and
-  `--reverse-event-penalty` to tune them; `--field-rs-forward-only` excludes
-  reverse field connections entirely. An `OPTIMAL` result is optimal for the
-  constructed, sampled routing graph, rather than for every possible
-  continuous tractor trajectory.
+- The route objective uses distance-equivalent costs. Before rounding, the
+  defaults are route distance plus 7 m for each meter driven in reverse
+  (making a reverse meter cost 8 times a forward meter), 2 m per internal RS
+  gear change, 100 m per contiguous reverse episode, and 50 m per excess
+  crop-lane traversal. Both travel directions count toward the same physical
+  lane. Passes required to service its tree sides are exempt; a two-sided
+  implement normally needs one pass, while a one-sided implement can need two.
+  The RS candidate search uses the reverse and gear-change costs; CP-SAT also
+  prices lane repeats when choosing the full route. Tune these terms with
+  `--reverse-multiplier`, `--gear-change-penalty`,
+  `--reverse-event-penalty`, and `--row-repeat-penalty`. Road turns are
+  forward-only, and `--field-rs-forward-only` can also exclude reversing field
+  connections. An `OPTIMAL` result applies to the constructed, sampled routing
+  graph rather than every possible continuous tractor trajectory.
 
-Run three seeded showcase missions with a 60-second solver limit
-per task:
+Run three seeded showcase missions with solver limits of 60 seconds for
+Routes 01 and 03 and 90 seconds for Route 02:
 
 ```bash
 conda activate isaacsim61-cu13
@@ -661,21 +666,26 @@ current bound. The displayed bound is rounded up to the next tenth of a
 percent. `OPTIMAL` means
 the solver proved there is no gap for its routing graph.
 
-All three routes below were rerun with a 2.0 m turning-radius trial configuration:
+The plots below use a 2.0 m turning-radius trial configuration:
 
 ```bash
-python -m route_planning --cases 3 --solver-time 60 \
+python -m route_planning --cases 3 \
   --tractor-config configs/tractor_route_2m.yaml
 ```
 
-With the 50 m reverse-event penalty and offset road interfaces, Route 01 is
-optimal for its generated routing graph at 695.0 m. Routes 02 and 03 are
-feasible at 1555.9 m and 1274.5 m; their displayed optimality gaps are at
-most 11.5% and 4.6%, respectively. All three routes have zero reverse travel,
-and the two-field routes complete one field before servicing the next. The
-road turn setback remains 2.7 m. The RS search also considers wider turns
-than the tractor's minimum radius. Use `--cases 1` for a quick rerun of
-Route 01 alone.
+Set `--solver-time` to override all three limits, or `--case-index 2` to run
+only Route 02 at its 90-second default limit.
+
+With the 100 m reverse-event penalty and 50 m row-repeat penalty, Routes 01
+and 03 are optimal for their generated routing graphs at 698.9 m and 1273.8 m.
+Route 02 is feasible at 1555.1 m, with a displayed optimality gap of at most
+5.4%. All three routes have zero reverse travel and zero row repeats, and the
+two-field routes complete one field before servicing the next. Route 02's
+60-second solution was 1615.1 m; the longer solve removed an unnecessary
+lower-right field maneuver. Its result can still vary because the solver has
+not proved it optimal. The road turn setback remains 2.7 m. The RS search also
+considers wider turns than the tractor's minimum radius. Use `--cases 1` for a
+quick rerun of Route 01 alone, or `--case-index 3` to rerun only Route 03.
 
 ### Route 01: Field 004
 

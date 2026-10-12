@@ -16,10 +16,10 @@ from route_planning import (FarmTask, ImplementSide, PlannerConfig, Pose,
                             load_farm_map, plan_route)
 from route_planning.diagnostic import (load_route_json, optimality_gap_percent,
                                        save_route_json)
-from route_planning.demo import sample_tasks
+from route_planning.demo import sample_tasks, solver_time_for_case
 from route_planning.graph import _setback_station, build_routing_graph
 from route_planning.model import Arc, FarmMap, Road, Route, RoutingGraph, Vertex
-from route_planning.optimize import optimize_arc_counts
+from route_planning.optimize import optimize_arc_counts, row_repeat_counts
 from route_planning.ordering import ordered_field_graph
 from route_planning.path_feasibility import (TractorFootprint, path_feasibility,
                                              road_turn_region, tree_convex_hulls)
@@ -234,6 +234,40 @@ def test_reverse_event_penalty_changes_arc_choice():
         PlannerConfig(reverse_event_penalty_m=-1)
 
 
+def test_row_repeat_penalty_prefers_road_return():
+    graph = _toy_graph("A", "C", [
+        ("row_forward", "A", "B", {"lane_service"}, 10),
+        ("row_return", "B", "A", {"lane_service"}, 10),
+        ("road_return", "B", "A", set(), 45),
+        ("finish", "A", "C", set(), 1),
+    ], {"lane_service"})
+    for arc_id in ("row_forward", "row_return"):
+        graph.arcs[arc_id] = replace(graph.arcs[arc_id], lane_id="lane_1")
+    base = PlannerConfig(row_repeat_penalty_m=0)
+    low = optimize_arc_counts(graph, base)
+    high = optimize_arc_counts(graph, replace(base, row_repeat_penalty_m=50))
+    assert low.counts["row_return"] == 1
+    assert low.row_repeat_count == 1
+    assert high.counts["road_return"] == 1
+    assert "row_return" not in high.counts
+    assert high.row_repeat_count == 0
+    assert row_repeat_counts(graph, low.counts) == {"lane_1": 1}
+    with pytest.raises(ValueError, match="row_repeat_penalty_m"):
+        PlannerConfig(row_repeat_penalty_m=-1)
+
+
+def test_opposite_service_directions_are_not_row_repeats():
+    graph = _toy_graph("A", "A", [
+        ("row_forward", "A", "B", {"left_side"}, 10),
+        ("row_return", "B", "A", {"right_side"}, 10),
+    ], {"left_side", "right_side"})
+    for arc_id in graph.arcs:
+        graph.arcs[arc_id] = replace(graph.arcs[arc_id], lane_id="lane_1")
+    result = optimize_arc_counts(graph, PlannerConfig(row_repeat_penalty_m=50))
+    assert result.counts == {"row_forward": 1, "row_return": 1}
+    assert result.row_repeat_count == 0
+
+
 def test_ordered_field_stages_complete_each_field_before_switching():
     positions = {name: Pose(x, 0, 0) for name, x in
                  (("S", 0), ("A", 1), ("B", 2), ("T", 3))}
@@ -275,6 +309,13 @@ def test_optimality_gap_uses_found_objective_as_denominator():
     assert optimality_gap_percent(route) == pytest.approx(10.0)
     route.optimality_status = "OPTIMAL"
     assert optimality_gap_percent(route) is None
+
+
+def test_showcase_solver_limits_and_override():
+    assert [solver_time_for_case(index, None) for index in (1, 2, 3)] == [60, 90, 60]
+    assert [solver_time_for_case(index, 45) for index in (1, 2, 3)] == [45, 45, 45]
+    with pytest.raises(ValueError, match="Unknown showcase case"):
+        solver_time_for_case(4, None)
 
 
 @pytest.mark.skipif(not Path("debug_out/farms/farm_seed_1_120m2/gis/farm.gpkg").exists(),

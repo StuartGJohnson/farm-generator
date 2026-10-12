@@ -11,7 +11,7 @@ from shapely.ops import unary_union
 from shapely.strtree import STRtree
 
 from .model import FarmMap, FarmTask, PlannerConfig, Route, RouteSegment, RoutingGraph
-from .optimize import TraversalSolution, arc_cost
+from .optimize import TraversalSolution, arc_cost, row_repeat_counts
 from .path_feasibility import (TractorFootprint, path_feasibility,
                                road_turn_region, tree_convex_hulls)
 
@@ -43,7 +43,8 @@ def reconstruct_route(graph: RoutingGraph, task: FarmTask,
                  solution.status, solution.counts, solution.saturated_arc_ids,
                  config.reverse_cost_multiplier, config.gear_change_penalty_m,
                  solution.best_bound_cost, solution.solver_wall_time_s,
-                 config.road_turn_setback_m, config.reverse_event_penalty_m)
+                 config.road_turn_setback_m, config.reverse_event_penalty_m,
+                 config.row_repeat_penalty_m, solution.row_repeat_count)
 
 
 def validate_route(route: Route, graph: RoutingGraph, farm: FarmMap,
@@ -128,6 +129,11 @@ def validate_route(route: Route, graph: RoutingGraph, farm: FarmMap,
     assert route.reverse_cost_multiplier == config.reverse_cost_multiplier
     assert route.gear_change_penalty_m == config.gear_change_penalty_m
     assert route.reverse_event_penalty_m == config.reverse_event_penalty_m
+    assert route.row_repeat_penalty_m == config.row_repeat_penalty_m
     assert route.road_turn_setback_m == config.road_turn_setback_m
-    assert route.objective_cost == sum(arc_cost(graph.arcs[arc_id], config) * count
-                                       for arc_id, count in route.traversal_counts.items())
+    repeats = row_repeat_counts(graph, route.traversal_counts)
+    assert route.row_repeat_count == sum(repeats.values())
+    assert route.objective_cost == (sum(arc_cost(graph.arcs[arc_id], config) * count
+                                        for arc_id, count in route.traversal_counts.items()) +
+                                    round(config.cost_scale_per_m * config.row_repeat_penalty_m) *
+                                    route.row_repeat_count)

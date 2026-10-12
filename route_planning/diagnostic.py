@@ -51,6 +51,8 @@ def save_route_json(route: Route, farm: FarmMap, path: str | Path) -> None:
         "reverse_cost_multiplier": route.reverse_cost_multiplier,
         "gear_change_penalty_m": route.gear_change_penalty_m,
         "reverse_event_penalty_m": route.reverse_event_penalty_m,
+        "row_repeat_penalty_m": route.row_repeat_penalty_m,
+        "row_repeat_count": route.row_repeat_count,
         "road_turn_setback_m": route.road_turn_setback_m,
         "objective_cost": route.objective_cost,
         "best_bound_cost": route.best_bound_cost,
@@ -89,7 +91,9 @@ def load_route_json(path: str | Path) -> Route:
                  doc.get("gear_change_penalty_m", 0.0),
                  doc.get("best_bound_cost"), doc.get("solver_wall_time_s"),
                  doc.get("road_turn_setback_m", 2.7),
-                 doc.get("reverse_event_penalty_m", 0.0))
+                 doc.get("reverse_event_penalty_m", 0.0),
+                 doc.get("row_repeat_penalty_m", 0.0),
+                 doc.get("row_repeat_count", 0))
 
 
 def save_route_plot(route: Route, farm: FarmMap, path: str | Path) -> None:
@@ -183,7 +187,7 @@ def save_route_plot(route: Route, farm: FarmMap, path: str | Path) -> None:
     if gap is not None:
         status += f" • optimality gap ≤ {math.ceil(gap * 10) / 10:.1f}%"
     ax.set_title(f"Farm route: {field_names}\n{route.total_distance_m:.1f} m total • "
-                 f"{reverse_m:.1f} m reverse • {status} • "
+                 f"{reverse_m:.1f} m reverse • {route.row_repeat_count} row repeats • {status} • "
                  f"{sum(s.kind != 'field_switch' for s in route.segments)} traversals",
                  fontsize=14, weight="bold")
     ax.set_xlabel("Local east / ROS map X (m)")

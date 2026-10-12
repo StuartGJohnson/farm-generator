@@ -15,13 +15,15 @@
       "y": 26.501613227983544,
       "yaw": -1.5707963267948966
     },
-    "distance_m": 694.9550503961394,
+    "distance_m": 698.941494692414,
     "reverse_distance_m": 0.0,
     "gear_changes": 0,
     "reverse_events": 0,
     "reverse_cost_multiplier": 8.0,
     "gear_change_penalty_m": 2.0,
-    "reverse_event_penalty_m": 50.0,
+    "reverse_event_penalty_m": 100.0,
+    "row_repeat_penalty_m": 50.0,
+    "row_repeat_count": 0,
     "field_rs_forward_only": false,
     "tractor_config_path": "configs/tractor_route_2m.yaml",
     "turn_radius_m": 2.0,
@@ -36,11 +38,12 @@
       0.9500000000000001
     ],
     "status": "OPTIMAL",
-    "objective_cost": 69498,
-    "best_bound_cost": 69498.0,
-    "solver_wall_time_s": 25.39278878,
-    "segments": 43,
-    "saturated_arc_ids": []
+    "objective_cost": 69896,
+    "best_bound_cost": 69896.0,
+    "solver_wall_time_s": 13.194730191000001,
+    "segments": 44,
+    "saturated_arc_ids": [],
+    "solver_time_limit_s": 60.0
   },
   {
     "name": "route_02",
@@ -59,13 +62,15 @@
       "y": 57.27330179330565,
       "yaw": -1.6119671481414803
     },
-    "distance_m": 1555.8790891196713,
+    "distance_m": 1555.105330949484,
     "reverse_distance_m": 0.0,
     "gear_changes": 0,
     "reverse_events": 0,
     "reverse_cost_multiplier": 8.0,
     "gear_change_penalty_m": 2.0,
-    "reverse_event_penalty_m": 50.0,
+    "reverse_event_penalty_m": 100.0,
+    "row_repeat_penalty_m": 50.0,
+    "row_repeat_count": 0,
     "field_rs_forward_only": false,
     "tractor_config_path": "configs/tractor_route_2m.yaml",
     "turn_radius_m": 2.0,
@@ -80,13 +85,14 @@
       0.9500000000000001
     ],
     "status": "FEASIBLE",
-    "objective_cost": 155591,
-    "best_bound_cost": 137795.0,
-    "solver_wall_time_s": 60.019206327000006,
-    "segments": 79,
+    "objective_cost": 155516,
+    "best_bound_cost": 147169.0,
+    "solver_wall_time_s": 90.018717218,
+    "segments": 77,
     "saturated_arc_ids": [
-      "field_switch_interface_redge_0002_017_f@0"
-    ]
+      "field_switch_interface_redge_0002_016_f@0"
+    ],
+    "solver_time_limit_s": 90.0
   },
   {
     "name": "route_03",
@@ -105,13 +111,15 @@
       "y": 3.5,
       "yaw": 0.0
     },
-    "distance_m": 1274.5325501753807,
+    "distance_m": 1273.759268909708,
     "reverse_distance_m": 0.0,
     "gear_changes": 0,
     "reverse_events": 0,
     "reverse_cost_multiplier": 8.0,
     "gear_change_penalty_m": 2.0,
-    "reverse_event_penalty_m": 50.0,
+    "reverse_event_penalty_m": 100.0,
+    "row_repeat_penalty_m": 50.0,
+    "row_repeat_count": 0,
     "field_rs_forward_only": false,
     "tractor_config_path": "configs/tractor_route_2m.yaml",
     "turn_radius_m": 2.0,
@@ -125,13 +133,14 @@
       3.2,
       0.9500000000000001
     ],
-    "status": "FEASIBLE",
-    "objective_cost": 127457,
-    "best_bound_cost": 121718.0,
-    "solver_wall_time_s": 60.01923249,
-    "segments": 66,
+    "status": "OPTIMAL",
+    "objective_cost": 127380,
+    "best_bound_cost": 127380.0,
+    "solver_wall_time_s": 49.863800214,
+    "segments": 69,
     "saturated_arc_ids": [
-      "field_switch_interface_redge_0008_005_f@0"
-    ]
+      "field_switch_interface_redge_0009_007_r@0"
+    ],
+    "solver_time_limit_s": 60.0
   }
 ]
