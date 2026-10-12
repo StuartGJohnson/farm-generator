@@ -617,9 +617,10 @@ unless `--tractor-config` selects another configuration.
   channels and remain on the crossing or in permitted field margins. Change
   the 2.7 m setback with `--road-turn-setback`, and the radius samples with
   `--turn-radius-step` and `--turn-radius-expansions`.
-- Field connections use road access points at each row endpoint's road
-  projection and 2.7 m to either side. The offset points let the tractor enter
-  or leave a row while facing along the road without forcing a short reverse
+- Field connections use road access points at each drivable crop-lane endpoint's
+  road projection and 2.7 m to either side. These endpoints are derived from
+  tractor service paths offset from the tree rows. The offset points let the
+  tractor enter or leave a lane while facing along the road without a short reverse
   maneuver. Change their spacing with `--road-interface-offset`. Field RS
   paths must keep the tractor footprint inside the irrigation-channel boundary
   and out of the tree-row convex hull.

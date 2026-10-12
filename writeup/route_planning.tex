@@ -3,7 +3,6 @@
 \usepackage{amsmath}
 \usepackage{amssymb}
 \usepackage{geometry}
-\usepackage{enumitem}
 \usepackage{indentfirst}
 
 \geometry{margin=1in}
@@ -18,20 +17,21 @@
 
 This document specifies construction and solution of the farm-level route-planning problem.
 
-The planner takes a farm task containing a set of fields to service, an implement configuration, a start pose, and an end pose. It produces a single ordered tractor route through crop-row service paths, field maneuvering regions, and the farm road network.
+The planner takes a farm task containing an ordered list of fields to service, an implement configuration, a start pose, and an end pose. It produces a single tractor route through crop-row service paths, field maneuvering regions, and the farm road network. The listed fields are completed in order.
 
 The optimization is formulated as a directed arc-routing problem and solved using OR-Tools CP-SAT.
 The purpose of CP-SAT is to determine which directed graph arcs the tractor traverses, and how many times each arc is traversed, such that:
 \begin{enumerate}
 \item every required farming task is serviced at least once;
+\item service in each listed field is completed before service in the next field begins;
 \item the tractor starts at the specified start pose;
 \item the tractor finishes at the specified end pose;
 \item the selected traversals form one connected route;
 \item all movement is through explicitly permitted graph arcs; and
-\item total route distance is minimized.
+\item a distance-equivalent route cost is minimized.
 \end{enumerate}
 
-The geometric generation of road arcs, crop-row arcs, and Reeds--Shepp (RS) connection arcs occurs before CP-SAT is invoked. Each graph arc therefore contains both a traversal cost and the geometric tractor path associated with that traversal.
+The geometric generation of road arcs, crop-row arcs, road-junction turns, and Reeds--Shepp (RS) field connections occurs before CP-SAT is invoked. Each movement arc contains a traversal cost and the geometric tractor path associated with that traversal. The directed road graph is then copied into ordered field-service stages before optimization.
 
 CP-SAT determines how many times each directed graph arc is traversed. The selected arc multiplicities are then converted into an ordered tractor route by constructing the corresponding directed multigraph and computing an Euler trail from the specified start vertex to the specified end vertex. The stored geometries of the ordered arcs are concatenated to produce the farm-level tractor path.
 
@@ -62,7 +62,7 @@ $$
 $$
 where
 \begin{itemize}
-\item $\mathcal{L}$ is the list of fields to be serviced;
+\item $\mathcal{L}=(L_1,\ldots,L_m)$ is the ordered list of distinct fields to be serviced;
 \item $\tau$ is the field task;
 \item $p_s$ is the tractor start pose;
 \item $p_t$ is the tractor end pose.
@@ -167,10 +167,14 @@ A_{\mathrm{road}}
 \cup
 A_{\mathrm{row}}
 \cup
-A_{\mathrm{RS}}.
+A_{\mathrm{RS}}
+\cup
+A_{\mathrm{turn}}
+\cup
+A_{\mathrm{switch}}.
 $$
 
-Additional arc types may be introduced later without changing the optimization formulation.
+Here $A_{\mathrm{RS}}$ contains field maneuvers, $A_{\mathrm{turn}}$ contains explicit road-junction maneuvers, and $A_{\mathrm{switch}}$ contains zero-motion changes of field-service stage. Additional arc types may be introduced later without changing the optimization formulation.
 Each arc $a\in A$ stores at least
 $$
 a =
@@ -195,7 +199,7 @@ where
 \item $C_a\subseteq\mathcal{Q}$ is the set of service requirements automatically satisfied when this arc is traversed.
 \end{itemize}
 
-For ordinary road and RS transit arcs,
+For road, RS transit, road-turn, and stage-switch arcs,
 $$
 C_a=\emptyset.
 $$
@@ -217,8 +221,7 @@ $$
 $$
 These must not be merged because they represent different tractor states and have different RS connections.
 
-The initial implementation may treat ordinary road intersections as position-only routing states and leave detailed road-intersection turn feasibility to the downstream trajectory planner.
-Field row endpoints and field/road RS interfaces must preserve the heading required by the RS calculation.
+Every navigable road split has separate states for its two travel headings. Road intersections themselves are not navigable position-only vertices: road arcs end at oriented setback states, and an explicit turn arc connects an incoming leg to an outgoing leg. Field row endpoints and field/road RS interfaces likewise preserve heading.
 
 \section{Road Graph Construction}
 
@@ -227,7 +230,7 @@ The road network exists independently of the set of fields being serviced.
 Split road geometry at
 
 \begin{itemize}
-\item road intersections;
+\item setback points on each road incident to an intersection;
 \item field-road connection points;
 \item StartPose or EndPose projections onto a road; and
 \item other topology changes.
@@ -241,12 +244,24 @@ and
 $$
 v\rightarrow u.
 $$
-Both arcs normally have cost equal to the road polyline length.
+Both arcs normally have geometric length equal to the road polyline length; their integer costs follow the formula in the Arc Costs section.
 
 A one-way road creates only the permitted directed arc.
 Road arcs remain available even when the road passes through a field that is not in the current \texttt{field\_list}.
 
 No non-road field transit is created in an unselected field.
+
+For an intersection, let $d_{\mathrm{setback}}$ be the configured distance from the junction along each incident road. The \texttt{PlannerConfig} field is \texttt{road\_turn\_setback\_m}; its CLI option is \texttt{--road-turn-setback} and its current default is $2.7\,$m. Replace the direct meeting of road centerlines at the junction by directional road states at those setback points. For each ordered pair of distinct incident legs, connect the incoming state to the outgoing state only if a forward-only RS trajectory is feasible. Thus a three-leg junction has up to six directed turn candidates. A same-leg U-turn is not inserted. If a crossing section is shorter than $2d_{\mathrm{setback}}$, use its midpoint for the setbacks at both ends of that section.
+
+Each road-turn arc stores the sampled rear-axle trajectory and the tractor's swept footprint is checked along it. The allowed region consists of drivable road and crossing surfaces plus the permitted headlands and sidelands of adjacent fields; irrigation channels are excluded except where a GIS crossing surface bridges them. Tree obstacles and the interiors of tree-row convex hulls remain forbidden to the rear-axle trace. An infeasible turn is absent from the graph, so CP-SAT cannot choose it. The original intersection point does not provide a bypass around this check.
+
+Field/road interface candidates are formed by projecting each endpoint of a generated drivable crop lane onto nearby frontage roads, then adding offsets of $\pm d_{\mathrm{interface}}$ along those roads. The \texttt{PlannerConfig} field is \texttt{road\_interface\_offset\_m}; its CLI option is \texttt{--road-interface-offset} and its current default is $2.7\,$m. It is independent of $d_{\mathrm{setback}}$, despite their equal defaults. These are endpoints of the tractor rear-axle service paths after offsetting and merging tree-row geometry, not endpoints of the tree-row centerlines themselves. Candidates within a junction setback are omitted. Each interface has a state for each road travel heading, allowing a field RS arc to enter or leave a lane without a zero-motion reversal on the road.
+
+\subsection{Road anchors for field access}
+
+These interface points are deliberately sampled on the existing road centerlines within a selected field; they are not a uniform grid of road samples. For each oriented drivable-lane endpoint, the current builder examines up to two nearby frontage-road sections, projects the endpoint onto each section, and tries the projection plus the two longitudinal offsets. A legal point splits its road arc and acquires separate forward- and backward-heading states. Directed field RS arcs are then tested from each road state to the lane endpoint and from the lane endpoint back to each road state. CP-SAT can therefore choose the road--field--road entry and exit locations along with the row-service route. The offset samples give a short or partial lane room for a forward entry or exit when its direct projection would demand a tight U-turn. They also limit graph size compared with sampling every road at a fixed interval.
+
+One possible refinement is to add road anchors where the extensions of nearby tree-row centerlines intersect the frontage road. For regular rows, these intersections lie roughly half a row spacing from a drivable-lane projection and may provide entry and exit room tailored to the local geometry, analogous to the setback used for junction turns. They would be additional candidate road poses, not tractor paths along the tree rows or mandatory setbacks. The lane projection remains useful for partial rows, merged lanes, and outer lanes where a tree-row extension may be misleading or unavailable. Any such anchors would still need the junction-setback filter and the same RS swept-footprint feasibility check; their effect on route quality and graph size remains to be tested.
 
 \section{Crop-Row Traversal Arcs}
 
@@ -306,12 +321,11 @@ For each selected field, form a set of field interface states consisting of appr
 \end{itemize}
 For candidate ordered pairs of interface states $(p_i,p_j)$ in the same selected field:
 \begin{enumerate}
-\item compute the Reeds--Shepp path from $p_i$ to $p_j$;
-\item compute its geometric length;
-\item check the complete path against the field's permitted driving region;
-\item preferably check the swept tractor footprint rather than only the tractor reference point;
-\item reject the connection if it leaves the permitted region; and
-\item otherwise add a directed RS arc to $G$.
+\item generate RS candidates at the tractor's minimum turning radius and configured larger radii;
+\item rank candidates by length, reverse distance, internal gear changes, and reverse episodes;
+\item check the swept tractor footprint and rear-axle trace along each candidate;
+\item reject candidates that violate field, channel, tree, or tree-hull constraints; and
+\item add the lowest-cost legal candidate as a directed field RS arc, if one exists.
 \end{enumerate}
 
 Thus
@@ -321,7 +335,15 @@ $$
 if and only if the corresponding RS maneuver is considered physically legal.
 An RS arc stores the actual RS geometry $\gamma_a$, not merely its scalar distance.
 
-The first implementation should treat the complete selected field as the maneuvering region, including headlands and sidelands, subject to explicitly forbidden regions.
+The rear axle is the RS reference point. Its complete tractor footprint must remain inside the field polygon after irrigation channels are removed, with clearance from tree trunks. The rear-axle trace must remain outside the interior of the convex hull of tree locations in that field. This approximation keeps RS maneuvers in headlands and sidelands rather than cutting between trees. A reversing field maneuver remains legal unless the forward-only field option is selected; road-junction turns are always forward-only.
+
+\subsection{Sampled RS turning radii}
+
+The tractor's turning radius $r_{\min}$ is a minimum feasible radius, so it bounds curvature from above rather than requiring the tractor to steer at that limit throughout a maneuver. The analytic RS solver generates paths for one specified radius at a time. The builder therefore samples
+\[
+r_k=r_{\min}+k\Delta r,\qquad k=0,\ldots,N,
+\]
+with defaults $N=2$ and $\Delta r=0.35\,$m. For the $2.0\,$m tractor trial this gives $2.0$, $2.35$, and $2.7\,$m. A path using the minimum radius may clip a channel or tree margin, while a wider turn at the same endpoint poses may clear it; forward-only road turns particularly benefit from this choice. Candidate paths from all sampled radii are ranked by the same distance-equivalent movement cost and checked for swept-footprint feasibility. Only the lowest-cost legal path for an endpoint pair becomes a graph arc. Thus radius sampling broadens the finite candidate set, but does not solve a continuous-curvature optimal-control problem. The arc set can also change when RS scoring parameters change, even if a selected route has no reverse travel.
 
 For a field not contained in the farm task's field list,
 $$
@@ -344,6 +366,18 @@ $$
 to avoid generating obviously undesirable long-range RS connections.
 Such pruning changes the feasible graph and therefore must be treated as an explicit planning policy rather than as an invisible optimization approximation.
 
+\section{Ordered Field-Service Stages}
+
+To enforce the task order $\mathcal{L}=(L_1,\ldots,L_m)$, construct a staged graph $G^{\mathrm{ord}}$. For each stage $i$, copy the complete directed road graph, including its feasible junction turns. Add row-service and field RS arcs only for field $L_i$ in that stage. Roads belonging to other fields remain available for transit.
+
+A stage-switch arc is inserted only at a road state reached by an RS exit from field $L_i$:
+\[
+(v,i)\longrightarrow(v,i+1),\qquad i=1,\ldots,m-1.
+\]
+It changes the routing state at the same tractor pose, has zero path length and zero cost, and can be used at most once. Switches run only forward through the stage sequence. StartPose lies in stage $1$ and EndPose lies in stage $m$. For a single-field task, no copies or switches are required.
+
+Because all service requirements must be met, and service arcs for $L_i$ exist only in stage $i$, a valid route must finish that field's service before taking its switch. This preserves the requested field order while CP-SAT chooses road transit and field access points jointly. The switch is bookkeeping; it does not command a tractor motion.
+
 \section{Start and End}
 
 The graph must contain distinguished vertices
@@ -356,9 +390,7 @@ t\in V
 $$
 representing StartPose and EndPose.
 
-If a pose lies on a road, split the road geometry and insert the pose into the road graph.
-If a pose lies inside a selected field, include it in the appropriate RS interface-state set.
-If a pose cannot legally connect to the constructed graph, graph construction fails before CP-SAT is invoked.
+The current implementation requires road-aligned start and end poses outside junction setbacks. Split the corresponding road geometry, preserve the pose heading, and connect each terminal to the road state in its permitted travel direction. If a pose cannot legally connect to the constructed graph, graph construction fails before CP-SAT is invoked. Field-interior terminal poses remain a possible future extension.
 
 The special case
 $$
@@ -368,34 +400,30 @@ represents a closed mission.
 
 \section{Arc Costs}
 
-Initially, the optimization objective is total geometric distance.
-
 For each arc $a$,
 $$
 \ell_a = \operatorname{length}(\gamma_a).
 $$
-CP-SAT uses integer coefficients. Therefore convert distances into integer units before model construction.
+Let $r_a$ be reverse distance, $g_a$ the number of internal forward/reverse gear changes, and $e_a$ the number of contiguous reverse episodes within the stored maneuver. The nominal movement cost in distance-equivalent meters is
+\[
+d_a=\ell_a+(\lambda_{\mathrm{rev}}-1)r_a
+       +\lambda_{\mathrm{gear}}g_a
+       +\lambda_{\mathrm{event}}e_a.
+\]
+The current defaults are $\lambda_{\mathrm{rev}}=8$, $\lambda_{\mathrm{gear}}=2\,$m, and $\lambda_{\mathrm{event}}=100\,$m. Thus one meter of reverse travel costs eight times one meter of forward travel in the objective. The gear-change count is internal to an RS arc; the present model does not count a shift between two different arcs. Road-junction turns are forward-only and therefore have $r_a=g_a=e_a=0$.
 
-For example, using centimeters,
+CP-SAT uses integer coefficients. With scale $S=100$ cost units per meter, define
 $$
 c_a
 =
-\operatorname{round}
-\left(
-100\,\ell_a
-\right).
+\max\!\left\{1,\operatorname{round}(S d_a)\right\}
+\qquad\text{for movement arcs},
 $$
-The optimization cost therefore differs from true metric distance by at most the chosen quantization resolution.
+and $c_a=0$ for a zero-motion field-stage switch. Quantization and the positive-cost floor introduce only small differences from the nominal distance-equivalent score.
 
-The model should retain $\ell_a$ in floating-point meters for reporting and route reconstruction while using $c_a$ for CP-SAT.
+The model retains $\ell_a$, $r_a$, $g_a$, and $e_a$ for reporting and reconstruction while using $c_a$ for CP-SAT. The same unrounded movement-cost terms rank feasible RS candidates for each endpoint pair before the graph is optimized. A separate repeat penalty, defined below, depends on the total number of uses of a physical crop lane and cannot be assigned to an individual arc independently.
 
-All real movement arcs should have positive cost.
-
-Future versions may extend
-$$
-c_a
-$$
-with penalties for reversing, undesirable surfaces, gear changes, field exits, or other operational considerations. These extensions do not change the graph formulation.
+Future versions may add costs for surfaces, field exits, energy use, or other operational considerations without changing the graph's basic service and flow constraints.
 
 \section{CP-SAT Decision Variables}
 
@@ -429,6 +457,26 @@ $$
 K=|\mathcal{Q}|.
 $$
 This bound should be configurable, and the implementation should report if an optimal or feasible solution saturates an arc bound, since saturation may indicate that the bound is too restrictive.
+
+\section{Excess Crop-Lane Traversals}
+
+Let $\mathcal{H}$ be the set of physical crop lanes and let $A_h\subseteq A_{\mathrm{row}}$ contain both directed row arcs for lane $h$, regardless of travel direction. Let $Q_h=\bigcup_{a\in A_h}C_a$. Define the number of passes required for its service as
+\[
+b_h=
+\begin{cases}
+0, & Q_h=\emptyset,\\
+1, & Q_h\subseteq C_a\text{ for some }a\in A_h,\\
+2, & \text{otherwise}.
+\end{cases}
+\]
+For a two-sided implement, one pass normally covers both tree sides adjacent to a lane. For a one-sided implement, opposite directions can cover different sides and both may be required. The baseline $b_h$ therefore excludes required service passes from the repeat count.
+
+Introduce a nonnegative integer variable
+\[
+y_h=\max\left\{0,\sum_{a\in A_h}x_a-b_h\right\}
+\qquad\forall h\in\mathcal{H}.
+\]
+CP-SAT enforces this equality with a maximum-equality constraint. The repeat cost is $S\lambda_{\mathrm{repeat}}\sum_h y_h$, where the current default is $\lambda_{\mathrm{repeat}}=50\,$m per excess physical-lane traversal. This is a soft cost: an additional pass remains available when it saves enough other travel.
 
 \section{Service Constraints}
 
@@ -569,12 +617,15 @@ These constraints force all used vertices into one route component rooted at Sta
 
 \section{Objective}
 
-The initial objective is
+With $c_{\mathrm{repeat}}=\operatorname{round}(S\lambda_{\mathrm{repeat}})$, the objective is
 $$
 \min
+\left(
 \sum_{a\in A}c_a x_a
++c_{\mathrm{repeat}}\sum_{h\in\mathcal{H}}y_h
+\right).
 $$
-where $c_a$ is the integer-scaled geometric path length.
+The first term prices geometric travel and RS reversing behavior; the second prices crop-lane uses beyond required service. The default repeat penalty is $50\,$m per excess traversal. A forward-only route can still change when the solve time or graph candidate scoring changes: CP-SAT may return a different feasible incumbent before proving an optimum.
 
 Unlike a TSP-style formulation, crop-row lengths are included in the objective.
 
@@ -588,6 +639,7 @@ $$
 \min \quad
 &
 \sum_{a\in A}c_a x_a
++c_{\mathrm{repeat}}\sum_{h\in\mathcal{H}}y_h
 \\[2mm]
 \text{subject to}\quad
 &
@@ -622,6 +674,10 @@ z_v
 \forall v\in V,
 \\
 &
+z_s=1,\quad z_t=1\text{ if }s\neq t,
+&&
+\\
+&
 f_a\leq(|V|-1)x_a
 &&
 \forall a\in A,
@@ -643,6 +699,11 @@ z_v
 \sum_{v\neq s}z_v,
 \\[2mm]
 &
+y_h=\max\!\left\{0,\sum_{a\in A_h}x_a-b_h\right\},
+&&
+\forall h\in\mathcal{H},
+\\[2mm]
+&
 x_a\in\{0,\ldots,M_a\},
 &&
 \forall a\in A,
@@ -655,11 +716,16 @@ z_v\in\{0,1\},
 &
 f_a\in\{0,\ldots,|V|-1\},
 &&
-\forall a\in A.
+\forall a\in A,
+\\
+&
+y_h\in\left\{0,\ldots,\sum_{a\in A_h}M_a\right\},
+&&
+\forall h\in\mathcal{H}.
 \end{aligned}
 $$
 
-This is the complete first-version mathematical optimization model.
+This model is applied to the staged directed graph, so field order and junction-turn feasibility are encoded by graph construction as well as by these constraints. For a single field, the stage construction reduces to the ordinary directed graph.
 
 \section{CP-SAT Construction Procedure}
 
@@ -670,18 +736,20 @@ The implementation shall perform the following steps in order.
 \item Generate candidate row-path geometry from tree-row geometry and ImplementRange.
 \item Canonicalize geometrically duplicate physical row paths while retaining all logical service requirements.
 \item Construct directed row traversal arcs and their service coverage sets $C_a$.
-\item Construct the directed road graph.
-\item Insert road/field interface points.
+\item Construct the directed road graph with oriented setback states and feasible forward-only RS junction-turn arcs; omit the original position-only junction states.
+\item Insert road/field interface points at row projections and configured offsets outside the junction setbacks.
 \item Insert StartPose and EndPose into the appropriate graph geometry.
-\item For each selected field, generate feasible RS arcs between candidate oriented interface states.
-\item Reject every RS candidate that violates the field driving-region constraint.
+\item For each selected field, sample RS radii and generate penalized-cost-ranked maneuvers between candidate oriented interface states.
+\item Reject field and road-turn candidates that violate swept-footprint, channel, tree, or tree-hull constraints.
+\item Copy road states by field-service stage, retain only the current field's row and field-RS arcs in each stage, and add forward zero-motion stage switches.
 \item Verify that every service requirement has at least one compatible service arc.
-\item Assign integer distance costs $c_a$.
+\item Assign integer movement costs $c_a$ from length, reverse distance, gear changes, and reverse episodes.
 \item Create CP-SAT traversal variables $x_a$.
+\item Create crop-lane excess variables $y_h$ and maximum-equality constraints.
 \item Add service constraints.
 \item Add start/end vehicle-flow constraints.
 \item Add route-connectivity variables and constraints.
-\item Add the total-distance objective.
+\item Add the movement and row-repeat objective.
 \item Invoke CP-SAT.
 \item If the solver status is neither FEASIBLE nor OPTIMAL, report route-generation failure.
 \item Extract all nonzero traversal counts $x_a$.
@@ -698,90 +766,88 @@ The implementation should correspond closely to the following structure.
 \begin{verbatim}
 from ortools.sat.python import cp_model
 
+# GIS and RS geometry are built before the optimizer is entered.
+base = build_routing_graph(farm, task, config)
+graph = ordered_field_graph(base, task)
+arcs = list(graph.arcs.values())
+vertices = list(graph.vertices.values())
+# Precompute limit, outgoing, incoming, row_lanes, and service_requirements.
+S = config.cost_scale_per_m
 model = cp_model.CpModel()
 
 # Traversal counts
-
 x = {
-a.id: model.new_int_var(0, a.max_uses, f"x_{a.id}")
-for a in arcs
+    a.id: model.new_int_var(0, limit[a.id], f"x_{a.id}")
+    for a in arcs
 }
 
 # Service requirements
-
 for q in service_requirements:
-compatible = [a for a in arcs if q.id in a.service_ids]
-model.add(sum(x[a.id] for a in compatible) >= 1)
+    compatible = [a for a in arcs if q in a.service_ids]
+    model.add(sum(x[a.id] for a in compatible) >= 1)
 
 # Vehicle flow
-
 for v in vertices:
-outflow = sum(x[a.id] for a in outgoing[v.id])
-inflow  = sum(x[a.id] for a in incoming[v.id])
-
-if start_id != end_id and v.id == start_id:
-    rhs = 1
-elif start_id != end_id and v.id == end_id:
-    rhs = -1
-else:
+    outflow = sum(x[a.id] for a in outgoing[v.id])
+    inflow = sum(x[a.id] for a in incoming[v.id])
     rhs = 0
-
-model.add(outflow - inflow == rhs)
+    if start_id != end_id:
+        rhs = 1 if v.id == start_id else -1 if v.id == end_id else 0
+    model.add(outflow - inflow == rhs)
 
 # Used-vertex variables
-
 z = {
-v.id: model.new_bool_var(f"z_{v.id}")
-for v in vertices
+    v.id: model.new_bool_var(f"z_{v.id}")
+    for v in vertices
 }
-
 for a in arcs:
-model.add(x[a.id] <= a.max_uses * z[a.u])
-model.add(x[a.id] <= a.max_uses * z[a.v])
-
+    model.add(x[a.id] <= limit[a.id] * z[a.u])
+    model.add(x[a.id] <= limit[a.id] * z[a.v])
 for v in vertices:
-incident = incoming[v.id] + outgoing[v.id]
-model.add(z[v.id] <= sum(x[a.id] for a in incident))
-
+    incident = incoming[v.id] + outgoing[v.id]
+    model.add(z[v.id] <= sum(x[a.id] for a in incident))
 model.add(z[start_id] == 1)
 if end_id != start_id:
-model.add(z[end_id] == 1)
+    model.add(z[end_id] == 1)
 
 # Artificial connectivity flow
-
 FMAX = len(vertices) - 1
-
 f = {
-a.id: model.new_int_var(0, FMAX, f"f_{a.id}")
-for a in arcs
+    a.id: model.new_int_var(0, FMAX, f"f_{a.id}")
+    for a in arcs
 }
-
 for a in arcs:
-model.add(f[a.id] <= FMAX * x[a.id])
-
+    model.add(f[a.id] <= FMAX * x[a.id])
 for v in vertices:
-fin  = sum(f[a.id] for a in incoming[v.id])
-fout = sum(f[a.id] for a in outgoing[v.id])
-
-if v.id != start_id:
-    model.add(fin - fout == z[v.id])
-
-root_demand = sum(
-z[v.id] for v in vertices if v.id != start_id
-)
-
+    fin = sum(f[a.id] for a in incoming[v.id])
+    fout = sum(f[a.id] for a in outgoing[v.id])
+    if v.id != start_id:
+        model.add(fin - fout == z[v.id])
+root_demand = sum(z[v.id] for v in vertices if v.id != start_id)
 root_in = sum(f[a.id] for a in incoming[start_id])
 root_out = sum(f[a.id] for a in outgoing[start_id])
-
 model.add(root_out - root_in == root_demand)
 
-# Integer distance objective
+# Excess physical-lane traversals in either direction
+excess = {}
+for lane_id, lane_arcs in row_lanes.items():
+    baseline = required_service_passes(lane_arcs)
+    upper = sum(limit[a.id] for a in lane_arcs)
+    excess[lane_id] = model.new_int_var(0, upper,
+                                        f"row_excess_{lane_id}")
+    model.add_max_equality(
+        excess[lane_id],
+        [sum(x[a.id] for a in lane_arcs) - baseline, 0]
+    )
 
+# Integer distance-equivalent objective
 model.minimize(
-sum(a.cost_mm * x[a.id] for a in arcs)
+    sum(arc_cost(a, config) * x[a.id] for a in arcs)
+    + round(S * config.row_repeat_penalty_m) * sum(excess.values())
 )
 
 solver = cp_model.CpSolver()
+solver.parameters.max_time_in_seconds = solver_time_limit
 status = solver.solve(model)
 \end{verbatim}
 
@@ -794,6 +860,7 @@ $$
 x_a^*
 $$
 rather than an ordered route.
+It also returns a solver status, objective value, best lower bound, and elapsed solve time. \texttt{FEASIBLE} means a valid route was found without proof of optimality within the time limit; \texttt{OPTIMAL} proves the best route for the finite graph and its stated costs. Neither status asserts optimality over all possible continuous tractor trajectories. The gap between a feasible objective and the lower bound is reported relative to the found objective.
 
 Construct a new directed multigraph
 $$
@@ -890,12 +957,18 @@ start_pose
 end_pose
 total_distance_m
 optimality_status
+best_objective_bound
+reverse_distance_m
+reverse_events
+row_repeat_count
+penalty_parameters
 segments:
 - arc_id
 arc_type
 field_id
 geometry
 distance_m
+driving_directions
 service_ids
 occurrence_index
 \end{verbatim}
@@ -915,7 +988,10 @@ After solving and route reconstruction, independently check:
 \item Every consecutive pair of route segments is graph-connected.
 \item Every service requirement is covered.
 \item Every selected RS path lies within its allowed driving region.
+\item Every road-junction turn is forward-only and its swept tractor footprint remains on permitted roads, crossings, headlands, or sidelands without entering an irrigation channel.
+\item The tractor's swept footprint and rear-axle tree-hull exclusion are respected for field RS paths.
 \item No row or field-transit arc appears in an unselected field.
+\item Field service follows $L_1,\ldots,L_m$ in order; each stage switch joins identical road poses and has zero motion.
 \item Arc occurrence counts in the reconstructed route equal the CP-SAT values $x_a^*$.
 \item The reconstructed route distance equals
 \[
@@ -924,8 +1000,9 @@ After solving and route reconstruction, independently check:
 within numerical tolerance.
 \item The integer CP-SAT objective agrees with
 \[
-\sum_a c_a x_a^*.
+\sum_a c_a x_a^*+c_{\mathrm{repeat}}\sum_h y_h^*.
 \]
+\item Each $y_h^*$ equals the positive excess of total lane traversals over $b_h$.
 \item No route arc violates its directionality or service semantics.
 \end{enumerate}
 
@@ -975,6 +1052,22 @@ Create an RS candidate whose path leaves the allowed field polygon.
 
 Verify that the arc is absent from the optimization graph.
 
+\subsection{Forward-only road junction}
+
+Construct a junction with oriented setback states and a crossing over an irrigation channel. Verify that every turn arc is forward-only, its swept footprint stays in the permitted road/crossing/field-margin region, and no position-only junction vertex bypasses the turn arcs. A crossing shorter than twice the setback uses a midpoint state.
+
+\subsection{Reverse maneuver scoring}
+
+Offer a shorter RS maneuver with reverse motion and a longer forward-only maneuver. Verify that reverse distance and reverse-episode penalties can select the forward path. Confirm that a road-junction turn never reverses.
+
+\subsection{Excess row traversal scoring}
+
+Offer a cheap repeat traversal of a physical lane and a longer road return. Verify that a sufficiently large repeat penalty selects the road. For a one-sided implement, confirm that opposite-direction passes needed to cover different tree sides have $y_h=0$.
+
+\subsection{Ordered field service}
+
+Use a two-field task with road transit available in both stages. Verify that all service in the first field precedes the forward stage switch and all service in the second follows it, while the switch itself has zero movement.
+
 \subsection{Open mission}
 
 Use distinct StartPose and EndPose.
@@ -989,10 +1082,11 @@ Verify that the reconstructed route is an Euler circuit.
 
 \section{Design Boundary}
 
-The route-planning subsystem consists of four explicit stages:
+The route-planning subsystem consists of five explicit stages:
 \begin{enumerate}
 \item{GIS/task geometry}
-\item{directed routing graph}
+\item{physical directed routing graph and feasible RS arcs}
+\item{ordered field-stage expansion}
 \item{CP-SAT arc optimization}
 \item{Euler route reconstruction}
 \end{enumerate}

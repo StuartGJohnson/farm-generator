@@ -52,7 +52,8 @@ The package follows `writeup/route_planning.tex` in four modules:
    outgoing leg; only all-forward RS candidates are admitted for road turns,
    and the CP-SAT solver pays for the selected turn. A crossing
    shorter than twice the setback uses its midpoint at both ends. Row-to-road
-   projections inside a junction setback are omitted. For every row endpoint,
+   projections inside a junction setback are omitted. For every drivable
+   crop-lane endpoint (after offsetting and merging tree-row centerlines),
    road interface states are also sampled 2.7 m on either side of its road
    projection by default. This gives a short or partial row room to connect
    forward to a road. `--road-interface-offset` changes that distance.
