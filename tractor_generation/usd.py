@@ -11,8 +11,8 @@ from pathlib import Path
 
 from .appearance import paint_material, rounded_box, textured_material
 from .wheel_appearance import add_wheel_appearance
-from .config import TractorConfig
-from .names import BASE_LINK, SENSOR_POD_LINK, WHEELS, camera_link
+from .config import GPS_DOME_RADIUS_M, TractorConfig
+from .names import BASE_LINK, GPS_LINK, SENSOR_POD_LINK, WHEELS, camera_link
 
 DENSITY = 1000.0
 
@@ -183,6 +183,16 @@ def write_tractor_usda(config: TractorConfig, path: str | Path) -> Path:
                       (config.sensor_pod_length, config.sensor_pod_width, config.sensor_pod_height),
                       (0, 0, 0), body_mat, config.sensor_pod_height * 0.24)
     pod.AddTranslateOp().Set(Gf.Vec3d(0, 0, pod_local_z))
+    if config.center_gps:
+        gps = UsdGeom.Xform.Define(stage, f"{vehicle_path}/{SENSOR_POD_LINK}/{GPS_LINK}")
+        gps.AddTranslateOp().Set(Gf.Vec3d(0, 0, config.sensor_pod_height / 2 + GPS_DOME_RADIUS_M / 2))
+        UsdShade.MaterialBindingAPI.Apply(gps.GetPrim()).Bind(black_mat)
+        # Embed the lower hemisphere in the pod: visible dome is 20 cm wide and 10 cm high.
+        dome = UsdGeom.Sphere.Define(stage, f"{gps.GetPath()}/Dome")
+        dome.CreateRadiusAttr(1.0)
+        dome.AddTranslateOp().Set(Gf.Vec3d(0, 0, -GPS_DOME_RADIUS_M / 2))
+        dome.AddScaleOp().Set(Gf.Vec3f(GPS_DOME_RADIUS_M, GPS_DOME_RADIUS_M, GPS_DOME_RADIUS_M))
+        UsdShade.MaterialBindingAPI.Apply(dome.GetPrim()).Bind(black_mat)
     gap = pod_local_z - config.sensor_pod_height / 2 - z / 2
     if gap > 0:
         rounded_box(stage, f"{coachwork}/PodSupport", (min(x, config.sensor_pod_length)*0.12,

@@ -9,6 +9,10 @@ from typing import Any
 import yaml
 
 
+# Visible GPS dome is the upper hemisphere of a sphere embedded at pod top.
+GPS_DOME_RADIUS_M = 0.10  # 20 cm diameter and 10 cm above the pod
+
+
 @dataclass(frozen=True)
 class TractorConfig:
     livery: str = "tiger_stripes"
@@ -28,6 +32,7 @@ class TractorConfig:
     sensor_pod_width: float = 1.5
     sensor_pod_height: float = 0.2
     sensor_pod_height_above_ground: float = 2.3
+    center_gps: bool = False
     tractor_body_length: float = 3.5
     tractor_body_width: float = 1.5
     tractor_body_height: float = 1.0

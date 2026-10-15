@@ -17,6 +17,7 @@ dependencies = [
     "matplotlib>=3.5",
     "pillow>=9.0",
     "pyyaml>=6.0",
+    "pyproj>=3.6",
     "condeltri>=0.0.5",
     "ortools>=9.15",
     "rsplan>=1.0.10,<1.1",

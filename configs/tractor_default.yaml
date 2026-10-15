@@ -14,6 +14,7 @@ sensor_pod_length: 2.0
 sensor_pod_width: 1.5
 sensor_pod_height: 0.2
 sensor_pod_height_above_ground: 2.3
+center_gps: true
 tractor_body_length: 3.5
 tractor_body_width: 1.5 
 tractor_body_height: 1.0

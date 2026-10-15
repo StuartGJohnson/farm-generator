@@ -5,29 +5,37 @@ See `CLAUDE.md` for the full architecture/design reference.
 
 ## Setup
 
-The complete showcase export, including headless orthophoto rendering, uses
-`isaacsim61-cu13`. The older IR and vegetation-only examples also work in
-`usd2508`. GIS writing uses the system `/usr/bin/python3` with Ubuntu GDAL and
-QGIS bindings; the helper is invoked automatically by the showcase script.
+The complete showcase export and tractor simulation use the existing
+`isaacsim61-cu13` environment. From the repository root, install the project
+into that environment:
 
 ```bash
-conda activate usd2508
-pip install -e ".[dev]"
+conda activate isaacsim61-cu13
+python -m pip install --editable .
 ```
 
-That installs this package (editable) plus its runtime dependencies (numpy,
-shapely, networkx, scipy, matplotlib, pyyaml) and dev dependencies (pytest),
-all pinned in `pyproject.toml`. Re-run the `pip install` after pulling
-changes that touch `pyproject.toml`.
+For tests, install `pytest` as well:
 
-If `usd2508` doesn't exist yet on your machine: `conda create -n usd2508
-python=3.12` (any Python >= 3.10 works), then activate and `pip install` as
-above.
+```bash
+python -m pip install pytest
+```
+
+`pyproject.toml` defines the package and its runtime dependencies. The
+`--editable` flag keeps local source edits visible without reinstalling.
+Re-run the install command when project dependencies change. The dependency
+versions are ranges, not exact pins. Isaac Sim itself is installed separately
+in this conda environment; it is not a project dependency.
+
+The Isaac Sim environment supplies the compatible USD Python packages used by
+the tractor and farm exporters.
+
+GIS writing uses the system `/usr/bin/python3` with Ubuntu GDAL and QGIS
+bindings; the showcase script invokes that helper automatically.
 
 ## Running the tests
 
 ```bash
-conda activate usd2508
+conda activate isaacsim61-cu13
 python -m pytest tests/ -q
 ```
 
@@ -37,7 +45,7 @@ python -m pytest tests/ -q
 "Visualization"). Run it as a module from the repo root:
 
 ```bash
-conda activate usd2508
+conda activate isaacsim61-cu13
 python -m visualization.debug_view
 ```
 
@@ -60,7 +68,7 @@ checked in for reference) — safe to delete and regenerate at any time.
 not production code. Run directly:
 
 ```bash
-conda activate usd2508
+conda activate isaacsim61-cu13
 python examples/farm_mesh_prototype.py
 ```
 
@@ -79,7 +87,7 @@ the same assets independently.
 Run the standalone asset build from the repository root:
 
 ```bash
-conda activate usd2508
+conda activate isaacsim61-cu13
 python examples/generate_procedural_assets.py
 ```
 
@@ -410,7 +418,7 @@ into that environment. On the development machine the environment is named
 
 ```bash
 conda activate isaacsim61-cu13
-python -m pip install -e ".[dev]"
+python -m pip install --editable .
 ```
 
 Avoid importing an unrelated PyPI OpenUSD build in
@@ -469,15 +477,16 @@ Example renderings of the upgraded tractor appearance:
 
 - [Tiger-stripe tractor](debug_out/tractor/livery_preview/tiger_stripes/tractor.png):
   an AI-generated orange-and-black stripe texture mapped onto the rounded body
-  panels and sensor pod using `livery: tiger_stripes`.
+  panels and sensor pod using `livery: tiger_stripes`, with the black GPS dome
+  at the pod center.
 
-  <img src="debug_out/tractor/livery_preview/tiger_stripes/tractor.png" alt="Tiger-stripe tractor with chevron tire tread and textured steel hubs" width="640">
+  <img src="debug_out/tractor/livery_preview/tiger_stripes/tractor.png" alt="Tiger-stripe tractor with center GPS dome, chevron tire tread, and textured steel hubs" width="640">
 
 - [Cheetah-spot tractor](debug_out/tractor/livery_preview/cheetah_spots/tractor.png):
   an AI-generated ochre-and-black spot texture applied to the same geometry
-  using `livery: cheetah_spots`.
+  using `livery: cheetah_spots`, including the center GPS dome.
 
-  <img src="debug_out/tractor/livery_preview/cheetah_spots/tractor.png" alt="Cheetah-spot tractor with chevron tire tread and textured steel hubs" width="640">
+  <img src="debug_out/tractor/livery_preview/cheetah_spots/tractor.png" alt="Cheetah-spot tractor with center GPS dome, chevron tire tread, and textured steel hubs" width="640">
 
 Both PNGs were rendered at 1280 × 960 in headless Isaac Sim 6.1 on an RTX 2070,
 using a studio floor, lighting, and a three-quarter camera view. Replicator's
@@ -527,9 +536,28 @@ python -m bringup.launch_tractor \
 ```
 
 It writes `debug_out/tractor/runtime_frame_report.txt` after simulation has
-initialized. `--headless` suppresses the interactive window. `--ros2` also
-enables the ROS 2 bridge and creates camera publishing graphs. ROS 2 Humble
-bringup currently expects:
+initialized. `--headless` suppresses the interactive window. `--ros2` enables
+the ROS 2 bridge and publishes these simulator outputs alongside the camera
+topics:
+
+| Topic | Message | Frame and rate |
+| --- | --- | --- |
+| `/clock` | `rosgraph_msgs/msg/Clock` | Simulation time |
+| `/ground_truth/odom` | `nav_msgs/msg/Odometry` | Pose in `world`, twist in `base_link`; every physics step by default |
+| `/gps/fix` | `sensor_msgs/msg/NavSatFix` | WGS84 antenna position in `gps_link`; 10 Hz by default |
+
+Ground truth comes directly from the PhysX rigid body, with its velocity
+shifted from the center of mass to `base_link`. It does not publish a TF
+transform. GNSS uses the optional black GPS dome on the sensor pod (20 cm
+diameter, 10 cm above the pod). If the tractor asset has no `gps_link`, it
+publishes no `/gps/fix`. Configure GNSS rate, noise, and seed in
+`configs/sim_sensors.yaml`; the default noise is zero. The farm YAML supplies
+the WGS84 origin, and `pyproj` converts through the configured EPSG:32610 grid.
+Reported altitude is the configured origin altitude plus antenna world Z. For
+another world, set `origin_easting`, `origin_northing`, and `origin_altitude`
+under `georeference`, or provide a farm YAML with a scene origin.
+`--farm-config` and `--sensor-config` select alternate YAML files. ROS 2
+Humble bringup currently expects:
 
 ```bash
 export ROS_DISTRO=humble

@@ -2,6 +2,7 @@
 
 BASE_LINK = "base_link"
 SENSOR_POD_LINK = "sensor_pod_link"
+GPS_LINK = "gps_link"
 WHEELS = ("front_left_wheel", "front_right_wheel", "rear_left_wheel", "rear_right_wheel")
 WHEEL_JOINTS = tuple(f"{name}_joint" for name in WHEELS)
 STEERING_LINKS = ("front_left_steering_link", "front_right_steering_link")

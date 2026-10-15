@@ -1,0 +1,20 @@
+ground_truth:
+  enabled: true
+  topic: /ground_truth/odom
+  world_frame: world
+  base_frame: base_link
+  # null publishes every physics step.
+  rate_hz: null
+gnss:
+  enabled: true
+  topic: /gps/fix
+  antenna_frame: gps_link
+  update_rate_hz: 10.0
+  horizontal_noise_std_m: 0.0
+  vertical_noise_std_m: 0.0
+  random_seed: 1
+georeference:
+  projected_crs: EPSG:32610
+  # Rotate Isaac +X toward grid north by this angle. Current farm ENU uses zero.
+  world_to_grid_heading_deg: 0.0
+  # The farm YAML supplies its existing WGS84 origin and origin altitude.

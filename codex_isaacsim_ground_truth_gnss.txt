@@ -1,0 +1,450 @@
+Codex Implementation Notes: Isaac Sim Ground Truth and Simulated GNSS ROS 2 Streams
+
+PURPOSE
+
+1. Add configurable gps antenna to tractor definition.
+
+Inspect tractor_generation/ and config/*.yaml. define a boolean center_gps flag in the TractorConfig class. When true, add a gps antenna to be located at the top center of the sensor pod. Add to the transform tree a gps_link of appropriate settings - so a child of the sensor pod link (whatever it is called). Regenerate debug_out/tractor so that this new gps-enabled tractor can be used in the tests of features 2 and 3 below. In the tractor mesh/render, add a small dome shaped object to the top center of the sensor pod, 8cm in diameter and 5cm in height (above the sensor pod). Make the color black. 
+
+Add two simulator-side ROS 2 outputs for the tractor:
+
+2. Exact ground-truth pose and twist from Isaac Sim 6.1 / PhysX 5.
+3. A simulated GNSS position stream published as sensor_msgs/msg/NavSatFix.
+
+These are simulator features. They should not implement the tractor localization stack, odometry estimation, TF localization, navigation, or ROS-side teleoperation.
+
+The current Isaac Sim-native teleoperation should remain in use for initial testing. Do not replace or redesign it as part of this work. The PhysX Vehicle implementation has vehicle-specific control behavior, including braking, so ROS 2 teleoperation is a separate task.
+
+Before implementing this specification, inspect the existing simulator launcher and tractor code and integrate these features into the existing architecture rather than creating a parallel simulator architecture. The current top level code for launching the tractor is in bringup/launch_tractor.py.
+
+For running and developing isaacsim code (all these tasks), use the conda env isaacsim61-cu13. The current shell has had this conda env activated.
+
+
+ARCHITECTURAL BOUNDARY
+
+The simulator is responsible for generating physical/sensor truth:
+
+    Isaac Sim / PhysX
+        |
+        +-- exact tractor rigid-body state
+        |       |
+        |       +-- GroundTruthPublisher
+        |               |
+        |               +-- /ground_truth/odom
+        |
+        +-- exact tractor rigid-body state
+                |
+                +-- GNSS simulator
+                        |
+                        +-- antenna location
+                        +-- georeference conversion
+                        +-- sensor sampling/error model
+                        |
+                        +-- /gps/fix
+
+The external tractor ROS 2 stack will eventually be responsible for:
+
+    - odometry estimation
+    - sensor fusion
+    - localization
+    - odom -> base_link TF
+    - map -> odom TF where appropriate
+    - navigation
+    - ROS-side vehicle control/teleoperation
+
+Ground truth should not automatically be inserted into the operational TF tree. A separate ROS 2 node will later use ground truth to generate odom -> base_link when that is useful for testing.
+
+The simulator should publish measurements/state, not make localization decisions.
+
+
+ROS 2 ENVIRONMENT
+
+The Isaac Sim process uses its existing Isaac Sim ROS 2 environment and Python environment. Do not attempt to import or launch the system ROS 2 Humble installation from inside the Isaac Sim Python process.
+
+These simulator publishers should use the ROS 2 facilities already used by the existing Isaac Sim application.
+
+Later, system ROS 2 Humble nodes such as Mapviz and the tractor ROS stack will communicate with Isaac Sim over DDS. The two ROS installations do not need to share Python packages or runtime libraries.
+
+Preserve the existing ROS_DOMAIN_ID and ROS/DDS configuration used by the simulator.
+
+
+1. GROUND-TRUTH OUTPUT
+
+Canonical topic:
+
+    /ground_truth/odom
+
+Message:
+
+    nav_msgs/msg/Odometry
+
+Semantics:
+
+    header.frame_id = "world"
+    child_frame_id = "base_link"
+
+The message represents the exact simulated six-degree-of-freedom pose and twist of base_link relative to the Isaac simulation world.
+
+The simulator must NOT publish a world -> base_link TF merely because this topic exists.
+
+Isaac Sim / PhysX provides velocity, so nav_msgs/Odometry is the preferred interface.
+
+
+GROUND-TRUTH STATE SOURCE
+
+Ground truth must come directly from the authoritative PhysX rigid-body state.
+
+Do not derive ground truth from:
+
+    - wheel rotations
+    - steering state
+    - commanded velocity
+    - vehicle controller state
+    - ROS TF
+    - numerical differentiation of previously published poses
+
+Read the actual simulated rigid-body pose and linear/angular velocity.
+
+The tractor's PhysX rigid-body reference point may not exactly coincide with ROS base_link. Inspect the existing tractor setup and determine the relationship.
+
+If necessary, apply the known fixed transform between the simulated rigid-body frame and base_link so that the published pose and twist have the documented base_link semantics.
+
+The simulator launcher already creates/configures the tractor and knows its static geometry. Prefer using this known geometry directly rather than querying ROS TF from inside the simulator.
+
+
+GROUND-TRUTH TIMING
+
+Ground truth should be associated with the physics simulation, not the rendering loop.
+
+Prefer a post-physics-step callback or equivalent Isaac Sim mechanism so that each publication corresponds to a completed PhysX state update.
+
+Initially publish ground truth once per physics step.
+
+Use simulation time for the ROS message timestamp. The timestamp must correspond to the simulated state represented by the message.
+
+Do not use wall-clock time.
+
+The implementation should make it reasonably easy to configure a lower publication rate later, but avoid unnecessary rate-control machinery in the first implementation.
+
+
+GROUND-TRUTH TWIST
+
+Publish PhysX linear and angular velocity directly.
+
+Ensure that the velocity fields obey nav_msgs/Odometry conventions, including the expected coordinate frame for twist. Verify Isaac/PhysX velocity frame semantics rather than assuming that returned velocity components are already expressed in the required ROS frame.
+
+Handle any necessary frame rotation explicitly and document it in the code.
+
+
+2. SIMULATED GNSS OUTPUT
+
+Canonical topic:
+
+    /gps/fix
+
+Message:
+
+    sensor_msgs/msg/NavSatFix
+
+The GNSS simulator is a sensor model. It must remain separate from the ground-truth publisher even though both consume the same underlying PhysX state.
+
+Suggested logical components:
+
+    GroundTruthPublisher
+    GnssSimulator
+    GeoReference
+
+They may initially live in a small number of Python source files if that fits the existing project better. Do not over-engineer the module/package structure.
+
+
+GPS ANTENNA LOCATION
+
+GNSS position represents the location of the GPS antenna, not the PhysX vehicle origin and not necessarily base_link. 
+
+There should be a fixed transform:
+
+    base_link -> gps_link
+
+Use the existing tractor/static-transform configuration if such a GPS frame already exists. If the current tractor being launched does not define a gps sensor (e.g., no "gps_link") defined, then no gps topic should be published.
+
+Compute antenna world position as:
+
+    T_world_gps = T_world_base_link * T_base_link_gps
+
+Prefer this explicit transform using simulator-known static geometry rather than querying ROS TF.
+
+The NavSatFix header should use:
+
+    frame_id = "gps_link"
+
+or the project's eventual canonical GNSS antenna frame name if one already exists.
+
+
+GEOREFERENCE
+
+The simulator needs one authoritative mapping between Isaac local world coordinates and geographic coordinates.
+
+The farm GIS data currently uses:
+
+    EPSG:32610
+    WGS 84 / UTM zone 10N
+
+The intended relationship is:
+
+    Isaac local world coordinates
+        <->
+    farm/projected UTM coordinates (EPSG:32610)
+        <->
+    WGS84 latitude/longitude used by NavSatFix
+
+Do not change the farm GIS products to latitude/longitude merely for GNSS.
+
+Define/configure a georeference containing at least:
+
+    - projected CRS / EPSG code
+    - UTM easting corresponding to a defined Isaac world origin
+    - UTM northing corresponding to that origin
+    - altitude/elevation reference
+    - heading/orientation relationship between Isaac world axes and projected east/north
+
+Do not silently assume that Isaac +X/+Y will always equal UTM East/North. It is acceptable for the current configuration to use zero heading if that is how the generated farm is oriented, but the transform should explicitly represent the orientation so that this assumption is visible and configurable.
+
+Use a standard coordinate-transformation library such as pyproj if it is compatible with the existing Isaac Sim environment. First inspect the environment/project dependencies. Avoid writing a custom UTM/WGS84 projection implementation.
+
+The georeference code should be reusable by future simulator/GIS integration.
+
+
+ALTITUDE
+
+NavSatFix altitude semantics require care.
+
+For the first implementation, establish and document a consistent altitude convention based on the simulator's configured world/geographic origin. Do not invent terrain-relative altitude.
+
+The simulated antenna Z position should contribute to the reported antenna altitude.
+
+Keep the implementation structured so the altitude datum/reference can be refined later if required.
+
+
+GNSS SAMPLING RATE
+
+GNSS must have its own sensor sampling schedule and must NOT publish once per physics step.
+
+Make the GNSS update rate configurable.
+
+A default such as 10 Hz is appropriate for initial testing unless the existing project configuration suggests another rate.
+
+At each GNSS sample time:
+
+    1. Obtain/interpolate or sample the current exact simulated antenna position.
+    2. Apply the configured GNSS error model.
+    3. Convert the resulting projected/local position to WGS84 latitude/longitude.
+    4. Populate NavSatFix.
+    5. Timestamp the measurement with simulation time.
+    6. Publish /gps/fix.
+
+For the initial implementation, sampling the current physics state at the first physics step at or after the scheduled GNSS sample time is sufficient. Do not introduce interpolation unless it is needed by the existing simulator timing architecture.
+
+
+INITIAL GNSS ERROR MODEL
+
+Keep the first implementation deliberately simple.
+
+Support:
+
+    - configurable horizontal position noise
+    - configurable vertical position noise
+    - corresponding NavSatFix position covariance
+    - configurable GNSS update rate
+
+Allow a zero-noise configuration.
+
+Zero noise is important because it provides a deterministic integration test: the published GPS position should correspond exactly to the georeferenced ground-truth antenna position.
+
+Gaussian independent measurement noise is sufficient initially.
+
+Do NOT yet implement:
+
+    - canopy degradation
+    - RTK fixed/float state
+    - multipath
+    - satellite geometry
+    - correlated/slowly varying bias
+    - latency
+    - packet loss/dropout
+
+The design should leave room for these later, especially canopy-dependent degradation and slowly varying GNSS errors, but they are explicitly outside the first implementation.
+
+
+NAVSATFIX STATUS AND COVARIANCE
+
+Populate NavSatFix fields correctly rather than leaving arbitrary defaults.
+
+Set:
+
+    status
+    service
+    position_covariance
+    position_covariance_type
+
+to values consistent with the simulated measurement.
+
+For the initial generic GPS simulation, use the closest standard NavSatStatus semantics. Do not invent RTK semantics in NavSatFix; the standard message does not fully represent modern RTK receiver state.
+
+If RTK state is simulated later, use an additional receiver-status message/topic if necessary.
+
+
+RANDOMNESS AND REPRODUCIBILITY
+
+GNSS noise should support deterministic testing.
+
+Provide a configurable random seed, or use the simulator's existing seeded random-number infrastructure if one already exists.
+
+With identical simulation inputs and seed, the GNSS measurement sequence should be reproducible where practical.
+
+
+3. IMPLEMENTATION STYLE
+
+Prefer ordinary Python code over OmniGraph for both features.
+
+OmniGraph remains appropriate for standard Isaac ROS sensor/bridge plumbing already present in the simulator, but these features benefit from explicit code because:
+
+    - ground truth needs precise physics-step semantics
+    - base_link and antenna transforms need to be explicit
+    - GNSS has a configurable sensor model
+    - georeferencing should be ordinary reusable/testable code
+    - future GNSS degradation models will become more sophisticated
+
+Integrate with the existing Isaac Sim application lifecycle.
+
+Publishers/callbacks must be cleanly created and destroyed when the simulator starts/stops or resets. Avoid accumulating duplicate callbacks or ROS publishers across simulation resets/reloads.
+
+
+4. CONFIGURATION
+
+Follow the project's existing configuration conventions rather than creating a new configuration system.
+
+The following values should ultimately be configurable:
+
+Ground truth:
+
+    enabled
+    topic
+    world frame
+    base frame
+    optional publication rate
+
+GNSS:
+
+    enabled
+    topic
+    antenna frame
+    antenna/static transform if not otherwise defined
+    update rate
+    horizontal noise standard deviation
+    vertical noise standard deviation
+    random seed
+
+Georeference:
+
+    projected CRS, initially EPSG:32610
+    origin easting
+    origin northing
+    origin altitude
+    world-to-grid heading/orientation
+
+Use sensible defaults only where the existing simulator already provides enough context. Do not fabricate geographic origin coordinates. If no geographic origin currently exists in the project, expose it as required configuration and identify this clearly.
+
+
+5. INITIAL VALIDATION
+
+Before adding noise, test with GNSS noise disabled.
+
+Ground-truth validation:
+
+    - /ground_truth/odom appears at approximately physics rate.
+    - timestamps advance according to simulation time.
+    - position and orientation match the tractor visually.
+    - linear velocity is correct during straight driving.
+    - angular velocity is correct during turns.
+    - stopping produces the expected zero/nearly-zero twist.
+    - base_link offset, if any, is handled correctly.
+    - no ground-truth TF is injected into the normal TF tree.
+
+GNSS validation:
+
+    - /gps/fix appears at the configured GNSS rate.
+    - timestamps use simulation time.
+    - latitude/longitude change in the correct direction as the tractor moves.
+    - eastward local movement produces the correct geographic movement.
+    - northward local movement produces the correct geographic movement.
+    - antenna height changes are reflected appropriately.
+    - zero-noise GPS agrees with the georeferenced ground-truth antenna position.
+    - NavSatFix covariance/status fields are populated consistently.
+
+Then enable a deliberately obvious noise level and verify that /gps/fix varies around the true antenna trajectory.
+
+
+6. MAPVIZ / FUTURE VISUAL VALIDATION
+
+Mapviz will be introduced on the system ROS 2 Humble side after these streams are operational.
+
+The project already has Mapviz-friendly farm map tiles. Do not implement tile generation or a tile server as part of this task.
+
+Future visualization will compare:
+
+    - georeferenced farm tiles
+    - /gps/fix
+    - ground-truth trajectory transformed/georeferenced for visualization
+
+This will provide a visual end-to-end test of the simulator georeference and GNSS output.
+
+Do not add Mapviz as a dependency of the Isaac Sim process.
+
+
+7. CURRENT TELEOPERATION
+
+For initial development/testing, continue using the existing Isaac Sim-native tractor teleoperation.
+
+Do not replace it with ROS 2 teleoperation in this task.
+
+The tractor uses PhysX Vehicle behavior and control details such as braking. Moving vehicle control to an external ROS 2 node therefore requires separate design and testing. Simulation teleoperation is expected to be primarily a development/debugging facility rather than an important final simulator feature.
+
+
+8. OUT OF SCOPE
+
+Do not implement the following as part of this change:
+
+    - odometry estimator
+    - EKF
+    - map -> odom
+    - odom -> base_link
+    - automatic TF publication from ground truth
+    - Nav2 integration
+    - ROS-side teleoperation
+    - RTK receiver model
+    - canopy-dependent GPS degradation
+    - multipath
+    - VIO
+    - Mapviz setup
+    - new map/imagery generation
+
+
+9. EXPECTED RESULT
+
+At completion, while the existing Isaac-native teleoperation drives the tractor, an external ROS 2 participant should be able to observe at least:
+
+    /clock
+    /ground_truth/odom
+    /gps/fix
+
+with:
+
+    /ground_truth/odom
+
+providing exact PhysX-derived base_link pose and twist at physics cadence, and:
+
+    /gps/fix
+
+providing a configurable-rate simulated WGS84 GNSS measurement of the tractor's GPS antenna position.
+
+The implementation should establish a clean foundation for later ROS 2 localization experiments without coupling the simulator to any particular estimator or localization strategy.

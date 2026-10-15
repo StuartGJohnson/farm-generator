@@ -6,8 +6,8 @@ import math
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
-from .config import TractorConfig
-from .names import BASE_LINK, SENSOR_POD_LINK, STEERING_JOINTS, STEERING_LINKS, WHEELS, WHEEL_JOINTS, camera_joint, camera_link
+from .config import GPS_DOME_RADIUS_M, TractorConfig
+from .names import BASE_LINK, GPS_LINK, SENSOR_POD_LINK, STEERING_JOINTS, STEERING_LINKS, WHEELS, WHEEL_JOINTS, camera_joint, camera_link
 
 DENSITY = 1000.0
 
@@ -88,6 +88,19 @@ def write_tractor_urdf(config: TractorConfig, path: str | Path) -> Path:
     ET.SubElement(joint, "parent", link=BASE_LINK); ET.SubElement(joint, "child", link=SENSOR_POD_LINK)
     pod_local_z = config.sensor_pod_height_above_ground - config.body_center_z
     ET.SubElement(joint, "origin", xyz=f"0 0 {pod_local_z}", rpy="0 0 0")
+    if config.center_gps:
+        # gps_link is halfway up the visible 10 cm hemispherical dome.
+        gps = ET.SubElement(robot, "link", name=GPS_LINK)
+        visual = ET.SubElement(gps, "visual")
+        geometry = ET.SubElement(visual, "geometry")
+        ET.SubElement(geometry, "sphere", radius=str(GPS_DOME_RADIUS_M))
+        ET.SubElement(visual, "origin", xyz=f"0 0 {-GPS_DOME_RADIUS_M / 2}", rpy="0 0 0")
+        material = ET.SubElement(visual, "material", name="gps_black")
+        ET.SubElement(material, "color", rgba="0.015 0.018 0.015 1")
+        joint = ET.SubElement(robot, "joint", name="gps_joint", type="fixed")
+        ET.SubElement(joint, "parent", link=SENSOR_POD_LINK)
+        ET.SubElement(joint, "child", link=GPS_LINK)
+        ET.SubElement(joint, "origin", xyz=f"0 0 {config.sensor_pod_height / 2 + GPS_DOME_RADIUS_M / 2}", rpy="0 0 0")
 
     specs = (
         (0, config.front_axle_x, config.front_track_width/2, config.front_tire_dia/2, config.front_tire_width),

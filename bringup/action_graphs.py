@@ -6,6 +6,26 @@ from tractor_generation.config import TractorConfig
 from tractor_generation.names import camera_link
 
 
+def create_ros2_clock_graph(graph_path: str = "/World/ROS2Clock") -> None:
+    """Publish the same simulation clock used by state message timestamps."""
+    import omni.graph.core as og
+
+    og.Controller.edit(
+        {"graph_path": graph_path, "evaluator_name": "execution"},
+        {
+            og.Controller.Keys.CREATE_NODES: [
+                ("Tick", "omni.graph.action.OnPlaybackTick"),
+                ("SimulationTime", "isaacsim.core.nodes.IsaacReadSimulationTime"),
+                ("Clock", "isaacsim.ros2.bridge.ROS2PublishClock"),
+            ],
+            og.Controller.Keys.CONNECT: [
+                ("Tick.outputs:tick", "Clock.inputs:execIn"),
+                ("SimulationTime.outputs:simulationTime", "Clock.inputs:timeStamp"),
+            ],
+        },
+    )
+
+
 def create_ros2_camera_graphs(
     config: TractorConfig,
     tractor_path: str = "/World/Tractor",
