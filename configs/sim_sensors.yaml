@@ -1,7 +1,7 @@
 ground_truth:
   enabled: true
   topic: /ground_truth/odom
-  world_frame: world
+  world_frame: map
   base_frame: base_link
   # null publishes every physics step.
   rate_hz: null

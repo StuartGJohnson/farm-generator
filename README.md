@@ -543,7 +543,7 @@ topics:
 | Topic | Message | Frame and rate |
 | --- | --- | --- |
 | `/clock` | `rosgraph_msgs/msg/Clock` | Simulation time |
-| `/ground_truth/odom` | `nav_msgs/msg/Odometry` | Pose in `world`, twist in `base_link`; every physics step by default |
+| `/ground_truth/odom` | `nav_msgs/msg/Odometry` | Pose in `map`, twist in `base_link`; every physics step by default |
 | `/gps/fix` | `sensor_msgs/msg/NavSatFix` | WGS84 antenna position in `gps_link`; 10 Hz by default |
 
 Ground truth comes directly from the PhysX rigid body, with its velocity
@@ -731,6 +731,55 @@ quick rerun of Route 01 alone, or `--case-index 3` to rerun only Route 03.
 The JSON files retain ordered road, row, and Reeds–Shepp segments, service
 IDs, local poses, distance, and maneuver driving directions. See
 `route_planning/README.md` for current geometric policy and limitations.
+
+## ROS2 nodes: ground_truth_localization
+
+`src/ground_truth_localization` is a separate C++ ROS 2 Humble package. It
+copies the simulator's `/ground_truth/odom` to `/odom`, preserving the pose,
+body-frame twist, covariances, and simulation timestamp. It publishes
+`odom -> base_link` on `/tf` and, by default, an identity `map -> odom` on
+`/tf_static`. The simulator's configured ground-truth frame is `map`, so the
+resulting TF chain is `map -> odom -> base_link`. By default, the node publishes
+an identity `map -> odom` transform, forcing the two frames to coincide. If
+`publish_map_to_odom` is disabled, another source must provide that identity
+transform. No robot link transforms are added.
+
+Run the simulator in one shell using the Isaac Sim conda environment:
+
+```bash
+conda activate isaacsim61-cu13
+export ROS_DISTRO=humble
+export RMW_IMPLEMENTATION=rmw_fastrtps_cpp
+python -m bringup.launch_tractor --ros2
+```
+
+In a separate shell, use system ROS 2 Humble and build the node from the repo
+root. Keep this shell free of the Isaac Sim conda environment and its library
+paths. If conda is active, run `conda deactivate` first:
+
+```bash
+unset LD_LIBRARY_PATH PYTHONPATH
+source /opt/ros/humble/setup.bash
+colcon build --base-paths src --packages-select ground_truth_localization \
+  --cmake-args -DPython3_EXECUTABLE=/usr/bin/python3
+source install/setup.bash
+ros2 launch ground_truth_localization ground_truth_localization.launch.py
+```
+
+The launch file accepts `source_topic`, `odom_topic`, `map_frame_id`,
+`odom_frame_id`, `base_frame_id`, `publish_tf`, `publish_map_to_odom`, and
+`use_sim_time` arguments. With both processes running, verify the live topics
+and transforms from a third system ROS 2 Humble shell:
+
+```bash
+unset LD_LIBRARY_PATH PYTHONPATH
+source /opt/ros/humble/setup.bash
+python3 src/ground_truth_localization/test/verify_sim_integration.py
+```
+
+The verifier checks `/clock`, `/gps/fix`, both odometry topics, and matching
+`map -> odom -> base_link` transforms. Use the same `ROS_DOMAIN_ID` in all
+shells if it differs from the default.
 
 ## AI assistance
 

@@ -1,0 +1,3 @@
+[submodule "src/ground_truth_localization"]
+	path = src/ground_truth_localization
+	url = git@github.com:StuartGJohnson/ground_truth_localization.git
