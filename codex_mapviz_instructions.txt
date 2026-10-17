@@ -1,0 +1,28 @@
+Our current task is bring up mapviz as a viewer of the isaacsim simulation launched by bringup/launch_tractor.py.
+
+This involves the composition of a .mviz file to configure mapviz, and launch/script integration for the launch process. Note that while the simulator is launched from the conda env isaacsim61_cu13, the ros2 components (mapviz and ground_truth_localization) are both launched from a shell that has sourced /opt/ros/humble/setup.bash (the system ros2). As a first test, it seems to me the teloperated robot can be  operated and the effects of the teleoperation viewed in mapviz (via the results of this task).
+
+There are several aspects to this. mapviz configuration should only depend on the tractor and the farm. A reference for this is the default constants of bringup/launch_tractor.py. In particular:
+
+In a farm such as <farm> = debug_out/farms/farm_seed_1_120m2, relevant mapviz parameters are in:
+
+<farm>/gis/map_frame.json		ros2 coordinate origin and mapping CRS
+<farm>/gis/tiles				orthophoto tiles for the mapping layer in mapviz
+
+
+The mapviz output should show ground_truth/odom AND /gps/fix on the map in mapviz as (minimally) pose. The symbols for these should be distinct so they can be compared - these should be coincident at this point, but as simulated gps errors are introduced, this will not be the case.
+
+Note mapviz problably need the gis/ros2 coordinate offset and the map frame set in the .mviz file.
+
+A launch file which launches the ground_truth_localization node and mapviz together would be useful. Let's place launch files for the system ros2 combinations in their own ros2 node called "bringup". place this in src/bringup as a python ROS2 node.
+
+Aspects of startup and other useful details should be updated in a new section of the README.md called "mapview support", placed before the section on "AI assistance".
+
+When testing, I should be able to launch the mapviz/ground_truth_localization stuff from a system ros2 shell, and the simulator from an isaacsim61_cu13 shell.
+
+
+mapviz is installed in the system ros2 and has been tested - to some degree.
+
+
+
+

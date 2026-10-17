@@ -214,7 +214,7 @@ showcase bundle is written under
 
 The bundle contains `world/farm.usda`, `assets/`, `procedural_assets/`,
 `farm.yaml`, and `gis/` with `farm.gpkg`, `orthophoto.tif`, `farm.qgz`,
-`tiles/{16,17,18}/`, `map_frame.json`, and `semantic_reference.json`.
+`tiles/{16,17,18,19,20,21}/`, `map_frame.json`, and `semantic_reference.json`.
 The USDA and QGIS project use relative asset paths so the directory can be
 moved as a unit. The GeoPackage has separate fields, tree rows, roads and road
 centerlines, trees, channels and channel centerlines, and crossings. Their IDs,
@@ -591,7 +591,7 @@ python examples/generate_showcase_farm.py --seed 1 --gsd 0.05
 The result is `debug_out/farms/farm_seed_1_120m2/`, including `farm.yaml`,
 `world/farm.usda`, bundled assets, and `gis/`. The GIS directory contains
 `farm.gpkg` (semantic vectors), `orthophoto.tif` (north-up GeoTIFF), `farm.qgz`
-(styled QGIS project), and XYZ `tiles/` at zoom levels 16–18. The vectors,
+(styled QGIS project), and XYZ `tiles/` at zoom levels 16–21. The vectors,
 GeoTIFF, and QGIS project use EPSG:32610; XYZ tiles use Web Mercator.
 `map_frame.json` records the offset between UTM and local ROS map coordinates.
 `semantic_reference.json` holds counts used to verify the exported features.
@@ -780,6 +780,48 @@ python3 src/ground_truth_localization/test/verify_sim_integration.py
 The verifier checks `/clock`, `/gps/fix`, both odometry topics, and matching
 `map -> odom -> base_link` transforms. Use the same `ROS_DOMAIN_ID` in all
 shells if it differs from the default.
+
+## mapview support
+
+The system ROS 2 `bringup` package starts Mapviz alongside
+`ground_truth_localization`. Its farm-specific Mapviz configuration uses the
+farm's `gis/map_frame.json` to place the local `map` frame on the offline XYZ
+orthophoto tiles in `gis/tiles/`. It draws `/ground_truth/odom` as a pink arrow
+and `/gps/fix` as a cyan point. The two symbols overlap in the current
+zero-noise simulation, except for any small projection difference. Mapviz
+follows `base_link` as the tractor moves. The generated configuration is saved
+as `<farm>/gis/mapviz.generated.mviz` for inspection.
+
+![Mapviz view of the showcase orchard with ground truth and GPS positions](mapviz_render.png)
+
+Start the simulator first from an `isaacsim61-cu13` shell, following the ROS 2
+environment setup in the tractor bringup section above:
+
+```bash
+python -m bringup.launch_tractor --ros2
+```
+
+Then, from a separate system ROS 2 Humble shell at the repository root, build
+and launch Mapviz and the localization node:
+
+```bash
+conda deactivate  # if a conda environment is active
+unset LD_LIBRARY_PATH PYTHONPATH
+source /opt/ros/humble/setup.bash
+colcon build --base-paths src --packages-select ground_truth_localization bringup \
+  --cmake-args -DPython3_EXECUTABLE=/usr/bin/python3
+source install/setup.bash
+ros2 launch bringup mapviz_ground_truth.launch.py \
+  farm:=debug_out/farms/farm_seed_1_120m2
+```
+
+The simulator's default farm and tractor assets match the launch command above.
+Use its W/S throttle and A/D steering controls to watch the two positions move
+on the map. The ROS launch starts one `ground_truth_localization` instance, so
+do not also start its standalone launch file. For a different generated farm,
+pass its directory as `farm:=...` and pass the matching `--world` and
+`--farm-config` paths to the simulator. Keep `ROS_DOMAIN_ID` the same in both
+shells.
 
 ## AI assistance
 

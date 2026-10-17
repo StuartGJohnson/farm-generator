@@ -208,7 +208,7 @@ def main(input_path, output_dir):
     if data["rgb_path"]:
         _write_orthophoto(tif, data["rgb_path"], data["bounds"], data["gsd_m"], east, north, srs)
     if tif.exists() and data["tiles"]:
-        subprocess.run(["/usr/bin/gdal2tiles.py", "--xyz", "--zoom=16-18", "--processes=1",
+        subprocess.run(["/usr/bin/gdal2tiles.py", "--xyz", "--zoom=16-21", "--processes=1",
                         "--webviewer=none", str(tif), str(output_dir / "tiles")], check=True)
     bounds = data["bounds"]
     _write_qgis(output_dir / "farm.qgz", gpkg, tif if data["rgb_path"] else None,

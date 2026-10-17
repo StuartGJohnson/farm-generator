@@ -1,0 +1,13 @@
+Our next task is to implement a ros2 node which republishes the ros2 topic /ground_truth/odom into /odom and publishes odom->base_link to the transform tree. This node should optionally (default true) publish a static identity transform from map to odom. This will allow a full transform tree (minus the robot - that is later) to be present in the ros2 system being served by the simulation launched from bringup/launch_tractor.py. This should be a fast node, so we shall chose c++, and this node should be present in the directory src/ground_truth_localization. You can use the example in ../ugv_ws/src/ground_truth_republish as a similar example - although note that /ground_truth/odom is a true odom message, not a pose which needs to be differences. This ros2 node should use the system ros2 humble, which evolves from source /opt/ros/humble/setup.bash. ROS2 dev and builds for code in src/ should not use the ros2 implied by the use of the conda env isaacsim61-cu13. So shell usage should be kept separate. This new c++ node should expose parameters like the example given in ground_truth_republish. When run in conjuction with the launched simulator (bringup/launch_tractor.py), this new node should populate the tf tree and the new topics (/odom).
+
+This node will need a launch file which accepts/sets the default names for frames and topics. This is general purpose node for simulators which provide ground truth (as an odometry message).
+
+Be sure and keep builds and executions in separate shells for the isaacsim and the new (system ros2 humble) node.
+
+All files should be in src/ground_truth_repub - which will become a repo of it's own.
+
+One other note: the "world_frame" in the simulation should be "map". THere is no need for the "world" coordinate system in ros2, AFAIK, and I am used to a robot with no "world" frame. This change should be made in configs/sim_sensors.yaml.
+
+A test should reveal that the simulator stack + the launch of this ros2 node provides the proper tf and topics. I am not quite sure how the test is best defined that runs in two different shells at the "same time". Feel free to discuss.
+
+It should not be necessary to generate a launch file which launches the simulator and the system ros2 nodes together. That will be the resposibility of the user, informed by an update to the README.md file. Put this update at the end of the README.md, before the section on AI Assistance. Call this section "ROS2 nodes: ground_truth_localization". We will be adding more of these sections.

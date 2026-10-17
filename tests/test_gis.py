@@ -27,7 +27,7 @@ def test_gis_roundtrip(tmp_path):
     assert info["size"] == [8, 8]
     assert info["geoTransform"][1] == 10
     assert info["geoTransform"][5] == -10
-    assert all((tmp_path / "gis" / "tiles" / str(z)).is_dir() for z in (16, 17, 18))
+    assert all((tmp_path / "gis" / "tiles" / str(z)).is_dir() for z in range(16, 22))
     with zipfile.ZipFile(tmp_path / "gis" / "farm.qgz") as archive:
         qgs = archive.read(next(name for name in archive.namelist() if name.endswith(".qgs"))).decode()
     assert "./orthophoto.tif" in qgs

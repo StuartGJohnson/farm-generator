@@ -1,0 +1,50 @@
+capture_directory: "~"
+fixed_frame: map
+target_frame: base_link
+fix_orientation: false
+rotate_90: false
+enable_antialiasing: true
+show_displays: true
+show_status_bar: true
+show_capture_tools: true
+window_width: 1100
+window_height: 850
+view_scale: 0.25
+offset_x: 0
+offset_y: 0
+use_latest_transforms: true
+background: "#30343b"
+displays:
+  - type: mapviz_plugins/tile_map
+    name: Farm orthophoto
+    config:
+      visible: true
+      collapsed: true
+      custom_sources:
+        - name: Farm orthophoto
+          type: wmts
+          base_url: FARM_TILE_URL
+          max_zoom: 21
+      bing_api_key: ""
+      source: Farm orthophoto
+  - type: mapviz_plugins/odometry
+    name: Ground truth
+    config:
+      visible: true
+      collapsed: false
+      topic: /ground_truth/odom
+      color: "#ff4d79"
+      draw_style: arrows
+      show_covariance: false
+      position_tolerance: 0
+      buffer_size: 1
+  - type: mapviz_plugins/navsat
+    name: GPS fix
+    config:
+      visible: true
+      collapsed: false
+      topic: /gps/fix
+      color: "#00d5ff"
+      draw_style: points
+      position_tolerance: 0
+      buffer_size: 1
