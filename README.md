@@ -781,7 +781,7 @@ The verifier checks `/clock`, `/gps/fix`, both odometry topics, and matching
 `map -> odom -> base_link` transforms. Use the same `ROS_DOMAIN_ID` in all
 shells if it differs from the default.
 
-## mapview support
+## mapviz support
 
 The system ROS 2 `bringup` package starts Mapviz alongside
 `ground_truth_localization`. Its farm-specific Mapviz configuration uses the

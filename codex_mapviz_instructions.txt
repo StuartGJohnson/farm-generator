@@ -16,7 +16,7 @@ Note mapviz problably need the gis/ros2 coordinate offset and the map frame set 
 
 A launch file which launches the ground_truth_localization node and mapviz together would be useful. Let's place launch files for the system ros2 combinations in their own ros2 node called "bringup". place this in src/bringup as a python ROS2 node.
 
-Aspects of startup and other useful details should be updated in a new section of the README.md called "mapview support", placed before the section on "AI assistance".
+Aspects of startup and other useful details should be updated in a new section of the README.md called "mapviz support", placed before the section on "AI assistance".
 
 When testing, I should be able to launch the mapviz/ground_truth_localization stuff from a system ros2 shell, and the simulator from an isaacsim61_cu13 shell.
 
