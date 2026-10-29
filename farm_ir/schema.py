@@ -337,6 +337,7 @@ class TreeInstance(SpatialFeature):
 @dataclass
 class WeedZone(SpatialFeature):
     polygon: Polygon = field(default_factory=list)
+    excluded_polygons: list[Polygon] = field(default_factory=list)
     # Cultivated row axes that drive weed placement.  Keeping these in the
     # IR avoids trying to recover rows from a set of tree points at export
     # time, and permits non-tree row crops later.
@@ -415,6 +416,34 @@ class SurfaceHeightField:
     height_min: float
     height_max: float
     shoreline_taper_m: float = 1.0
+    road_values: Optional[list[list[float]]] = None
+    road_height_min: Optional[float] = None
+    road_height_max: Optional[float] = None
+    road_field_blend_m: float = 2.0
+
+
+@dataclass
+class ParkingSpot:
+    number: int
+    center: Point2
+    yaw_in: float
+    length_m: float
+    width_m: float
+
+
+@dataclass
+class Depot:
+    field_id: str
+    polygon: Polygon
+    row_direction: Point2
+    cross_row_direction: Point2
+    parking_spots: list[ParkingSpot] = field(default_factory=list)
+    draw_parking_spaces: bool = True
+    origin: Point2 = (0.0, 0.0)
+    along_row_length_m: float = 0.0
+    cross_row_width_m: float = 0.0
+    parking_line_length_m: float = 0.0
+    parking_inset_m: float = 0.0
 
 
 @dataclass
@@ -431,3 +460,4 @@ class FarmScene:
     provenance: GenerationProvenance = field(default_factory=GenerationProvenance)
     surface_friction: Optional[SurfaceFriction] = None
     surface_height: Optional[SurfaceHeightField] = None
+    depot: Optional[Depot] = None

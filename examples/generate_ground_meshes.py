@@ -41,6 +41,7 @@ def main() -> None:
             weed_row_falloff_m=0.35,
             hydrology_add_water=True,
             hydrology_water_depth_fraction=0.5,
+            road_height_variation_range_m=0.05,
         )
         scene, issues, used_seed = generate_validated(config)
         status = "OK" if not issues else f"{len(issues)} ISSUE(S)"

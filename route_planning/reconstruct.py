@@ -10,10 +10,12 @@ from shapely.geometry import Point
 from shapely.ops import unary_union
 from shapely.strtree import STRtree
 
-from .model import FarmMap, FarmTask, PlannerConfig, Route, RouteSegment, RoutingGraph
+from .graph import _field_driveable
+from .model import (FarmMap, FarmTask, PlannerConfig, Route, RouteSegment,
+                    RoutingGraph, parking_spot_polygon)
 from .optimize import TraversalSolution, arc_cost, row_repeat_counts
 from .path_feasibility import (TractorFootprint, path_feasibility,
-                               road_turn_region, tree_convex_hulls)
+                               road_turn_region, tree_concave_hulls)
 
 
 def reconstruct_route(graph: RoutingGraph, task: FarmTask,
@@ -82,8 +84,9 @@ def validate_route(route: Route, graph: RoutingGraph, farm: FarmMap,
     selected_fields = set(route.task.field_ids)
     footprint = TractorFootprint.from_config(config.tractor)
     channel_union = unary_union(list(farm.irrigation_channels.values()))
-    permitted_fields = {fid: farm.fields[fid].difference(channel_union) for fid in selected_fields}
-    tree_hulls = tree_convex_hulls(farm, tuple(selected_fields))
+    permitted_fields = {fid: _field_driveable(farm, fid).difference(channel_union)
+                        for fid in selected_fields}
+    tree_hulls = tree_concave_hulls(farm, tuple(selected_fields))
     obstacles = {fid: [Point(t.x, t.y).buffer(config.trunk_clearance_m)
                        for t in farm.trees.values() if t.field_id == fid]
                  for fid in selected_fields}
@@ -92,7 +95,7 @@ def validate_route(route: Route, graph: RoutingGraph, farm: FarmMap,
     turn_obstacles = [Point(t.x, t.y).buffer(config.trunk_clearance_m)
                       for t in farm.trees.values()]
     turn_index = STRtree(turn_obstacles)
-    turn_tree_hull = unary_union(list(tree_convex_hulls(farm, tuple(farm.fields)).values()))
+    turn_tree_hull = unary_union(list(tree_concave_hulls(farm, tuple(farm.fields)).values()))
     for segment in segments:
         arc = graph.arcs[segment.arc_id]
         assert segment.poses == arc.poses
@@ -112,13 +115,30 @@ def validate_route(route: Route, graph: RoutingGraph, farm: FarmMap,
             assert segment.field_id in selected_fields
         if segment.kind == "rs":
             fid = segment.field_id
-            assert path_feasibility(segment.poses, permitted_fields[fid],
+            region = permitted_fields[fid]
+            hull = tree_hulls[fid]
+            if farm.depot is not None and (graph.vertices[arc.u].field_id is None or
+                                           graph.vertices[arc.v].field_id is None):
+                region = region.union(farm.depot).buffer(1e-4)
+            assert path_feasibility(segment.poses, region,
                                     obstacles[fid], footprint, obstacle_indices[fid],
-                                    tree_hulls[fid])
+                                    hull)
         if segment.kind == "road_turn":
             assert segment.reverse_events == 0
             assert path_feasibility(segment.poses, turn_region, turn_obstacles,
                                     footprint, turn_index, turn_tree_hull)
+        if segment.kind == "depot":
+            permitted_depot = unary_union([farm.depot, *farm.road_surfaces.values()])
+            terminal_pose = (segment.poses[0] if arc.u == graph.start_id else
+                             segment.poses[-1] if arc.v == graph.end_id else None)
+            assert terminal_pose is not None
+            own_spot = next((number for number, spot in farm.parking_spots.items()
+                             if parking_spot_polygon(spot).covers(
+                                 Point(terminal_pose.x, terminal_pose.y))), None)
+            assert own_spot is not None
+            blocked_spots = [parking_spot_polygon(spot).buffer(config.depot_parking_clearance_m)
+                             for number, spot in farm.parking_spots.items() if number != own_spot]
+            assert path_feasibility(segment.poses, permitted_depot, blocked_spots, footprint)
         if segment.kind == "road" and segment.field_id is None:
             assert path_feasibility(segment.poses, turn_region, turn_obstacles,
                                     footprint, turn_index, turn_tree_hull)

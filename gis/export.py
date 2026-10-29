@@ -67,6 +67,7 @@ def _features(scene):
     layers = {name: [] for name in (
         "fields", "row_centerlines", "roads", "road_centerlines", "trees",
         "irrigation_channels", "channel_centerlines", "crossings",
+        "depot", "parking_spots",
     )}
     field_names = {pid: f"Field {i:03d}" for i, pid in enumerate(sorted(scene.parcels), 1)}
     assignments = _row_assignments(scene)
@@ -74,7 +75,10 @@ def _features(scene):
     for tree in scene.trees.values():
         trees_by_row.setdefault(assignments[tree.id], []).append(tree)
     for pid, parcel in sorted(scene.parcels.items()):
-        layers["fields"].append(_feature(Polygon(parcel.polygon), id=pid,
+        field_poly = Polygon(parcel.polygon)
+        if scene.depot is not None and scene.depot.field_id == pid:
+            field_poly = field_poly.difference(Polygon(scene.depot.polygon).buffer(1e-4))
+        layers["fields"].append(_feature(field_poly, id=pid,
                                          name=field_names[pid], label=field_names[pid],
                                          kind=str(parcel.parcel_type.value),
                                          crop_type=getattr(parcel, "crop_type", "")))
@@ -109,6 +113,21 @@ def _features(scene):
                      field_id=field_id, field_a=field_a, field_b=field_b)
         layers["road_centerlines"].append(_feature(line, **props))
         layers["roads"].append(_feature(line.buffer(edge.width / 2, cap_style="flat", join_style="mitre"), **props))
+    if scene.depot is not None:
+        depot = scene.depot
+        footprint = Polygon(depot.polygon)
+        road_surface = next((edge.surface.value for edge in scene.roads.edges.values()
+                             if edge.tags.get("parcel_id") == depot.field_id), "gravel")
+        layers["depot"].append(_feature(footprint, id="depot", field_id=depot.field_id))
+        layers["roads"].append(_feature(footprint, id="depot", name="Tractor depot",
+                                        road_class="depot", width_m=0.0,
+                                        surface=road_surface, field_id=depot.field_id))
+        for spot in depot.parking_spots:
+            layers["parking_spots"].append(_feature(Point(spot.center),
+                id=f"depot_spot_{spot.number}", label=str(spot.number),
+                field_id=depot.field_id, number=spot.number,
+                yaw_in=spot.yaw_in, length_m=spot.length_m,
+                width_m=spot.width_m))
     for tree in sorted(scene.trees.values(), key=lambda t: t.id):
         pid, row_number = assignments[tree.id]
         layers["trees"].append(_feature(Point(tree.position), id=tree.id,

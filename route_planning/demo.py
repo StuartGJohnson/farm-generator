@@ -84,6 +84,8 @@ def main():
                         help="number of seeded showcase tasks to plan")
     parser.add_argument("--case-index", type=int, choices=(1, 2, 3),
                         help="plan only this seeded showcase task (within --cases)")
+    parser.add_argument("--stem-suffix", default="",
+                        help="append to output names, preserving an earlier route (for example _post_depot)")
     parser.add_argument("--solver-time", type=float,
                         help="override per-case limits (default: 60/90/60 seconds)")
     parser.add_argument("--reverse-multiplier", type=float, default=8.0)
@@ -135,7 +137,7 @@ def main():
             raise RuntimeError(f"Mission {index} from seed {args.seed} could not be planned") from exc
         if _has_in_place_reversal(route):
             raise RuntimeError(f"Mission {index} from seed {args.seed} has a road U-turn")
-        stem = f"route_{index:02d}"
+        stem = f"route_{index:02d}{args.stem_suffix}"
         save_route_json(route, farm, output / f"{stem}.json")
         save_route_plot(route, farm, output / f"{stem}.png")
         manifest.append({"name": stem, "seed": args.seed, "fields": task.field_ids,

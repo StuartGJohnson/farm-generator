@@ -8,7 +8,8 @@ from osgeo import gdal, ogr
 
 
 LAYERS = ("fields", "row_centerlines", "roads", "road_centerlines", "trees",
-          "irrigation_channels", "crossings")
+          "irrigation_channels", "crossings", "depot", "parking_spots")
+OPTIONAL_LAYERS = {"depot", "parking_spots"}
 
 
 def main(gis_dir):
@@ -22,6 +23,9 @@ def main(gis_dir):
     layers = {}
     for name in LAYERS:
         layer = ds.GetLayerByName(name)
+        if layer is None and name in OPTIONAL_LAYERS:
+            layers[name] = []
+            continue
         if layer is None or layer.GetSpatialRef().GetAuthorityCode(None) != "32610":
             raise ValueError(f"Missing or incorrectly projected GIS layer {name}")
         layers[name] = []

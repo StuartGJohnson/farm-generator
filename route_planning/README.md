@@ -83,7 +83,7 @@ RS poses track the non-steering rear axle. `path_feasibility.py` builds the
 convex outer envelope of the straight-ahead body and tires and checks its
 swept footprint against the field polygon minus the GIS irrigation channels,
 with 0.2 m clearance from tree points. The rear-axle RS trace is also barred
-from the interior of each field's tree convex hull, so row-to-row maneuvers
+from the interior of each field's tree concave hull, so row-to-row maneuvers
 stay in headlands or sidelands. The tractor footprint may overlap the hull
 at a row endpoint while the tractor leaves or enters that row. Road turns use
 the same swept-footprint check against all trees and channels. The GIS road
@@ -91,9 +91,10 @@ surface over each crossing is the only permitted bridge across a channel;
 adjacent field headlands and sidelands remain available to the turn. The
 default road turn setback is 2.7 m. Other defaults include 0.35 m RS sampling and a 15 m RS
 candidate radius. Reeds–Shepp alternatives are ranked using
-an 8x reverse-distance multiplier, a 2 m equivalent penalty per internal gear
-change, and a 100 m equivalent penalty per contiguous reverse episode. The
-same costs are used by the route optimizer. `--reverse-event-penalty` controls
+an 8x reverse-distance multiplier outside the depot, a 2 m equivalent penalty
+per internal gear change, and a 100 m equivalent penalty per contiguous
+reverse episode. The same costs are used by the route optimizer.
+`--reverse-event-penalty` controls
 the last cost. `--field-rs-forward-only` discards every reversing field RS
 candidate while road junctions remain forward-only in either mode. The default implement
 range is half the median nearest-row spacing measured from GIS. One-tree rows

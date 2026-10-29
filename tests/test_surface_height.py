@@ -5,14 +5,24 @@ import json
 
 import numpy as np
 import pytest
+from shapely.geometry import box
 
 from generation.orchestrator import FarmGenerationConfig, generate_farm, load_farm, save_farm
-from generation.surface_height import generate_surface_height, sample_height
+from generation.surface_height import generate_surface_height, sample_ground_height, sample_height
 from export.usd import build_ground_mesh
+from export.usd.ground_mesh import build_road_surface_patches
+from farm_ir.serialize import read, write
 
 
 def test_height_field_spectrum_and_bounds():
     config = FarmGenerationConfig(bounds=(0, 0, 128, 128), seed=1)
+    assert config.road_height_variation_range_m == pytest.approx(0.125)
+    assert FarmGenerationConfig(bounds=(0, 0, 8, 8), seed=1,
+                               height_variation_range_m=0.5).road_height_variation_range_m == pytest.approx(0.125)
+    assert FarmGenerationConfig(bounds=(0, 0, 8, 8), seed=1,
+                               height_variation_range_m=0.8).road_height_variation_range_m == pytest.approx(0.125)
+    assert FarmGenerationConfig(bounds=(0, 0, 8, 8), seed=1,
+                               road_height_variation_range_m=0.04).road_height_variation_range_m == pytest.approx(0.04)
     field = generate_surface_height(config)
     values = np.asarray(field.values)
     assert field == generate_surface_height(config)
@@ -33,6 +43,39 @@ def test_height_field_spectrum_and_bounds():
     samples = sample_height(field, [(0.3, 0.7), (128.3, 128.7)])
     assert samples[0] == pytest.approx(samples[1])
     assert field.height_min <= samples[0] <= field.height_max
+    road = np.asarray(field.road_values)
+    assert road.min() >= field.road_height_min - 1e-12
+    assert road.max() <= field.road_height_max + 1e-12
+    assert not np.array_equal(road, values)
+    road_area = box(40, 40, 50, 50)
+    sample = np.array([[45, 45], [50, 45], [51, 45], [52, 45], [55, 45]])
+    blended = sample_ground_height(field, sample, road_area)
+    road_only = sample_height(replace(field, values=field.road_values,
+                                      height_min=field.road_height_min,
+                                      height_max=field.road_height_max), sample)
+    assert blended[0] == pytest.approx(road_only[0])
+    assert blended[1] == pytest.approx(road_only[1])
+    assert blended[3] == pytest.approx(sample_height(field, sample[3:4])[0])
+    assert blended[2] != pytest.approx(road_only[2])
+
+
+def test_yaml_height_default_survives_mesh_build(tmp_path):
+    config = FarmGenerationConfig(bounds=(0, 0, 50, 50), seed=1, max_faces=4,
+                                  standoff=3.5, height_variation_range_m=0.8)
+    scene = generate_farm(config)
+    path = tmp_path / "farm.yaml"
+    save_farm(scene, config, str(path))
+    doc = read(str(path))
+    doc["config"].pop("road_height_variation_range_m")
+    write(doc, str(path))
+    loaded_scene, loaded_config = load_farm(str(path))
+    assert loaded_config.height_variation_range_m == pytest.approx(0.8)
+    assert loaded_config.road_height_variation_range_m == pytest.approx(0.125)
+    regenerated = generate_farm(loaded_config)
+    assert regenerated.surface_height == loaded_scene.surface_height
+    mesh = build_ground_mesh(regenerated, loaded_config.bounds)
+    assert mesh.surface_height.road_height_min == pytest.approx(-0.0625)
+    assert mesh.surface_height.road_height_max == pytest.approx(0.0625)
 
 
 def test_height_applies_to_ground_but_not_water_and_survives_round_trip(tmp_path):
@@ -45,7 +88,8 @@ def test_height_applies_to_ground_but_not_water_and_survives_round_trip(tmp_path
     assert terrain.triangles == flat.triangles
     assert terrain.face_surface_regions == flat.face_surface_regions
     assert terrain.face_friction == flat.face_friction
-    offsets = sample_height(scene.surface_height, [point[:2] for point in flat.points])
+    road_area = next(p.polygon for p in build_road_surface_patches(scene, config.bounds) if not p.is_crossing)
+    offsets = sample_ground_height(scene.surface_height, [point[:2] for point in flat.points], road_area)
     assert np.allclose(np.asarray(terrain.points)[:, 2],
                        np.asarray(flat.points)[:, 2] + offsets * terrain.height_weights)
     assert any(abs(offset) > .01 for offset in offsets)
@@ -100,6 +144,7 @@ def test_height_applies_to_ground_but_not_water_and_survives_round_trip(tmp_path
     {"height_spectral_slope": -1}, {"height_mean": float("nan")},
     {"height_seed": -1},
     {"shoreline_taper_m": -1},
+    {"road_height_variation_range_m": None},
 ])
 def test_invalid_height_parameters(change):
     with pytest.raises(ValueError):

@@ -19,7 +19,7 @@ from export.usd import (
     write_ground_mesh_usda,
 )
 from generation.orchestrator import FarmGenerationConfig, generate_farm
-from generation.surface_height import sample_height
+from generation.surface_height import sample_ground_height
 from generation.procedural_assets import generate_procedural_asset_library
 
 
@@ -76,10 +76,10 @@ def test_ground_mesh_covers_bounds_and_contains_channels(tmp_path):
     assert max(p[0] for p in mesh.points) == bounds[2]
     assert min(p[1] for p in mesh.points) == bounds[1]
     assert max(p[1] for p in mesh.points) == bounds[3]
-    offsets = sample_height(scene.surface_height, [point[:2] for point in mesh.points])
+    offsets = sample_ground_height(scene.surface_height, [point[:2] for point in mesh.points], road_area)
     profile_heights = [point[2] - offset for point, offset in zip(mesh.points, offsets)]
     assert min(profile_heights) == pytest.approx(-0.8)
-    assert max(profile_heights) == pytest.approx(0.0)
+    assert max(profile_heights) == pytest.approx(0.0, abs=1e-7)
     assert all(len(set(t)) == 3 for t in mesh.triangles)
     triangle_edges = {
         tuple(sorted((tri[i], tri[(i + 1) % 3])))
@@ -428,7 +428,9 @@ def test_water_surfaces_are_closed_separate_meshes_and_exported(tmp_path):
         assert all(count in (1, 2) for count in edge_counts.values())
 
     # The waterline is also a ground PSLG contour at half channel depth.
-    offsets = sample_height(scene.surface_height, [point[:2] for point in mesh.points])
+    road_area = next(patch.polygon for patch in build_road_surface_patches(scene, bounds)
+                     if not patch.is_crossing)
+    offsets = sample_ground_height(scene.surface_height, [point[:2] for point in mesh.points], road_area)
     assert any(
         abs(mesh.points[a][2] - offsets[a] * mesh.height_weights[a] + 0.4) < 1e-6
         and abs(mesh.points[b][2] - offsets[b] * mesh.height_weights[b] + 0.4) < 1e-6

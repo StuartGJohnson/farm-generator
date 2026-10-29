@@ -12,7 +12,7 @@ In a farm such as <farm> = debug_out/farms/farm_seed_1_120m2, relevant mapviz pa
 
 The mapviz output should show ground_truth/odom AND /gps/fix on the map in mapviz as (minimally) pose. The symbols for these should be distinct so they can be compared - these should be coincident at this point, but as simulated gps errors are introduced, this will not be the case.
 
-Note mapviz problably need the gis/ros2 coordinate offset and the map frame set in the .mviz file.
+Note mapviz probably needs the gis/ros2 coordinate offset and the map frame set in the .mviz file.
 
 A launch file which launches the ground_truth_localization node and mapviz together would be useful. Let's place launch files for the system ros2 combinations in their own ros2 node called "bringup". place this in src/bringup as a python ROS2 node.
 

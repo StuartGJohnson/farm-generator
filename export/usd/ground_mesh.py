@@ -25,7 +25,7 @@ from shapely.ops import nearest_points, substring, unary_union
 
 from farm_ir.schema import FarmScene, HydrologyEdge, RoadClass, SurfaceFriction, SurfaceHeightField
 from generation.surface_friction import face_surface_regions, sample_mesh_friction
-from generation.surface_height import sample_height
+from generation.surface_height import sample_ground_height
 from .friction import UsdFrictionConfig, friction_usda
 
 
@@ -391,6 +391,8 @@ def build_road_surface_patches(scene: FarmScene, bounds) -> list[RoadSurfacePatc
         )
     patches = []
     if road_ribbons:
+        if scene.depot is not None:
+            road_ribbons.append(Polygon(scene.depot.polygon))
         road_area = unary_union(road_ribbons).intersection(domain)
         patches.append(RoadSurfacePatch(
             id="roads", road_edge_ids=tuple(scene.roads.edges), polygon=road_area
@@ -1069,7 +1071,7 @@ def build_ground_mesh(
                      if scene.surface_friction else None)
     height_weights = None
     if scene.surface_height is not None:
-        offsets = sample_height(scene.surface_height, [point[:2] for point in points])
+        offsets = sample_ground_height(scene.surface_height, [point[:2] for point in points], road_area)
         height_weights = _shoreline_taper_weights(
             points, water_surfaces, bounds, road_area,
             scene.surface_height.shoreline_taper_m, road_index.values(),
@@ -1223,11 +1225,11 @@ def write_ground_mesh_usda(
         def with_ground_height(positions):
             if mesh.surface_height is None or not positions:
                 return positions
-            offsets = sample_height(mesh.surface_height, [point[:2] for point in positions])
             road_area = next(
                 (patch.polygon for patch in build_road_surface_patches(scene, mesh.surface_height.bounds)
                  if not patch.is_crossing), None
             )
+            offsets = sample_ground_height(mesh.surface_height, [point[:2] for point in positions], road_area)
             weights = _shoreline_taper_weights(
                 positions, mesh.water_surfaces, mesh.surface_height.bounds, road_area,
                 mesh.surface_height.shoreline_taper_m,
@@ -1247,12 +1249,14 @@ def write_ground_mesh_usda(
             LineString(edge.polyline).buffer(edge.top_width * 0.5)
             for edge in scene.hydrology.edges.values()
         ])
-        excluded = unary_union([road_exclusion, channel_exclusion])
+        depot_exclusion = Polygon(scene.depot.polygon) if scene.depot is not None else Polygon()
+        excluded = unary_union([road_exclusion, channel_exclusion, depot_exclusion])
         weed_positions = []
         weed_scales = []
         weed_rng = random.Random(seed + 9103)
         for zone in scene.weed_zones.values():
             polygon = Polygon(zone.polygon)
+            zone_excluded = unary_union([excluded, *(Polygon(coords) for coords in zone.excluded_polygons)])
             rows = [LineString(row) for row in zone.row_centerlines if len(row) >= 2]
             rows = [row for row in rows if row.length > 0.0]
             density = float(zone.density_params.get("row_density_per_m", 0.0))
@@ -1293,7 +1297,7 @@ def write_ground_mesh_usda(
                     center.x + normal_x * lateral_offset,
                     center.y + normal_y * lateral_offset,
                 )
-                if not polygon.covers(candidate) or excluded.covers(candidate):
+                if not polygon.covers(candidate) or zone_excluded.covers(candidate):
                     continue
                 weed_positions.append((candidate.x, candidate.y, 0.002))
                 weed_scales.append(weed_rng.uniform(0.75, 1.2))
@@ -1408,6 +1412,49 @@ def write_ground_mesh_usda(
         texture_material("GravelRoadMaterial", "gravel_road_darker_chatgpt.png", 0.8),
         water_material.rstrip(),
     ]).rstrip()
+    parking_block = ""
+    if scene is not None and scene.depot is not None and scene.depot.draw_parking_spaces:
+        depot = scene.depot
+        origin = np.asarray(depot.origin)
+        row = np.asarray(depot.row_direction)
+        cross = np.asarray(depot.cross_row_direction)
+        line_points = []
+        line_faces = []
+        for spot in depot.parking_spots:
+            i = depot.along_row_length_m - depot.parking_inset_m - spot.number * spot.width_m
+            if i < -1e-6:
+                continue
+            a = origin + i * row + depot.cross_row_width_m * cross
+            b = a - depot.parking_line_length_m * cross
+            normal = np.array([-cross[1], cross[0]]) * 0.045
+            corners = [a - normal, a + normal, b + normal, b - normal]
+            heights = sample_ground_height(mesh.surface_height, corners,
+                Polygon(depot.polygon)) if mesh.surface_height is not None else [0.0] * 4
+            start = len(line_points)
+            line_points.extend((float(p[0]), float(p[1]), float(z) + 0.025)
+                               for p, z in zip(corners, heights))
+            line_faces.extend((start, start + 1, start + 2, start, start + 2, start + 3))
+        if line_points:
+            looks += '''\n\ndef Material "ParkingWhite"
+{
+    token outputs:surface.connect = </World/Looks/ParkingWhite/PreviewSurface.outputs:surface>
+    def Shader "PreviewSurface"
+    {
+        uniform token info:id = "UsdPreviewSurface"
+        color3f inputs:diffuseColor = (0.94, 0.94, 0.9)
+        float inputs:roughness = 0.85
+        token outputs:surface
+    }
+}'''
+            parking_block = f'''def Mesh "ParkingLines"
+{{
+    uniform bool doubleSided = 1
+    int[] faceVertexCounts = [{", ".join("3" for _ in range(len(line_faces) // 3))}]
+    int[] faceVertexIndices = [{", ".join(map(str, line_faces))}]
+    point3f[] points = [{vec(line_points)}]
+    rel material:binding = </World/Looks/ParkingWhite>
+    uniform token subdivisionScheme = "none"
+}}'''
     subsets = "\n\n".join([
         subset(
             "FlatFaces", "GrassMaterial",
@@ -1524,6 +1571,8 @@ def Xform "World"
     }}
 
 {indent(water_block, 4)}
+
+{indent(parking_block, 4)}
 
 {vegetation_block.rstrip()}
 }}

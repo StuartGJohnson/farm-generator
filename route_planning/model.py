@@ -22,6 +22,39 @@ class Pose:
     yaw: float
 
 
+@dataclass(frozen=True)
+class DepotParkingState:
+    number: int
+    direction: str = "in"
+
+
+@dataclass(frozen=True)
+class DepotSpot:
+    number: int
+    center: tuple[float, float]
+    yaw_in: float
+    length_m: float
+    width_m: float
+
+
+def parking_pose(spot: DepotSpot, direction: str = "in") -> Pose:
+    if direction not in ("in", "out"):
+        raise ValueError("Parking direction must be 'in' or 'out'")
+    return Pose(*spot.center, spot.yaw_in + (math.pi if direction == "out" else 0.0))
+
+
+def parking_spot_polygon(spot: DepotSpot) -> Polygon:
+    """Parking-lot footprint from its center and in-facing direction."""
+    along = (math.cos(spot.yaw_in), math.sin(spot.yaw_in))
+    across = (-along[1], along[0])
+    x, y = spot.center
+    return Polygon([
+        (x + a * spot.length_m / 2 * along[0] + b * spot.width_m / 2 * across[0],
+         y + a * spot.length_m / 2 * along[1] + b * spot.width_m / 2 * across[1])
+        for a, b in ((-1, -1), (1, -1), (1, 1), (-1, 1))
+    ])
+
+
 class ImplementSide(str, Enum):
     LEFT = "left"
     RIGHT = "right"
@@ -32,8 +65,8 @@ class ImplementSide(str, Enum):
 class FarmTask:
     field_ids: tuple[str, ...]
     implement_side: ImplementSide
-    start: Pose
-    end: Pose
+    start: Pose | DepotParkingState
+    end: Pose | DepotParkingState
     implement_range_m: Optional[float] = None
 
 
@@ -60,6 +93,12 @@ class PlannerConfig:
     reverse_event_penalty_m: float = 100.0
     row_repeat_penalty_m: float = 50.0
     field_rs_forward_only: bool = False
+    depot_road_sampling_m: float = 3.0
+    depot_reverse_cost_multiplier: float = 3.0
+    depot_reverse_event_penalty_m: float = 0.0
+    depot_reverse_allowance_m: float = 8.0
+    depot_excess_reverse_cost_multiplier: float = 50.0
+    depot_parking_clearance_m: float = 0.25
     tractor: TractorConfig = field(init=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:
@@ -77,6 +116,19 @@ class PlannerConfig:
         if (not math.isfinite(self.road_interface_offset_m) or
                 self.road_interface_offset_m < 0):
             raise ValueError("road_interface_offset_m must be nonnegative and finite")
+        if not math.isfinite(self.depot_road_sampling_m) or self.depot_road_sampling_m <= 0:
+            raise ValueError("depot_road_sampling_m must be positive and finite")
+        if not math.isfinite(self.depot_reverse_cost_multiplier) or self.depot_reverse_cost_multiplier < 1:
+            raise ValueError("depot_reverse_cost_multiplier must be at least one")
+        if not math.isfinite(self.depot_reverse_event_penalty_m) or self.depot_reverse_event_penalty_m < 0:
+            raise ValueError("depot_reverse_event_penalty_m must be nonnegative and finite")
+        if not math.isfinite(self.depot_reverse_allowance_m) or self.depot_reverse_allowance_m < 0:
+            raise ValueError("depot_reverse_allowance_m must be nonnegative and finite")
+        if (not math.isfinite(self.depot_excess_reverse_cost_multiplier) or
+                self.depot_excess_reverse_cost_multiplier < 1):
+            raise ValueError("depot_excess_reverse_cost_multiplier must be at least one")
+        if not math.isfinite(self.depot_parking_clearance_m) or self.depot_parking_clearance_m < 0:
+            raise ValueError("depot_parking_clearance_m must be nonnegative and finite")
         tractor = load_tractor_config(self.tractor_config_path)
         object.__setattr__(self, "tractor", tractor)
         if self.turn_radius_m is None:
@@ -130,6 +182,9 @@ class FarmMap:
     orthophoto_extent: Optional[tuple[float, float, float, float]] = None
     irrigation_channels: dict[str, Polygon] = field(default_factory=dict)
     road_surfaces: dict[str, Polygon] = field(default_factory=dict)
+    depot: Optional[Polygon] = None
+    parking_spots: dict[int, DepotSpot] = field(default_factory=dict)
+    depot_field_id: Optional[str] = None
 
 
 @dataclass(frozen=True)

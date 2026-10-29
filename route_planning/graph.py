@@ -8,16 +8,17 @@ from __future__ import annotations
 
 import math
 from collections import defaultdict
+from dataclasses import replace
 
 from shapely.geometry import LineString, Point
 from shapely.ops import substring, unary_union
 from shapely.strtree import STRtree
 
-from .model import (Arc, FarmMap, FarmTask, ImplementSide, PlannerConfig,
-                    Pose, RoutingGraph, Vertex)
+from .model import (Arc, DepotParkingState, FarmMap, FarmTask, ImplementSide, PlannerConfig,
+                    Pose, RoutingGraph, Vertex, parking_pose, parking_spot_polygon)
 from .rs import connection as rs_connection
 from .path_feasibility import (TractorFootprint, path_feasibility,
-                               road_turn_region, tree_convex_hulls)
+                               road_turn_region, tree_concave_hulls)
 
 
 def _angle(x, y):
@@ -62,6 +63,15 @@ def infer_implement_range(farm: FarmMap, field_ids: tuple[str, ...]) -> float:
     return distances[len(distances) // 2] / 2
 
 
+def _field_driveable(farm: FarmMap, field_id: str):
+    region = farm.fields[field_id]
+    if field_id == farm.depot_field_id and farm.depot is not None:
+        # GIS round-tripping can leave a sub-millimetre seam at the crop/depot
+        # boundary. Close it before eroding for the tractor footprint.
+        region = region.union(farm.depot).buffer(1e-3).buffer(-1e-3)
+    return region
+
+
 def _row_candidates(farm: FarmMap, task: FarmTask, config: PlannerConfig):
     offset = task.implement_range_m or infer_implement_range(farm, task.field_ids)
     if offset <= 0:
@@ -91,7 +101,7 @@ def _row_candidates(farm: FarmMap, task: FarmTask, config: PlannerConfig):
             start = (a[0] + sign * offset * normal[0], a[1] + sign * offset * normal[1])
             end = (b[0] + sign * offset * normal[0], b[1] + sign * offset * normal[1])
             line = LineString([start, end])
-            region = farm.fields[row.field_id].buffer(-config.tractor_half_width_m)
+            region = _field_driveable(farm, row.field_id).buffer(-config.tractor_half_width_m)
             if not region.covers(line):
                 continue
             if any(line.intersects(tree_obstacles[row.field_id][int(i)])
@@ -137,7 +147,7 @@ def _row_candidates(farm: FarmMap, task: FarmTask, config: PlannerConfig):
             merged_start = (base[0] + lo * ux, base[1] + lo * uy)
             merged_end = (base[0] + hi * ux, base[1] + hi * uy)
             merged_line = LineString([merged_start, merged_end])
-            region = farm.fields[lane["field_id"]].buffer(-config.tractor_half_width_m)
+            region = _field_driveable(farm, lane["field_id"]).buffer(-config.tractor_half_width_m)
             if not region.covers(merged_line):
                 continue
             if any(merged_line.intersects(tree_obstacles[lane["field_id"]][int(i)])
@@ -154,6 +164,17 @@ def _row_candidates(farm: FarmMap, task: FarmTask, config: PlannerConfig):
 
 def build_routing_graph(farm: FarmMap, task: FarmTask,
                         config: PlannerConfig = PlannerConfig()) -> RoutingGraph:
+    terminal_spot_numbers = {
+        "start": task.start.number if isinstance(task.start, DepotParkingState) else None,
+        "end": task.end.number if isinstance(task.end, DepotParkingState) else None,
+    }
+    def resolve(value):
+        if isinstance(value, DepotParkingState):
+            if value.number not in farm.parking_spots:
+                raise ValueError(f"Unknown depot parking spot {value.number}")
+            return parking_pose(farm.parking_spots[value.number], value.direction)
+        return value
+    task = replace(task, start=resolve(task.start), end=resolve(task.end))
     if not task.field_ids or len(task.field_ids) != len(set(task.field_ids)):
         raise ValueError("Task must list distinct fields")
     if any(field_id not in farm.fields for field_id in task.field_ids):
@@ -269,8 +290,13 @@ def build_routing_graph(farm: FarmMap, task: FarmTask,
         insert_on_road(road, station, f"{label}_road")
         return road, station, tangent
 
-    start_road, start_station, start_tangent = project_terminal(task.start, "start")
-    end_road, end_station, end_tangent = project_terminal(task.end, "end")
+    def is_depot_pose(pose):
+        return farm.depot is not None and farm.depot.covers(Point(pose.x, pose.y))
+
+    start_depot = is_depot_pose(task.start)
+    end_depot = is_depot_pose(task.end)
+    start_info = None if start_depot else project_terminal(task.start, "start")
+    end_info = None if end_depot else project_terminal(task.end, "end")
     closed = (_distance(task.start, task.end) < 1e-5 and
               abs(_wrap(task.start.yaw - task.end.yaw)) < 1e-5)
     graph.start_id = "terminal_start"
@@ -294,8 +320,28 @@ def build_routing_graph(farm: FarmMap, task: FarmTask,
             add_arc(Arc("terminal_end_arc", interface_id, graph.end_id,
                         (interface_pose, pose), _distance(interface_pose, pose), "road", road.field_id, max_uses=1))
 
-    terminal_connection(start_road, start_station, start_tangent, task.start, "start", True)
-    terminal_connection(end_road, end_station, end_tangent, task.end, "end", False)
+    if start_info is not None:
+        terminal_connection(*start_info, task.start, "start", True)
+    if end_info is not None:
+        terminal_connection(*end_info, task.end, "end", False)
+
+    depot_interfaces = []
+    if start_depot or end_depot:
+        if config.depot_road_sampling_m <= 0:
+            raise ValueError("depot_road_sampling_m must be positive")
+        nearby = [road for road in farm.roads.values()
+                  if road.road_class != "crossing_spur" and
+                  road.line.distance(farm.depot) <= max(3.0, config.tractor_half_width_m * 2)]
+        for road in nearby:
+            lo = _setback_station(road.line.length, True, config.road_turn_setback_m)
+            hi = _setback_station(road.line.length, False, config.road_turn_setback_m)
+            if hi - lo < 0.5:
+                continue
+            stations = [lo + 0.2 + k * config.depot_road_sampling_m
+                        for k in range(int((hi - lo - 0.4) / config.depot_road_sampling_m) + 1)]
+            for station in stations:
+                insert_on_road(road, station, "depot_interface")
+                depot_interfaces.append((road, station))
 
     # Each row endpoint sees its own nearby frontage-road states. A projection
     # alone can demand a near U-turn at a short row; offsets along the road
@@ -329,7 +375,95 @@ def build_routing_graph(farm: FarmMap, task: FarmTask,
     turn_obstacles = [Point(t.x, t.y).buffer(config.trunk_clearance_m)
                       for t in farm.trees.values()]
     turn_index = STRtree(turn_obstacles)
-    turn_tree_hull = unary_union(list(tree_convex_hulls(farm, tuple(farm.fields)).values()))
+    turn_tree_hull = unary_union(list(tree_concave_hulls(farm, tuple(farm.fields)).values()))
+
+    if start_depot or end_depot:
+        permitted_depot = unary_union([farm.depot, *farm.road_surfaces.values()])
+        spot_polygons = {number: parking_spot_polygon(spot)
+                         for number, spot in farm.parking_spots.items()}
+        depot_config = replace(config, rs_candidate_radius_m=max(
+            config.rs_candidate_radius_m, farm.depot.length + 2 * config.road_turn_setback_m))
+        for label, terminal_id, terminal_pose, outbound in (
+                ("start", graph.start_id, task.start, True),
+                ("end", graph.end_id, task.end, False)):
+            if not is_depot_pose(terminal_pose):
+                continue
+            own_spot = terminal_spot_numbers[label]
+            if own_spot is None:
+                own_spot = next((number for number, polygon in spot_polygons.items()
+                                 if polygon.covers(Point(terminal_pose.x, terminal_pose.y))), None)
+            blocked_spots = [polygon.buffer(config.depot_parking_clearance_m)
+                             for number, polygon in spot_polygons.items() if number != own_spot]
+            blocked_index = STRtree(blocked_spots)
+            own = farm.parking_spots.get(own_spot)
+            inner_leg_cache = {}
+
+            def depot_rs(a, b):
+                return rs_connection(a, b, permitted_depot, blocked_spots,
+                    depot_config, blocked_index, permitted_region=permitted_depot,
+                    footprint=footprint,
+                    reverse_cost_multiplier=config.depot_reverse_cost_multiplier,
+                    reverse_event_penalty_m=config.depot_reverse_event_penalty_m,
+                    reverse_allowance_m=config.depot_reverse_allowance_m,
+                    excess_reverse_cost_multiplier=config.depot_excess_reverse_cost_multiplier)
+
+            connected = 0
+            for road, station in depot_interfaces:
+                for direction in ("f", "r"):
+                    interface_id = road_state(road, station, direction)
+                    road_pose = graph.vertices[interface_id].pose
+                    source, target = ((terminal_pose, road_pose) if outbound else
+                                      (road_pose, terminal_pose))
+                    direct = depot_rs(source, target)
+                    candidates = [direct] if direct is not None else []
+                    if own is not None:
+                        outward = (-math.cos(own.yaw_in), -math.sin(own.yaw_in))
+                        lateral = (-outward[1], outward[0])
+                        side_clearance = (own.width_m / 2 + config.tractor_half_width_m +
+                                          config.rs_step_m / 2)
+                        # Sample an aisle turn in tractor-radius increments on
+                        # both sides of the parked tractor. Every candidate is
+                        # checked against the full depot/road surface and spots.
+                        for step in range(4, 11):
+                            setback = own.length_m / 2 + step * config.turn_radius_m / 4
+                            for side in (-1, 1):
+                                middle = Pose(terminal_pose.x + setback * outward[0] +
+                                              side * side_clearance * lateral[0],
+                                              terminal_pose.y + setback * outward[1] +
+                                              side * side_clearance * lateral[1], road_pose.yaw)
+                                middle_shape = footprint.at(middle)
+                                if (not farm.depot.covers(middle_shape) or
+                                        any(middle_shape.intersects(spot) for spot in blocked_spots)):
+                                    continue
+                                key = (round(middle.x, 4), round(middle.y, 4),
+                                       round(middle.yaw, 4))
+                                if key not in inner_leg_cache:
+                                    inner_leg_cache[key] = (depot_rs(terminal_pose, middle)
+                                                            if outbound else
+                                                            depot_rs(middle, terminal_pose))
+                                inner = inner_leg_cache[key]
+                                outer = (depot_rs(middle, road_pose) if outbound else
+                                         depot_rs(road_pose, middle)) if inner is not None else None
+                                first, second = ((inner, outer) if outbound else
+                                                 (outer, inner))
+                                if first is not None and second is not None:
+                                    a_poses, a_length, a_dirs, a_reverse, a_changes, a_events = first
+                                    b_poses, b_length, b_dirs, b_reverse, b_changes, b_events = second
+                                    changed = a_dirs[-1] != b_dirs[0]
+                                    candidates.append((a_poses + b_poses[1:], a_length + b_length,
+                                        a_dirs + b_dirs[1:], a_reverse + b_reverse,
+                                        a_changes + b_changes + int(changed),
+                                        a_events + b_events - int(a_dirs[-1] == b_dirs[0] == -1)))
+                    for poses, length, directions, reverse_m, changes, events in candidates:
+                        u, v = ((terminal_id, interface_id) if outbound else
+                                (interface_id, terminal_id))
+                        add_arc(Arc(f"depot_{label}_{connected:04d}", u, v, poses,
+                                    length, "depot", driving_directions=directions,
+                                    reverse_distance_m=reverse_m, gear_changes=changes,
+                                    reverse_events=events, max_uses=1))
+                        connected += 1
+            if connected == 0:
+                raise ValueError(f"No legal depot connection for {label} pose")
 
     for road in farm.roads.values():
         stations = sorted(splits[road.id])
@@ -365,8 +499,9 @@ def build_routing_graph(farm: FarmMap, task: FarmTask,
                        for fid in task.field_ids}
     tree_indices = {fid: STRtree(geoms) for fid, geoms in tree_geometries.items()}
     channel_union = unary_union(list(farm.irrigation_channels.values()))
-    permitted_fields = {fid: farm.fields[fid].difference(channel_union) for fid in task.field_ids}
-    tree_hulls = tree_convex_hulls(farm, task.field_ids)
+    permitted_fields = {fid: _field_driveable(farm, fid).difference(channel_union)
+                        for fid in task.field_ids}
+    tree_hulls = tree_concave_hulls(farm, task.field_ids)
     for node_id, legs in sorted(junction_legs.items()):
         for incoming_road, incoming_station, incoming_direction, _ in legs:
             u = road_state(incoming_road, incoming_station, incoming_direction)
@@ -396,10 +531,17 @@ def build_routing_graph(farm: FarmMap, task: FarmTask,
         if key in rs_seen:
             return
         rs_seen.add(key)
+        field_config = (replace(config, rs_candidate_radius_m=max(
+            config.rs_candidate_radius_m, farm.depot.length + config.rs_candidate_radius_m))
+            if farm.depot is not None and farm.fields[field_id].distance(farm.depot) < 1e-5 else config)
+        permitted_region = permitted_fields[field_id]
+        hull = tree_hulls[field_id]
+        if farm.depot is not None and (graph.vertices[u].field_id is None or graph.vertices[v].field_id is None):
+            permitted_region = permitted_region.union(farm.depot).buffer(1e-4)
         candidate = rs_connection(start_pose, end_pose, farm.fields[field_id],
-                                  tree_geometries[field_id], config, tree_indices[field_id],
-                                  permitted_region=permitted_fields[field_id],
-                                  footprint=footprint, tree_hull=tree_hulls[field_id],
+                                  tree_geometries[field_id], field_config, tree_indices[field_id],
+                                  permitted_region=permitted_region,
+                                  footprint=footprint, tree_hull=hull,
                                   forward_only=config.field_rs_forward_only)
         if candidate is None:
             return
@@ -412,9 +554,12 @@ def build_routing_graph(farm: FarmMap, task: FarmTask,
 
     row_vertices = [v for v in graph.vertices.values() if v.oriented and v.field_id is not None]
     for vertex in row_vertices:
+        search_radius = (config.rs_candidate_radius_m + farm.depot.length
+                         if farm.depot is not None and farm.fields[vertex.field_id].distance(farm.depot) < 1e-5
+                         else config.rs_candidate_radius_m)
         nearby = sorted((other for other in row_vertices
                          if other.id != vertex.id and other.field_id == vertex.field_id
-                         and _distance(vertex.pose, other.pose) <= config.rs_candidate_radius_m),
+                         and _distance(vertex.pose, other.pose) <= search_radius),
                         key=lambda other: _distance(vertex.pose, other.pose))
         for other in nearby[:8]:
             add_rs(vertex.id, other.id, vertex.pose, other.pose, vertex.field_id)

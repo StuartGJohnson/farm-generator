@@ -122,6 +122,23 @@ class FarmGenerationConfig:
     height_spectral_slope: float = 4.0
     height_seed: int = 1001
     shoreline_taper_m: float = 1.0
+    road_height_variation_range_m: float = 0.125
+    road_height_scale_m: float = 3.0
+    road_height_spectral_slope: float = 4.0
+    road_height_seed: int = 2002
+    road_field_blend_m: float = 2.0
+
+    # --- tractor depot ---
+    depot_enabled: bool = False
+    depot_along_row_size: float = 6.0
+    depot_cross_row_size: float = 3.0
+    depot_spot_length_multiple: float = 2.0
+    depot_spot_width_multiple: float = 2.0
+    depot_tractor_width_m: float = 2.0
+    depot_tractor_length_m: float = 4.0
+    depot_headland_m: Optional[float] = None
+    depot_sideland_m: Optional[float] = None
+    draw_parking_spaces: bool = True
 
     # --- hydrology ---
     hydrology_node_merge_tol: Optional[float] = None  # meters; defaults to 0.05 * standoff
@@ -166,6 +183,10 @@ class FarmGenerationConfig:
 
     def __post_init__(self):
         import math
+        if self.depot_headland_m is None:
+            self.depot_headland_m = self.headland_width
+        if self.depot_sideland_m is None:
+            self.depot_sideland_m = self.row_spacing / 2
         # Accept the former constructor spelling and old serialized configs.
         if isinstance(self.road_surface, (RoadSurface, str)):
             self.road_surface_type = RoadSurface(self.road_surface)
@@ -191,6 +212,19 @@ class FarmGenerationConfig:
             raise ValueError("height_seed must be a non-negative integer")
         if not math.isfinite(self.shoreline_taper_m) or self.shoreline_taper_m < 0:
             raise ValueError("shoreline_taper_m must be finite and non-negative")
+        for name in ("road_height_variation_range_m", "road_height_scale_m",
+                     "road_height_spectral_slope", "road_field_blend_m",
+                     "depot_along_row_size", "depot_cross_row_size",
+                     "depot_spot_length_multiple", "depot_spot_width_multiple",
+                     "depot_tractor_width_m", "depot_tractor_length_m",
+                     "depot_headland_m", "depot_sideland_m"):
+            value = getattr(self, name)
+            if value is None or not math.isfinite(value) or (value < 0 if name in (
+                    "road_height_variation_range_m", "road_height_spectral_slope",
+                    "road_field_blend_m", "depot_headland_m", "depot_sideland_m") else value <= 0):
+                raise ValueError(f"{name} must be finite and non-negative or positive")
+        if isinstance(self.road_height_seed, bool) or not isinstance(self.road_height_seed, int) or self.road_height_seed < 0:
+            raise ValueError("road_height_seed must be a non-negative integer")
         if not 0.0 <= self.hydrology_water_depth_fraction <= 1.0:
             raise ValueError("hydrology_water_depth_fraction must be between 0 and 1")
         if self.weed_row_density_per_m < 0.0:

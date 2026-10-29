@@ -347,35 +347,71 @@ encountered five distinct road-friction bins with matching runtime coefficients.
 
 ## Surface height variation
 
-`FarmGenerationConfig` also defines a seeded terrain-height field with
-`height_mean=0`, `height_variation_range_m=0.2`, `height_scale_m=3`,
-`height_spectral_slope=4`, `height_seed=1001`, and `shoreline_taper_m=1` by
-default. The showcase example sets these beside the friction parameters,
-including a 0.5 m height range and 10 m scale. The generated
-`FarmScene.surface_height` stores the sampled field; the generator parameters
-are saved with the config. Change the range for stronger bumps, the scale for
-smaller or larger patches, and `farm_resolution_m` to resolve finer features.
+`FarmGenerationConfig` now generates separate, seeded crop and road height
+fields over the whole farm. The depot uses the road field. Both fields use the
+isotropic spectrum and bounded bilinear sampling described for friction, with
+height in metres. The defaults are:
 
-The field uses the same isotropic spectrum and periodic, bounded bilinear
-sampling described above for friction, with a separately configurable
-seed and units of meters. Equal seeds can correlate height and friction fields.
-The exporter adds the sampled offset to every **ground** mesh vertex,
-including roads and channel profiles. It keeps each water mesh level at its
-original elevation. When water is present, a smooth 1 m taper reduces the
-ground offset to zero at natural shorelines, avoiding seams against the flat
-water mesh. Road and crop triangles share vertices along their ordinary
-breakline, so both sides use the same height sample and cannot develop a
-vertical step there. Road decks retain their full height variation; road-cut
-and domain edges of the water polygon are excluded from the shoreline taper.
-Set `shoreline_taper_m=0` to disable the taper. Friction materials retain their
-pre-displacement surface classification, while tree and weed instances follow
-the terrain height.
+| Parameter | Default | Effect |
+| --- | ---: | --- |
+| `height_mean` | 0 m | Shared mean elevation offset. |
+| `height_variation_range_m` | 0.2 m | Crop height range. |
+| `height_scale_m` | 3 m | Crop variation scale. |
+| `height_spectral_slope` | 4 | Crop spectral slope. |
+| `height_seed` | 1001 | Crop random seed. |
+| `road_height_variation_range_m` | 0.125 m | Road and depot height range, independent of the crop range. |
+| `road_height_scale_m` | 3 m | Road and depot variation scale. |
+| `road_height_spectral_slope` | 4 | Road and depot spectral slope. |
+| `road_height_seed` | 2002 | Independent road and depot random seed. |
+| `road_field_blend_m` | 2 m | Distance over which the crop field blends from the road field. |
+| `shoreline_taper_m` | 1 m | Ground-height taper at natural water edges. |
 
-The displaced ground mesh is the static collider queried by Vehicle 2's
-suspension and tires. The diagnostic image `debug_out/mesh/farm_seed_1_120m2_height.png`
-shows the field and the final meshed elevation.
+When a farm YAML omits `road_height_variation_range_m`, the fixed 0.125 m
+default applies; changing the crop range does not change the road range.
+The five 60 m diagnostic farms explicitly set the road range to 0.05 m to
+show muted roads against the default 0.2 m crop range. The seed 1 showcase
+sets the crop range to 0.5 m and its scale to 10 m; its road and depot range
+is 0.125 m with a 10 m scale. A distinct road seed makes
+the small road undulations spatially uncorrelated with the crop undulations.
+In the regenerated plain showcase, the sampled crop and road fields have
+standard deviations of 0.063 m and 0.014 m, with correlation −0.002.
+`FarmScene.surface_height` stores both sampled fields, and the generating
+config records their parameters. Change the ranges for stronger or smoother
+terrain, the scales for smaller or larger patches, and `farm_resolution_m` to
+resolve finer features.
 
-<img src="debug_out/mesh/farm_seed_1_120m2_height.png" alt="Generated height field and displaced ground mesh" width="1000">
+At a road or depot boundary, the road value wins exactly. The crop side then
+blends smoothly toward its own height field over `road_field_blend_m`, so
+shared mesh vertices have the same elevation and there is no step. The
+exporter displaces every ground mesh vertex, including channel profiles, but
+keeps water surfaces level. At natural shorelines, the separate
+`shoreline_taper_m` reduces ground offsets to zero; road-cut and map edges
+are excluded. Set `shoreline_taper_m=0` to disable that taper. Friction
+materials retain their surface classification, while tree and weed instances
+follow the displaced ground. The ground mesh is also the static collider
+queried by Vehicle 2's suspension and tires.
+
+The regenerated diagnostics below use one color scale for the crop and road
+source fields, so the muted, independent road pattern is visible. The third
+panel shows the blended ground mesh, including roads and channels.
+
+### Original 60 m farm
+
+<img src="debug_out/mesh/farm_seed_1_height.png" alt="Original farm crop and muted road height fields with blended ground mesh" width="1000">
+
+### 120 m showcase farm
+
+<img src="debug_out/mesh/farm_seed_1_120m2_height.png" alt="Showcase crop and muted road height fields with blended ground mesh" width="1000">
+
+### 120 m showcase with tractor depot
+
+<img src="debug_out/mesh/farm_seed_1_120m2_depot_height.png" alt="Showcase crop and muted road and depot height fields with blended ground mesh" width="1000">
+
+Regenerate the five original 60 m meshes with
+`python examples/generate_ground_meshes.py`. Regenerate the plain and depot
+showcase meshes and plots without changing their GIS with
+`python examples/regenerate_showcase_mesh_diagnostics.py`. These diagnostics
+use the existing `debug_out/mesh/` directory.
 
 Run `python examples/check_water_perimeter.py` to audit the showcase's water
 boundary against the ground. It writes
@@ -631,9 +667,10 @@ of the writeup is:
 
 The planner builds directed road and tree-row service arcs from the GeoPackage,
 connects them with tractor-feasible Reeds–Shepp (RS) maneuvers, and uses CP-SAT
-to route an ordered list of fields between road-aligned tractor poses. Each
-tree row has service requirements on both sides. The GIS bundle supplies the
-farm geometry; tractor dimensions come from `configs/tractor_default.yaml`
+to route an ordered list of fields between road-aligned tractor poses or depot
+parking spots. Each tree row has service requirements on both sides. The GIS
+bundle supplies the farm geometry; tractor dimensions come from
+`configs/tractor_default.yaml`
 unless `--tractor-config` selects another configuration.
 
 ### Current routing refinements
@@ -651,13 +688,14 @@ unless `--tractor-config` selects another configuration.
   tractor enter or leave a lane while facing along the road without a short reverse
   maneuver. Change their spacing with `--road-interface-offset`. Field RS
   paths must keep the tractor footprint inside the irrigation-channel boundary
-  and out of the tree-row convex hull.
+  and their rear-axle paths out of the tree-row concave hull.
 - CP-SAT uses a separate copy of the road graph for each requested field.
   Only that stage's field can be serviced; after its tasks are complete, the
   route switches stages at its road exit interface without moving the tractor.
   The solver still chooses the route and field access points jointly.
-- The route objective uses distance-equivalent costs. Before rounding, the
-  defaults are route distance plus 7 m for each meter driven in reverse
+- Outside the depot, the route objective uses distance-equivalent costs. Before
+  rounding, the defaults are route distance plus 7 m for each meter driven in
+  reverse
   (making a reverse meter cost 8 times a forward meter), 2 m per internal RS
   gear change, 100 m per contiguous reverse episode, and 50 m per excess
   crop-lane traversal. Both travel directions count toward the same physical
@@ -687,7 +725,9 @@ The command writes orthophoto-backed plots, ordered route JSON files, and a
 summary `manifest.json` under `debug_out/routes/farm_seed_1_120m2/`. Cyan
 shows road travel, magenta shows row service, orange shows Reeds–Shepp 
 maneuvers, and dashed red shows reversing. Dashed yellow outlines the tree
-convex hull excluded from Reeds–Shepp rear-axle paths. A plot marked
+concave hull excluded from Reeds–Shepp rear-axle paths. Its boundary is built
+from Shapely Delaunay triangles with a default concavity radius of 1.5 times
+the median same-row tree spacing. A plot marked
 `FEASIBLE` shows an *optimality gap*: the found objective minus the best lower
 bound, divided by the found objective. This percentage is the largest
 improvement still possible relative to the found solution, based on the
@@ -822,6 +862,60 @@ do not also start its standalone launch file. For a different generated farm,
 pass its directory as `farm:=...` and pass the matching `--world` and
 `--farm-config` paths to the simulator. Keep `ROS_DOMAIN_ID` the same in both
 shells.
+
+## Tractor Depot
+
+Run `python examples/generate_showcase_farm.py --depot` from the repository
+root to generate the seed 1 depot farm at
+`debug_out/farms/farm_seed_1_120m2_depot/`. It has the same portable bundle
+layout as the non-depot farm: `farm.yaml`, `world/farm.usda`, assets, and GIS
+files. Its `debug/` directory contains the farm layout, depot detail, tree
+comparison, height field, and friction plots. Use `--seed N` for another
+repeatable layout.
+
+The depot occupies a crop-row-aligned corner of one field, ending at the
+field-facing edge of its roads. Roads and irrigation channels retain their
+original geometry. Trees in the depot field are removed only inside a
+parallelogram extending the depot by `depot_headland_m` along tree rows and
+`depot_sideland_m` across rows. Those clearances default to the ordinary
+headland width and half the tree-row spacing, respectively. Parking spots
+remain entirely inside the depot, run along crop columns, and are numbered
+from the innermost spot outward. GIS and USD exports include the spots and
+their parking lines.
+
+Depot tasks can start or end at a numbered spot facing `in` or `out`. The
+planner connects parked poses to sampled road poses with Reeds–Shepp paths;
+it also samples turn poses in the depot aisle from the spot dimensions and
+tractor turning radius. Each candidate checks the tractor's swept footprint
+against the depot and roads and keeps it at least 0.25 m from every parking
+spot other than the terminal spot. Crop lanes remain accessible through the
+roads. Depot reverse travel costs three times forward travel per metre, with
+an additional penalty after 8 m of reversing.
+
+Run the fixed seed 1 depot cases separately from the repository root:
+
+```bash
+conda activate isaacsim61-cu13
+python examples/plan_depot_route.py --case 2  # depot field, 90 s solve
+python examples/plan_depot_route.py --case 3  # two other fields, 120 s solve
+```
+
+Both routes start head-in at spot 1 and end head-in at spot 2. Case 2 services
+the depot field (`parcel_003`); case 3 services `parcel_000` and `parcel_002`.
+The saved case 2 route is optimal at 657.0 m with 8.3 m of reverse travel;
+case 3 is feasible at 1726.6 m with 9.5 m of reverse travel. The command
+writes route JSON, an overview plot, a depot zoom, and a case
+manifest under `debug_out/routes/farm_seed_1_120m2_depot/`. Dashed yellow
+marks the concave tree hull, including the boundary beside the depot. Use
+`--reuse-route` with a case number to redraw its plots without solving again.
+
+### Depot route 02: depot field
+
+![Route 02 servicing the depot field](debug_out/routes/farm_seed_1_120m2_depot/route_02.png)
+
+### Depot route 03: two non-depot fields
+
+![Route 03 servicing two fields from the depot](debug_out/routes/farm_seed_1_120m2_depot/route_03.png)
 
 ## AI assistance
 

@@ -9,7 +9,7 @@ from pathlib import Path
 from shapely import affinity
 from shapely.geometry import shape
 
-from .model import FarmMap, Road, Row, Tree
+from .model import DepotSpot, FarmMap, Road, Row, Tree
 
 
 def load_farm_map(path: str | Path) -> FarmMap:
@@ -48,8 +48,16 @@ def load_farm_map(path: str | Path) -> FarmMap:
                 for feature in layers["irrigation_channels"]}
     road_surfaces = {feature["properties"]["id"]: local(feature["geometry"])
                      for feature in layers["roads"]}
+    depot = local(layers["depot"][0]["geometry"]) if layers.get("depot") else None
+    depot_field_id = layers["depot"][0]["properties"]["field_id"] if layers.get("depot") else None
+    parking_spots = {}
+    for feature in layers.get("parking_spots", []):
+        p = feature["properties"]
+        point = local(feature["geometry"])
+        parking_spots[p["number"]] = DepotSpot(p["number"], (point.x, point.y),
+            p["yaw_in"], p["length_m"], p["width_m"])
     raster = gis_dir / "orthophoto.tif"
     return FarmMap(fields, field_names, roads, rows, trees, east, north,
                    str(raster) if raster.exists() else None,
                    tuple(doc["raster_extent"]) if doc["raster_extent"] else None,
-                   channels, road_surfaces)
+                   channels, road_surfaces, depot, parking_spots, depot_field_id)

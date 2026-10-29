@@ -3,31 +3,65 @@
 from __future__ import annotations
 
 import math
+from collections import defaultdict
 from dataclasses import dataclass
+from statistics import median
 from typing import Sequence
 
 from shapely.geometry import LineString, MultiPoint, Polygon
 from shapely.geometry.base import BaseGeometry
-from shapely.ops import unary_union
+from shapely.ops import triangulate, unary_union
 from shapely.strtree import STRtree
 from tractor_generation.config import TractorConfig
 
 from .model import FarmMap, Pose
 
 
-def tree_convex_hulls(farm: FarmMap, field_ids: Sequence[str]) -> dict[str, BaseGeometry]:
-    """Approximate each cultivated block, inset 1 µm to leave its edge usable."""
-    return {fid: MultiPoint([(tree.x, tree.y) for tree in farm.trees.values()
-                             if tree.field_id == fid]).convex_hull.buffer(-1e-6)
-            for fid in field_ids}
+def tree_concave_hulls(farm: FarmMap, field_ids: Sequence[str],
+                       concavity_m: float | None = None) -> dict[str, BaseGeometry]:
+    """Bound planted blocks with an alpha shape using a metre-scale radius.
+
+    A triangle is included when its circumradius is at most ``concavity_m``.
+    By default that radius is 1.5 times the median same-row tree spacing in
+    each field. The small inset leaves row endpoints on the usable boundary.
+    """
+    if concavity_m is not None and (not math.isfinite(concavity_m) or concavity_m <= 0):
+        raise ValueError("concavity_m must be positive and finite")
+    result = {}
+    for fid in field_ids:
+        trees = [tree for tree in farm.trees.values() if tree.field_id == fid]
+        points = [(tree.x, tree.y) for tree in trees]
+        if len(points) < 3:
+            result[fid] = MultiPoint(points).convex_hull.buffer(-1e-6)
+            continue
+        by_row = defaultdict(list)
+        for tree in trees:
+            by_row[tree.row_id].append((tree.x, tree.y))
+        spacings = [min(math.dist(point, other) for other in row if other != point)
+                    for row in by_row.values() if len(row) > 1 for point in row]
+        if not spacings:
+            spacings = [min(math.dist(point, other) for other in points if other != point)
+                        for point in points]
+        radius = concavity_m if concavity_m is not None else 1.5 * median(spacings)
+        kept = []
+        for triangle in triangulate(MultiPoint(points)):
+            a, b, c = list(triangle.exterior.coords)[:3]
+            area = triangle.area
+            if area <= 1e-10:
+                continue
+            circumradius = math.dist(a, b) * math.dist(b, c) * math.dist(c, a) / (4 * area)
+            if circumradius <= radius:
+                kept.append(triangle)
+        result[fid] = unary_union(kept).buffer(-1e-6) if kept else MultiPoint(points).convex_hull.buffer(-1e-6)
+    return result
 
 
 def road_turn_region(farm: FarmMap) -> BaseGeometry:
     """Land and roads outside channels, bridged only by crossing surfaces."""
     dry_roads = [surface for road_id, surface in farm.road_surfaces.items()
-                 if farm.roads[road_id].road_class != "crossing_spur"]
+                 if road_id not in farm.roads or farm.roads[road_id].road_class != "crossing_spur"]
     crossings = [surface for road_id, surface in farm.road_surfaces.items()
-                 if farm.roads[road_id].road_class == "crossing_spur"]
+                 if road_id in farm.roads and farm.roads[road_id].road_class == "crossing_spur"]
     dry_land = unary_union([*farm.fields.values(), *dry_roads])
     channels = unary_union(list(farm.irrigation_channels.values()))
     return dry_land.difference(channels).union(unary_union(crossings))

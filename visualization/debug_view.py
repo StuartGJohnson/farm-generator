@@ -43,6 +43,8 @@ def plot_scene(scene: FarmScene, layers: set[str] | None = None, title: str | No
                 support = LineString(row).buffer(
                     max(3.0 * falloff, 0.03), cap_style="flat"
                 ).intersection(parcel)
+                for excluded in wz.excluded_polygons:
+                    support = support.difference(Polygon(excluded))
                 parts = support.geoms if hasattr(support, "geoms") else [support]
                 for part in parts:
                     if hasattr(part, "exterior"):
@@ -59,6 +61,21 @@ def plot_scene(scene: FarmScene, layers: set[str] | None = None, title: str | No
         coll = PatchCollection(patches, array=colors, cmap="Greens",
                                 edgecolor="gray", linewidth=0.4, alpha=0.5, zorder=2)
         ax.add_collection(coll)
+
+    if scene.depot is not None:
+        depot = scene.depot
+        ax.add_patch(MplPolygon(depot.polygon, closed=True, facecolor="#777777",
+                                edgecolor="white", linewidth=1.5, zorder=5))
+        row = np.asarray(depot.row_direction)
+        column = np.asarray(depot.cross_row_direction)
+        for spot in depot.parking_spots:
+            center = np.asarray(spot.center)
+            corners = [center + a * spot.width_m / 2 * row + b * spot.length_m / 2 * column
+                       for a, b in ((-1, -1), (1, -1), (1, 1), (-1, 1))]
+            ax.add_patch(MplPolygon(corners, closed=True, fill=False,
+                                    edgecolor="white", linewidth=0.8, zorder=6))
+            ax.text(*spot.center, str(spot.number), color="white", ha="center",
+                    va="center", fontsize=8, weight="bold", zorder=7)
 
     if "roads" in layers and scene.roads.edges:
         for i, edge in enumerate(scene.roads.edges.values()):

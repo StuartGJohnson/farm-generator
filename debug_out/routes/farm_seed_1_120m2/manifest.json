@@ -142,5 +142,54 @@
       "field_switch_interface_redge_0009_007_r@0"
     ],
     "solver_time_limit_s": 60.0
+  },
+  {
+    "name": "route_03_post_depot",
+    "seed": 17,
+    "fields": [
+      "parcel_002",
+      "parcel_003"
+    ],
+    "start": {
+      "x": 47.34376853098274,
+      "y": 38.143204796476,
+      "yaw": 2.9984695121379907
+    },
+    "end": {
+      "x": 97.89033884747457,
+      "y": 3.5,
+      "yaw": 0.0
+    },
+    "distance_m": 1273.759268909708,
+    "reverse_distance_m": 0.0,
+    "gear_changes": 0,
+    "reverse_events": 0,
+    "reverse_cost_multiplier": 8.0,
+    "gear_change_penalty_m": 2.0,
+    "reverse_event_penalty_m": 100.0,
+    "row_repeat_penalty_m": 50.0,
+    "row_repeat_count": 0,
+    "field_rs_forward_only": false,
+    "tractor_config_path": "configs/tractor_route_2m.yaml",
+    "turn_radius_m": 2.0,
+    "turn_radius_step_m": 0.35,
+    "turn_radius_expansions": 2,
+    "road_turn_setback_m": 2.7,
+    "road_interface_offset_m": 2.7,
+    "footprint_bounds_rear_axle_m": [
+      -0.8,
+      -0.9500000000000001,
+      3.2,
+      0.9500000000000001
+    ],
+    "status": "OPTIMAL",
+    "objective_cost": 127380,
+    "best_bound_cost": 127380.0,
+    "solver_wall_time_s": 35.155923748,
+    "solver_time_limit_s": 60.0,
+    "segments": 69,
+    "saturated_arc_ids": [
+      "field_switch_interface_redge_0009_007_r@0"
+    ]
   }
 ]

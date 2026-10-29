@@ -27,6 +27,8 @@ LAYER_SPECS = {
     "irrigation_channels": (ogr.wkbPolygon, ["id", "name", "node_a", "node_b", "top_width_m", "depth_m"]),
     "channel_centerlines": (ogr.wkbLineString, ["id", "name", "node_a", "node_b", "top_width_m", "depth_m"]),
     "crossings": (ogr.wkbPolygon, ["id", "name", "road_edge_id", "channel_edge_id", "field_a", "field_b", "crossing_type", "span_width_m"]),
+    "depot": (ogr.wkbPolygon, ["id", "field_id"]),
+    "parking_spots": (ogr.wkbPoint, ["id", "label", "field_id", "number", "yaw_in", "length_m", "width_m"]),
 }
 
 
@@ -129,6 +131,8 @@ def _write_qgis(path, gpkg, tif, extent):
         "irrigation_channels": ("Irrigation channels", "fill", "35,135,220,115", "20,80,165,200"),
         "channel_centerlines": ("Channel graph", "line", "15,75,180,255", None),
         "crossings": ("Crossings", "fill", "235,55,45,170", "135,20,20,255"),
+        "depot": ("Tractor depot", "fill", "145,145,145,70", "240,240,240,255"),
+        "parking_spots": ("Parking spots", "marker", "255,255,255,255", None),
     }
     # Add in draw order: channels and roads under row lines and trees.
     vector_layers = {}
@@ -144,7 +148,7 @@ def _write_qgis(path, gpkg, tif, extent):
         else:
             symbol = QgsMarkerSymbol.createSimple({"name": "circle", "color": color, "size": "1.5"})
         layer.renderer().setSymbol(symbol)
-        if key in ("fields", "row_centerlines"):
+        if key in ("fields", "row_centerlines", "parking_spots"):
             settings = QgsPalLayerSettings()
             settings.fieldName = "label"
             settings.isExpression = False

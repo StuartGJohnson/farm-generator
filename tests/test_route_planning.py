@@ -19,10 +19,10 @@ from route_planning.diagnostic import (load_route_json, optimality_gap_percent,
 from route_planning.demo import sample_tasks, solver_time_for_case
 from route_planning.graph import _setback_station, build_routing_graph
 from route_planning.model import Arc, FarmMap, Road, Route, RoutingGraph, Vertex
-from route_planning.optimize import optimize_arc_counts, row_repeat_counts
+from route_planning.optimize import arc_cost, optimize_arc_counts, row_repeat_counts
 from route_planning.ordering import ordered_field_graph
 from route_planning.path_feasibility import (TractorFootprint, path_feasibility,
-                                             road_turn_region, tree_convex_hulls)
+                                             road_turn_region, tree_concave_hulls)
 from route_planning.reconstruct import reconstruct_route
 from route_planning.rs import connection
 
@@ -183,7 +183,7 @@ def test_two_meter_minimum_retains_wider_first_junction_turn():
     region = road_turn_region(farm)
     obstacles = [Point(tree.x, tree.y).buffer(config.trunk_clearance_m)
                  for tree in farm.trees.values()]
-    hull = unary_union(list(tree_convex_hulls(farm, tuple(farm.fields)).values()))
+    hull = unary_union(list(tree_concave_hulls(farm, tuple(farm.fields)).values()))
     def first_turn(settings):
         return connection(start, end, region, obstacles, settings, STRtree(obstacles),
                           permitted_region=region,
@@ -212,6 +212,21 @@ def test_route_optimizer_prices_reverse_distance():
     assert "short_reverse" in cheap_reverse.counts
     assert "long_forward" in expensive_reverse.counts
     assert "short_reverse" not in expensive_reverse.counts
+
+
+def test_depot_reverse_allowance_prices_long_backup():
+    config = PlannerConfig(depot_reverse_cost_multiplier=1,
+                           depot_reverse_allowance_m=8,
+                           depot_excess_reverse_cost_multiplier=15)
+    arc = Arc("parking_exit", "A", "B", (Pose(0, 0, 0), Pose(0, 8, 0)),
+              8, "depot", reverse_distance_m=8)
+    assert arc_cost(arc, config) == 800
+    assert arc_cost(replace(arc, distance_m=9, reverse_distance_m=9), config) == 2300
+    assert arc_cost(arc, PlannerConfig()) == 2400  # Every reverse metre now has a cost.
+    with pytest.raises(ValueError, match="depot_reverse_allowance_m"):
+        PlannerConfig(depot_reverse_allowance_m=-1)
+    with pytest.raises(ValueError, match="depot_excess_reverse_cost_multiplier"):
+        PlannerConfig(depot_excess_reverse_cost_multiplier=0.5)
 
 
 def test_reverse_event_penalty_changes_arc_choice():
@@ -393,9 +408,9 @@ def test_real_gis_has_no_unselected_field_transit(tmp_path):
                for arc in turn_arcs)
     assert all(a.field_id in task.field_ids for a in graph.arcs.values() if a.kind in ("row", "rs"))
     assert any(len(a.service_ids) >= 2 for a in graph.arcs.values() if a.kind == "row")
-    from route_planning.path_feasibility import tree_convex_hulls
+    from route_planning.path_feasibility import tree_concave_hulls
     from shapely.geometry import LineString
-    tree_hull = tree_convex_hulls(farm, task.field_ids)[task.field_ids[0]]
+    tree_hull = tree_concave_hulls(farm, task.field_ids)[task.field_ids[0]]
     assert all(not LineString([(p.x, p.y) for p in arc.poses]).intersects(tree_hull)
                for arc in graph.arcs.values() if arc.kind == "rs")
     for arc in graph.arcs.values():

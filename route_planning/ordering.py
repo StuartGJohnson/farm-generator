@@ -29,9 +29,9 @@ def ordered_field_graph(base: RoutingGraph, task: FarmTask) -> RoutingGraph:
 
     for stage, field_id in enumerate(task.field_ids):
         for arc in base.arcs.values():
-            if arc.id == "terminal_start_arc" and stage != 0:
+            if (arc.id == "terminal_start_arc" or arc.id.startswith("depot_start_")) and stage != 0:
                 continue
-            if arc.id == "terminal_end_arc" and stage != stages - 1:
+            if (arc.id == "terminal_end_arc" or arc.id.startswith("depot_end_")) and stage != stages - 1:
                 continue
             if arc.kind in ("row", "rs") and arc.field_id != field_id:
                 continue

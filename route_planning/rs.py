@@ -19,7 +19,11 @@ def connection(start: Pose, end: Pose, field_polygon: Polygon,
                permitted_region: BaseGeometry | None = None,
                footprint: TractorFootprint | None = None,
                tree_hull: BaseGeometry | None = None,
-               forward_only: bool = False) -> tuple[tuple[Pose, ...], float, tuple[int, ...], float, int, int] | None:
+               forward_only: bool = False,
+               reverse_cost_multiplier: float | None = None,
+               reverse_event_penalty_m: float | None = None,
+               reverse_allowance_m: float | None = None,
+               excess_reverse_cost_multiplier: float = 1.0) -> tuple[tuple[Pose, ...], float, tuple[int, ...], float, int, int] | None:
     """Return the lowest penalized-cost legal RS candidate, if one exists."""
     if math.hypot(end.x - start.x, end.y - start.y) > config.rs_candidate_radius_m:
         return None
@@ -48,9 +52,12 @@ def connection(start: Pose, end: Pose, field_polygon: Polygon,
                              (index == 0 or path.segments[index - 1].direction > 0)
                              for index, segment in enumerate(path.segments))
         score = (path.total_length +
-                 (config.reverse_cost_multiplier - 1) * reverse_m +
+                 ((config.reverse_cost_multiplier if reverse_cost_multiplier is None else reverse_cost_multiplier) - 1) * reverse_m +
                  config.gear_change_penalty_m * gear_changes +
-                 config.reverse_event_penalty_m * reverse_events)
+                 (config.reverse_event_penalty_m if reverse_event_penalty_m is None else reverse_event_penalty_m) * reverse_events +
+                 ((excess_reverse_cost_multiplier - 1) * max(
+                     0.0, reverse_m - reverse_allowance_m)
+                  if reverse_allowance_m is not None else 0.0))
         return score, reverse_m, gear_changes, reverse_events
 
     ranked = sorted(((metrics(path), path) for path in paths),

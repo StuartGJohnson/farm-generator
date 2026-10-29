@@ -22,7 +22,7 @@ def verify(gis_dir: Path) -> None:
     required = {"fields", "row_centerlines", "roads", "road_centerlines", "trees",
                 "irrigation_channels", "channel_centerlines", "crossings"}
     actual = {ds.GetLayerByIndex(i).GetName() for i in range(ds.GetLayerCount())}
-    assert actual == required, (actual, required)
+    assert required <= actual <= required | {"depot", "parking_spots"}, (actual, required)
     field_geometries = {f.GetField("id"): f.GetGeometryRef().Clone()
                         for f in ds.GetLayerByName("fields")}
     tree_counts = Counter()
@@ -74,7 +74,9 @@ def verify(gis_dir: Path) -> None:
     for crossing in ds.GetLayerByName("crossings"):
         assert crossing.GetField("field_a") in field_geometries
         assert crossing.GetField("field_b") in field_geometries
-    assert ds.GetLayerByName("roads").GetFeatureCount() == expected["road_edges"]
+    depot_layer = ds.GetLayerByName("depot")
+    assert ds.GetLayerByName("roads").GetFeatureCount() == expected["road_edges"] + (
+        depot_layer.GetFeatureCount() if depot_layer else 0)
     assert ds.GetLayerByName("road_centerlines").GetFeatureCount() == expected["road_edges"]
     assert ds.GetLayerByName("irrigation_channels").GetFeatureCount() == expected["channel_edges"]
     assert ds.GetLayerByName("channel_centerlines").GetFeatureCount() == expected["channel_edges"]
@@ -93,6 +95,8 @@ def verify(gis_dir: Path) -> None:
     assert all(layer.isValid() for layer in qgis_layers.values())
     assert qgis_layers["Fields"].labelsEnabled()
     assert qgis_layers["Tree rows"].labelsEnabled()
+    if "parking_spots" in actual:
+        assert qgis_layers["Parking spots"].labelsEnabled()
     assert len(project.relationManager().relations()) >= 7
     print(json.dumps({"field_tree_counts": dict(tree_counts), "field_row_counts": dict(row_counts)}))
 

@@ -14,10 +14,17 @@ def arc_cost(arc: Arc, config: PlannerConfig) -> int:
     """Quantized travel cost, with reverse travel and shifts priced explicitly."""
     if arc.kind == "field_switch":
         return 0
+    reverse_multiplier = (config.depot_reverse_cost_multiplier if arc.kind == "depot"
+                          else config.reverse_cost_multiplier)
+    reverse_event_penalty = (config.depot_reverse_event_penalty_m if arc.kind == "depot"
+                             else config.reverse_event_penalty_m)
     effective_distance = (arc.distance_m +
-                          (config.reverse_cost_multiplier - 1) * arc.reverse_distance_m +
+                          (reverse_multiplier - 1) * arc.reverse_distance_m +
                           config.gear_change_penalty_m * arc.gear_changes +
-                          config.reverse_event_penalty_m * arc.reverse_events)
+                          reverse_event_penalty * arc.reverse_events)
+    if arc.kind == "depot":
+        effective_distance += ((config.depot_excess_reverse_cost_multiplier - 1) *
+                               max(0.0, arc.reverse_distance_m - config.depot_reverse_allowance_m))
     return max(1, round(config.cost_scale_per_m * effective_distance))
 
 

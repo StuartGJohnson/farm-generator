@@ -15,7 +15,7 @@ from PIL import Image
 from collections import Counter
 
 from .model import FarmMap, FarmTask, ImplementSide, Pose, Route, RouteSegment
-from .path_feasibility import tree_convex_hulls
+from .path_feasibility import tree_concave_hulls
 
 
 def optimality_gap_percent(route: Route) -> float | None:
@@ -96,7 +96,8 @@ def load_route_json(path: str | Path) -> Route:
                  doc.get("row_repeat_count", 0))
 
 
-def save_route_plot(route: Route, farm: FarmMap, path: str | Path) -> None:
+def save_route_plot(route: Route, farm: FarmMap, path: str | Path,
+                    bounds: tuple[float, float, float, float] | None = None) -> None:
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     fig, ax = plt.subplots(figsize=(12, 12), constrained_layout=True)
@@ -111,6 +112,9 @@ def save_route_plot(route: Route, farm: FarmMap, path: str | Path) -> None:
         ax.plot(x, y, color="#18bbaa" if selected else "#58616c",
                 lw=2.2 if selected else 0.8, zorder=2)
         center = polygon.representative_point()
+        if bounds is not None and not (bounds[0] <= center.x <= bounds[2] and
+                                       bounds[1] <= center.y <= bounds[3]):
+            continue
         ax.text(center.x, center.y, farm.field_names.get(field_id, field_id),
                 color="white", fontsize=9, weight="bold", ha="center", va="center",
                 bbox={"facecolor": "#12343d", "alpha": 0.83, "edgecolor": "none", "pad": 2}, zorder=12)
@@ -123,14 +127,18 @@ def save_route_plot(route: Route, farm: FarmMap, path: str | Path) -> None:
         ax.plot(x, y, color="#46b7ee", lw=0.7, alpha=0.65, zorder=3)
     for tree in farm.trees.values():
         ax.plot(tree.x, tree.y, ".", color="#184e1d", markersize=1.8, alpha=0.65, zorder=4)
-    for hull in tree_convex_hulls(farm, route.task.field_ids).values():
-        if hull.geom_type == "Polygon":
-            x, y = hull.exterior.xy
+    hull_fields = route.task.field_ids
+    for hull in tree_concave_hulls(farm, hull_fields).values():
+        polygons = (hull.geoms if hull.geom_type == "MultiPolygon" else (hull,))
+        for polygon in polygons:
+            if polygon.geom_type != "Polygon":
+                continue
+            x, y = polygon.exterior.xy
             ax.plot(x, y, color="#efc348", linestyle="--", lw=1.2,
                     alpha=0.9, zorder=5)
     done = set()
     colors = {"road": "#1fb9ed", "road_turn": "#27d9ce", "rs": "#ff9c2d",
-              "row": "#e72d97", "deadhead": "#b969e2"}
+              "row": "#e72d97", "deadhead": "#b969e2", "depot": "#f8f871"}
     for index, segment in enumerate(route.segments, 1):
         if segment.kind == "field_switch":
             point = segment.poses[0]
@@ -147,7 +155,7 @@ def save_route_plot(route: Route, farm: FarmMap, path: str | Path) -> None:
         x, y = [p.x for p in points], [p.y for p in points]
         ax.plot(x, y, color="#141819", lw=5.0, alpha=0.7, zorder=6)
         ax.plot(x, y, color=colors[category], lw=2.9, zorder=7)
-        if segment.kind in ("rs", "road_turn"):
+        if segment.kind in ("rs", "road_turn", "depot"):
             for i in range(1, len(points)):
                 if segment.driving_directions[i] < 0:
                     ax.plot(x[i - 1:i + 1], y[i - 1:i + 1], color="#ff374c",
@@ -173,11 +181,11 @@ def save_route_plot(route: Route, farm: FarmMap, path: str | Path) -> None:
     handles = [Line2D([0], [0], color=colors[k], lw=3, label=label) for k, label in (
         ("road", "Road travel"), ("row", "Row service"),
         ("deadhead", "Row deadhead"), ("rs", "Field Reeds–Shepp"),
-        ("road_turn", "Road junction turn"))]
+        ("road_turn", "Road junction turn"), ("depot", "Depot Reeds–Shepp"))]
     handles.append(Line2D([0], [0], color="#ff374c", lw=3.5,
                           linestyle="--", label="Reverse travel"))
     handles.append(Line2D([0], [0], color="#efc348", lw=1.2,
-                          linestyle="--", label="RS exclusion: tree hull"))
+                          linestyle="--", label="RS exclusion: concave tree hull"))
     ax.legend(handles=handles, loc="lower center", bbox_to_anchor=(0.5, -0.09),
               ncol=2, framealpha=0.96, fontsize=9)
     field_names = ", ".join(farm.field_names.get(fid, fid) for fid in route.task.field_ids)
@@ -193,10 +201,14 @@ def save_route_plot(route: Route, farm: FarmMap, path: str | Path) -> None:
     ax.set_xlabel("Local east / ROS map X (m)")
     ax.set_ylabel("Local north / ROS map Y (m)")
     ax.set_aspect("equal")
-    ax.set_xlim(min(p.bounds[0] for p in farm.fields.values()) - 3,
-                max(p.bounds[2] for p in farm.fields.values()) + 3)
-    ax.set_ylim(min(p.bounds[1] for p in farm.fields.values()) - 3,
-                max(p.bounds[3] for p in farm.fields.values()) + 3)
+    if bounds is None:
+        ax.set_xlim(min(p.bounds[0] for p in farm.fields.values()) - 3,
+                    max(p.bounds[2] for p in farm.fields.values()) + 3)
+        ax.set_ylim(min(p.bounds[1] for p in farm.fields.values()) - 3,
+                    max(p.bounds[3] for p in farm.fields.values()) + 3)
+    else:
+        ax.set_xlim(bounds[0], bounds[2])
+        ax.set_ylim(bounds[1], bounds[3])
     ax.grid(alpha=0.12)
     fig.savefig(path, dpi=180, bbox_inches="tight")
     plt.close(fig)
