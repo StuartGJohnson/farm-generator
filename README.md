@@ -75,7 +75,7 @@ python examples/farm_mesh_prototype.py
 It generates and validates 5 seeds and saves plots to
 `debug_out/examples/`.
 
-## Generating tree and weed assets
+## Generating assets
 
 The vegetation geometry is generated procedurally rather than sourced from a
 library of predefined or licensed tree and weed models. The asset-generation
@@ -100,17 +100,25 @@ their textures. The current tree seeds are 101, 202, 303, and 404; weed seeds
 are 101, 202, and 303. Reusing the same seeds produces repeatable USDA geometry
 and texture files.
 
+The same command builds `fences/chain_link_post.usda` and
+`fences/chain_link_panel.usda` in `debug_out/procedural_assets/`. The post is
+2 m tall with a galvanized cap. Each unscaled 2 m by 2 m panel has open
+chain-link wire, four narrow frame pipes, and an invisible planar collider.
+These farm assets use the generator in `generation/asset_generation/`; the
+[standalone fence example](fence/README.md) has its own assembly scene and
+preview.
+
 Asset generation is deliberately separate from farm and mesh generation.
-Farm export expects the prototype library to exist already and references its
-USDA files through tree and weed `PointInstancer` prototypes. It does not
-silently regenerate assets. Each farm seed then determines the prototype
-choice, rotation, and scale at each vegetation placement without modifying the
-underlying asset files.
+Farm export expects the asset library to exist already and does not silently
+regenerate it. Trees and weeds use `PointInstancer` prototypes; when
+`include_depot_fence=True`, the depot fence references the post and panel
+assets directly. Each farm seed determines the vegetation prototype choice,
+rotation, and scale without modifying the underlying asset files.
 
 ## Generating hydrology ground meshes
 
-Run `python examples/generate_procedural_assets.py` first to build the reusable,
-fully procedural tree and weed prototype library. Then run
+Run `python examples/generate_procedural_assets.py` first to build the reusable
+asset library. Then run
 `python examples/generate_ground_meshes.py` to generate five 60 m by 60 m farm
 IRs and corresponding USDA worlds in `debug_out/mesh/`. All five diagnostic
 farms enable optimized tree-row orientation. Run
@@ -882,6 +890,26 @@ headland width and half the tree-row spacing, respectively. Parking spots
 remain entirely inside the depot, run along crop columns, and are numbered
 from the innermost spot outward. GIS and USD exports include the spots and
 their parking lines.
+
+Set `include_depot_fence=True` with `depot_enabled=True` to fence the two
+field-facing depot edges. Each run starts at the shared field corner and uses
+as many unscaled 2 m chain-link sections as fit. Any remainder stays open at
+the road end. Posts remain vertical with their bases at Z=0, and panel
+collision planes provide the barrier. The GIS `depot_fence` layer and depot
+debug plot show the two runs; road geometry is unchanged. The option defaults
+to `False`. Generate a separate fenced seed 1 bundle with:
+
+```bash
+python examples/generate_procedural_assets.py
+python examples/generate_showcase_farm.py --seed 1 --depot --depot-fence
+```
+
+This writes `debug_out/farms/farm_seed_1_120m2_depot_fence/` (use
+`--vector-only` when Isaac rendering is unavailable). The seed 1 depot fits
+17 panels and 18 posts. Its Z=0 fence bases differ from the sampled ground
+height by at most about 3 cm.
+
+![Depot fence layout](debug_out/farms/farm_seed_1_120m2_depot_fence/debug/depot_detail.png)
 
 Depot tasks can start or end at a numbered spot facing `in` or `out`. The
 planner connects parked poses to sampled road poses with Reeds–Shepp paths;

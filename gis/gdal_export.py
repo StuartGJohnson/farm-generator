@@ -29,6 +29,7 @@ LAYER_SPECS = {
     "crossings": (ogr.wkbPolygon, ["id", "name", "road_edge_id", "channel_edge_id", "field_a", "field_b", "crossing_type", "span_width_m"]),
     "depot": (ogr.wkbPolygon, ["id", "field_id"]),
     "parking_spots": (ogr.wkbPoint, ["id", "label", "field_id", "number", "yaw_in", "length_m", "width_m"]),
+    "depot_fence": (ogr.wkbLineString, ["id", "field_id", "section_count"]),
 }
 
 
@@ -133,6 +134,7 @@ def _write_qgis(path, gpkg, tif, extent):
         "crossings": ("Crossings", "fill", "235,55,45,170", "135,20,20,255"),
         "depot": ("Tractor depot", "fill", "145,145,145,70", "240,240,240,255"),
         "parking_spots": ("Parking spots", "marker", "255,255,255,255", None),
+        "depot_fence": ("Depot fence", "line", "225,40,170,255", None),
     }
     # Add in draw order: channels and roads under row lines and trees.
     vector_layers = {}

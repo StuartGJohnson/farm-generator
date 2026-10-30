@@ -22,7 +22,7 @@ def verify(gis_dir: Path) -> None:
     required = {"fields", "row_centerlines", "roads", "road_centerlines", "trees",
                 "irrigation_channels", "channel_centerlines", "crossings"}
     actual = {ds.GetLayerByIndex(i).GetName() for i in range(ds.GetLayerCount())}
-    assert required <= actual <= required | {"depot", "parking_spots"}, (actual, required)
+    assert required <= actual <= required | {"depot", "parking_spots", "depot_fence"}, (actual, required)
     field_geometries = {f.GetField("id"): f.GetGeometryRef().Clone()
                         for f in ds.GetLayerByName("fields")}
     tree_counts = Counter()

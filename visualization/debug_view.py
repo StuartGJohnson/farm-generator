@@ -76,6 +76,10 @@ def plot_scene(scene: FarmScene, layers: set[str] | None = None, title: str | No
                                     edgecolor="white", linewidth=0.8, zorder=6))
             ax.text(*spot.center, str(spot.number), color="white", ha="center",
                     va="center", fontsize=8, weight="bold", zorder=7)
+        for index, line in enumerate(depot.fence_lines):
+            ax.plot([point[0] for point in line], [point[1] for point in line],
+                    color="#e32bb4", linewidth=2.5, zorder=8,
+                    label="depot fence" if index == 0 else None)
 
     if "roads" in layers and scene.roads.edges:
         for i, edge in enumerate(scene.roads.edges.values()):

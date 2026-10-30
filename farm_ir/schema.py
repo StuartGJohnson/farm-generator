@@ -450,6 +450,7 @@ class Depot:
     cross_row_width_m: float = 0.0
     parking_line_length_m: float = 0.0
     parking_inset_m: float = 0.0
+    fence_lines: list[list[Point2]] = field(default_factory=list)
 
 
 @dataclass

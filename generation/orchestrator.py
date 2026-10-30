@@ -49,7 +49,7 @@ from farm_ir.serialize import from_plain, read, write
 from generation.surface_friction import generate_surface_friction
 from generation.surface_height import generate_surface_height
 
-from generation import crops, crossings, hydrology, roads, tessellation
+from generation import crops, crossings, depot_fence, hydrology, roads, tessellation
 from generation.tessellation import min_interior_angle_deg
 
 GENERATOR_VERSION = "farm-gen-0.1.0"
@@ -130,6 +130,7 @@ class FarmGenerationConfig:
 
     # --- tractor depot ---
     depot_enabled: bool = False
+    include_depot_fence: bool = False
     depot_along_row_size: float = 6.0
     depot_cross_row_size: float = 3.0
     depot_spot_length_multiple: float = 2.0
@@ -282,6 +283,7 @@ def generate_farm(config: FarmGenerationConfig) -> FarmScene:
     scene = roads.run(scene, config, road_rng)
     scene = crossings.run(scene, config, crossing_rng)
     scene = crops.run(scene, config, crop_rng)
+    scene = depot_fence.run(scene, config)
     scene.surface_friction = generate_surface_friction(config)
     scene.surface_height = generate_surface_height(config)
 

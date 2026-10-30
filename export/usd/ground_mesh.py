@@ -24,6 +24,7 @@ from shapely.geometry import LineString, MultiLineString, Point, Polygon, box
 from shapely.ops import nearest_points, substring, unary_union
 
 from farm_ir.schema import FarmScene, HydrologyEdge, RoadClass, SurfaceFriction, SurfaceHeightField
+from generation.depot_fence import fence_placements
 from generation.surface_friction import face_surface_regions, sample_mesh_friction
 from generation.surface_height import sample_ground_height
 from .friction import UsdFrictionConfig, friction_usda
@@ -1103,6 +1104,7 @@ def write_ground_mesh_usda(
     scene: FarmScene | None = None,
     tree_assets: tuple[Path, ...] = (),
     weed_assets: tuple[Path, ...] = (),
+    fence_assets: tuple[Path, Path] = (),
     friction_config: UsdFrictionConfig = UsdFrictionConfig(),
     asset_root: Path | None = None,
 ) -> None:
@@ -1455,6 +1457,31 @@ def write_ground_mesh_usda(
     rel material:binding = </World/Looks/ParkingWhite>
     uniform token subdivisionScheme = "none"
 }}'''
+    fence_block = ""
+    if scene is not None and scene.depot is not None and scene.depot.fence_lines:
+        if len(fence_assets) != 2:
+            raise ValueError("fenced depots require post and panel fence assets")
+        post_ref, panel_ref = (asset_reference_path(Path(asset)) for asset in fence_assets)
+        posts, panels = fence_placements(scene.depot.fence_lines)
+        parts = []
+        for index, (x, y) in enumerate(posts):
+            parts.append(f'''def Xform "Post_{index:03d}" (
+    prepend references = @{post_ref}@
+)
+{{
+    double3 xformOp:translate = ({x:.9g}, {y:.9g}, 0)
+    uniform token[] xformOpOrder = ["xformOp:translate"]
+}}''')
+        for index, (x, y, yaw) in enumerate(panels):
+            parts.append(f'''def Xform "Panel_{index:03d}" (
+    prepend references = @{panel_ref}@
+)
+{{
+    double3 xformOp:translate = ({x:.9g}, {y:.9g}, 0)
+    float xformOp:rotateZ = {yaw:.9g}
+    uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:rotateZ"]
+}}''')
+        fence_block = 'def Scope "DepotFence"\n{\n' + indent("\n\n".join(parts)) + '\n}'
     subsets = "\n\n".join([
         subset(
             "FlatFaces", "GrassMaterial",
@@ -1573,6 +1600,8 @@ def Xform "World"
 {indent(water_block, 4)}
 
 {indent(parking_block, 4)}
+
+{indent(fence_block, 4)}
 
 {vegetation_block.rstrip()}
 }}
@@ -1743,6 +1772,7 @@ def export_scene_ground(
     *,
     tree_assets: tuple[Path, ...] = (),
     weed_assets: tuple[Path, ...] = (),
+    fence_assets: tuple[Path, Path] = (),
     friction_config: UsdFrictionConfig = UsdFrictionConfig(),
     asset_root: Path | None = None,
 ) -> GroundMesh:
@@ -1753,6 +1783,7 @@ def export_scene_ground(
         scene=scene,
         tree_assets=tree_assets,
         weed_assets=weed_assets,
+        fence_assets=fence_assets,
         friction_config=friction_config,
         asset_root=asset_root,
     )

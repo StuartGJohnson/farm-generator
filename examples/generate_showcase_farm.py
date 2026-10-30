@@ -29,6 +29,8 @@ def main() -> None:
     parser.add_argument("--output-root", type=Path, default=Path("debug_out/farms"))
     parser.add_argument("--vector-only", action="store_true", help="skip Isaac rendering for GIS development")
     parser.add_argument("--depot", action="store_true", help="include a tractor depot and suffix the farm name")
+    parser.add_argument("--depot-fence", action="store_true",
+                        help="fence the two field-facing depot edges with whole 2 m sections")
     parser.add_argument("--outlands-m", type=float, default=0.0,
                         help="width of cropped outlands around the fixed inner farm")
     parser.add_argument("--seed4-debug-profile", action="store_true",
@@ -37,9 +39,12 @@ def main() -> None:
     seed = args.seed
     if args.seed4_debug_profile and (seed != 4 or not args.depot):
         parser.error("--seed4-debug-profile requires --seed 4 --depot")
+    if args.depot_fence and not args.depot:
+        parser.error("--depot-fence requires --depot")
     bounds = (0.0, 0.0, 120.0, 120.0)
     stem = (f"farm_seed_{seed}_120m2" + ("_depot" if args.depot else "")
-            + ("_outlands" if args.outlands_m > 0 else ""))
+            + ("_outlands" if args.outlands_m > 0 else "")
+            + ("_fence" if args.depot_fence else ""))
     scene_dir = Path("debug_out") / "farm_scenes"
     mesh_dir = Path("debug_out") / "mesh"
     asset_dir = Path("debug_out") / "procedural_assets"
@@ -55,6 +60,10 @@ def main() -> None:
         raise FileNotFoundError(
             "the four-tree procedural library is missing; run "
             "`python examples/generate_procedural_assets.py` first"
+        )
+    if args.depot_fence and len(tuple((asset_dir / "fences").glob("*.usda"))) != 2:
+        raise FileNotFoundError(
+            "the fence assets are missing; run `python examples/generate_procedural_assets.py` first"
         )
 
     config = FarmGenerationConfig(
@@ -104,6 +113,7 @@ def main() -> None:
         hydrology_add_water=True,
         hydrology_water_depth_fraction=0.5,
         depot_enabled=args.depot,
+        include_depot_fence=args.depot_fence,
         depot_cross_row_size=4.0,
     )
     if args.seed4_debug_profile:
@@ -112,7 +122,8 @@ def main() -> None:
             outlands_headland_width=2.0, outlands_sideland_width=1.5,
             max_faces=3, row_spacing=5.0,
             tree_spacing=4.0, headland_width=6.0, sideland_width=5.0,
-            standoff=3.0, depot_enabled=True, depot_cross_row_size=4.0,
+            standoff=3.0, depot_enabled=True,
+            include_depot_fence=args.depot_fence, depot_cross_row_size=4.0,
         )
     scene, issues, used_seed = generate_validated(config)
     if issues:
@@ -132,6 +143,9 @@ def main() -> None:
     shutil.copytree(asset_dir, bundled_procedural, dirs_exist_ok=True)
     tree_assets = tuple(sorted(bundled_procedural.glob("trees/*/*.usda")))
     weed_assets = tuple(sorted(bundled_procedural.glob("weeds/*/*.usda")))
+    fence_assets = ((bundled_procedural / "fences" / "chain_link_post.usda",
+                     bundled_procedural / "fences" / "chain_link_panel.usda")
+                    if args.depot_fence else ())
     mesh = export_scene_ground(
         scene,
         domain_bounds,
@@ -143,6 +157,7 @@ def main() -> None:
         ),
         tree_assets=tree_assets,
         weed_assets=weed_assets,
+        fence_assets=fence_assets,
         asset_root=bundled_assets,
     )
     rgb_path = farm_dir / "gis" / "_orthophoto_rgb.png"
@@ -204,6 +219,12 @@ def main() -> None:
             "depot_field_id": field_id,
             "depot_area_m2": depot_poly.area,
             "parking_spots": len(scene.depot.parking_spots),
+            "fence_sections": sum(round(LineString(line).length / 2)
+                                  for line in scene.depot.fence_lines),
+            "fence_posts": (1 + sum(round(LineString(line).length / 2)
+                                   for line in scene.depot.fence_lines)
+                            if scene.depot.fence_lines else 0),
+            "fence_lines_xy": scene.depot.fence_lines,
             "depot_headland_m": config.depot_headland_m,
             "depot_sideland_m": config.depot_sideland_m,
             "exclusion_polygon_xy": list(exclusion.exterior.coords[:-1]),

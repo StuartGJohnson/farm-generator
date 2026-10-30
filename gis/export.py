@@ -69,7 +69,7 @@ def _features(scene):
     layers = {name: [] for name in (
         "fields", "row_centerlines", "roads", "road_centerlines", "trees",
         "irrigation_channels", "channel_centerlines", "crossings",
-        "depot", "parking_spots",
+        "depot", "parking_spots", "depot_fence",
     )}
     farm_ids = sorted(pid for pid, parcel in scene.parcels.items()
                       if parcel.parcel_group != ParcelGroup.OUTLAND)
@@ -136,6 +136,10 @@ def _features(scene):
                 field_id=depot.field_id, number=spot.number,
                 yaw_in=spot.yaw_in, length_m=spot.length_m,
                 width_m=spot.width_m))
+        for index, line in enumerate(depot.fence_lines, 1):
+            layers["depot_fence"].append(_feature(
+                LineString(line), id=f"depot_fence_{index}",
+                field_id=depot.field_id, section_count=round(LineString(line).length / 2)))
     for tree in sorted(scene.trees.values(), key=lambda t: t.id):
         pid, row_number = assignments[tree.id]
         layers["trees"].append(_feature(Point(tree.position), id=tree.id,

@@ -10,6 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+from generation.asset_generation.fence_generator import generate_fence_assets
 from generation.asset_generation.tree_generator import generate_pecan_tree_usd
 from generation.asset_generation.weed_generator import (
     generate_ashweed_usd,
@@ -22,6 +23,7 @@ from generation.asset_generation.weed_generator import (
 class ProceduralAssetLibrary:
     tree_assets: tuple[Path, ...]
     weed_assets: tuple[Path, ...]
+    fence_assets: tuple[Path, Path]
 
 
 def generate_procedural_asset_library(
@@ -54,7 +56,9 @@ def generate_procedural_asset_library(
             seed=weed_seeds[2],
         ),
     )
+    fence_assets = generate_fence_assets(output_dir / "fences")
     return ProceduralAssetLibrary(
         tree_assets=tuple(Path(path) for path in tree_assets),
         weed_assets=tuple(Path(path) for path in weed_assets),
+        fence_assets=fence_assets,
     )
