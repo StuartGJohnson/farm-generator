@@ -14,6 +14,8 @@ from pathlib import Path
 
 from shapely.geometry import LineString, Point, Polygon
 
+from farm_ir.schema import ParcelGroup
+
 
 def _row_id(field_id: str, row_number: int) -> str:
     return f"{field_id}_row_{row_number:03d}"
@@ -69,7 +71,12 @@ def _features(scene):
         "irrigation_channels", "channel_centerlines", "crossings",
         "depot", "parking_spots",
     )}
-    field_names = {pid: f"Field {i:03d}" for i, pid in enumerate(sorted(scene.parcels), 1)}
+    farm_ids = sorted(pid for pid, parcel in scene.parcels.items()
+                      if parcel.parcel_group != ParcelGroup.OUTLAND)
+    field_names = {pid: f"Field {i:03d}" for i, pid in enumerate(farm_ids, 1)}
+    field_names.update({pid: pid.replace("_", " ").title()
+                        for pid, parcel in scene.parcels.items()
+                        if parcel.parcel_group == ParcelGroup.OUTLAND})
     assignments = _row_assignments(scene)
     trees_by_row = {}
     for tree in scene.trees.values():
@@ -81,6 +88,7 @@ def _features(scene):
         layers["fields"].append(_feature(field_poly, id=pid,
                                          name=field_names[pid], label=field_names[pid],
                                          kind=str(parcel.parcel_type.value),
+                                         parcel_group=parcel.parcel_group.value,
                                          crop_type=getattr(parcel, "crop_type", "")))
     for zone in sorted(scene.weed_zones.values(), key=lambda z: z.id):
         pid = zone.tags.get("parcel_id", "")

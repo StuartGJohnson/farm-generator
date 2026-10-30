@@ -30,10 +30,13 @@ def main() -> None:
         config = FarmGenerationConfig(
             bounds=bounds,
             seed=seed,
+            outlands_m=10.0,
             max_faces=4,
             standoff=3.5,
             headland_width=7.5,
             sideland_width=6.5,
+            outlands_headland_width=2.0,
+            outlands_sideland_width=1.5,
             tree_spacing=4.0,
             row_spacing=5.0,
             optimize_tree_layout=True,
@@ -47,12 +50,12 @@ def main() -> None:
         status = "OK" if not issues else f"{len(issues)} ISSUE(S)"
         retry = f" (used seed {used_seed} after retry)" if used_seed != seed else ""
         print(f"seed={seed}{retry}: {len(scene.parcels)} parcels -- {status}")
-        save_scene_png(scene, os.path.join(scene_dir, f"farm_seed_{seed}.png"), title=f"farm-gen debug view\nseed={seed}")
-        save_farm(scene, config, os.path.join(scene_dir, f"farm_seed_{seed}.yaml"))
+        save_scene_png(scene, os.path.join(scene_dir, f"farm_seed_{seed}_outlands.png"), title=f"farm-gen debug view with outlands\nseed={seed}")
+        save_farm(scene, config, os.path.join(scene_dir, f"farm_seed_{seed}_outlands.yaml"))
         mesh = export_scene_ground(
             scene,
-            bounds,
-            os.path.join(mesh_dir, f"farm_seed_{seed}_ground.usda"),
+            config.domain_bounds,
+            os.path.join(mesh_dir, f"farm_seed_{seed}_outlands_ground.usda"),
             undulation=ChannelUndulationConfig(
                 max_amplitude=0.10,
                 min_wavelength=1.0,
@@ -62,12 +65,12 @@ def main() -> None:
             weed_assets=weed_assets,
         )
         bins, assignments = quantize_friction(mesh)
-        save_surface_friction_plot(mesh, Path(mesh_dir) / f"farm_seed_{seed}_friction.png",
+        save_surface_friction_plot(mesh, Path(mesh_dir) / f"farm_seed_{seed}_outlands_friction.png",
                                    [bins[i][2] for i in assignments])
-        save_surface_height_plot(mesh, Path(mesh_dir) / f"farm_seed_{seed}_height.png")
+        save_surface_height_plot(mesh, Path(mesh_dir) / f"farm_seed_{seed}_outlands_height.png")
         save_ground_mesh_wireframe(
             mesh,
-            os.path.join(mesh_dir, f"farm_seed_{seed}_ground_wireframe.png"),
+            os.path.join(mesh_dir, f"farm_seed_{seed}_outlands_ground_wireframe.png"),
             title=f"hydrology ground mesh — seed {seed}",
         )
         water_vertices = sum(len(surface.points) for surface in mesh.water_surfaces)

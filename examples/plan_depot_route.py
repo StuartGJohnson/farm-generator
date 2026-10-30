@@ -23,12 +23,17 @@ def main():
                         help="run one case (default: all three)")
     parser.add_argument("--reuse-route", action="store_true",
                         help="regenerate plots from the saved route without optimization")
+    parser.add_argument("--outlands", action="store_true",
+                        help="use the depot farm with outlands and write routes separately")
+    parser.add_argument("--output-dir", type=Path,
+                        help="override the route output directory")
     args = parser.parse_args()
-    farm_dir = Path("debug_out/farms/farm_seed_1_120m2_depot")
+    stem = "farm_seed_1_120m2_depot" + ("_outlands" if args.outlands else "")
+    farm_dir = Path("debug_out/farms") / stem
     farm = load_farm_map(farm_dir)
     if farm.depot_field_id != "parcel_003":
         raise ValueError("Seed 1 depot is expected in parcel_003; regenerate the showcase farm")
-    output = Path("debug_out/routes/farm_seed_1_120m2_depot")
+    output = args.output_dir or Path("debug_out/routes") / stem
     output.mkdir(parents=True, exist_ok=True)
     x0, y0, x1, y1 = farm.depot.bounds
     for number in ((args.case,) if args.case else (1, 2, 3)):

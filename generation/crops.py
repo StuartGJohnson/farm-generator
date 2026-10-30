@@ -66,7 +66,7 @@ from __future__ import annotations
 import numpy as np
 from shapely.geometry import LineString, Point, Polygon
 
-from farm_ir.schema import CropArea, Depot, FarmScene, ParkingSpot, PlantingSpec, TreeInstance, WeedSpec, WeedZone
+from farm_ir.schema import CropArea, Depot, FarmScene, ParcelGroup, ParkingSpot, PlantingSpec, TreeInstance, WeedSpec, WeedZone
 
 # Absorbs GEOS intersection noise (~1e-15 m observed) at exact-tie
 # boundary comparisons, without loosening the real headland/sideland
@@ -274,9 +274,8 @@ def run(scene: FarmScene, config, rng: np.random.Generator) -> FarmScene:
     tree_idx = 0
     weed_idx = 0
     layouts = {}
-    for pid, parcel in scene.parcels.items():
-        if not isinstance(parcel, CropArea):
-            continue
+
+    def add_layout(pid, parcel):
         poly = Polygon(parcel.polygon)
         parcel_coords = np.array(parcel.polygon)
         parcel_seed = int(rng.integers(0, 2**63 - 1))
@@ -285,6 +284,12 @@ def run(scene: FarmScene, config, rng: np.random.Generator) -> FarmScene:
             parcel_coords, parcel_rng, config.optimize_tree_layout
         )
         layouts[pid] = (poly, parcel_seed, parcel_rng, origin, row_dir, col_dir)
+
+    # Keep the farm's random draws and depot choice fixed when outlands are
+    # enabled. Outland layouts are added after the depot has been selected.
+    for pid, parcel in scene.parcels.items():
+        if isinstance(parcel, CropArea) and parcel.parcel_group != ParcelGroup.OUTLAND:
+            add_layout(pid, parcel)
 
     if config.depot_enabled:
         candidates = []
@@ -372,8 +377,13 @@ def run(scene: FarmScene, config, rng: np.random.Generator) -> FarmScene:
                             config.draw_parking_spaces, tuple(map(float, depot_origin)), float(length), float(width),
                             spot_length, inset)
 
+    for pid, parcel in scene.parcels.items():
+        if isinstance(parcel, CropArea) and parcel.parcel_group == ParcelGroup.OUTLAND:
+            add_layout(pid, parcel)
+
     for pid, (original_poly, parcel_seed, parcel_rng, origin, row_dir, col_dir) in layouts.items():
         parcel = scene.parcels[pid]
+        is_outland = parcel.parcel_group == ParcelGroup.OUTLAND
         poly = (original_poly.difference(Polygon(scene.depot.polygon))
                 if scene.depot and scene.depot.field_id == pid else original_poly)
         row_angle_deg = float(np.degrees(np.arctan2(row_dir[1], row_dir[0])))
@@ -382,8 +392,8 @@ def run(scene: FarmScene, config, rng: np.random.Generator) -> FarmScene:
             row_spacing=config.row_spacing,
             tree_spacing=config.tree_spacing,
             row_angle_deg=row_angle_deg,
-            headland_width=config.headland_width,
-            sideland_width=config.sideland_width,
+            headland_width=(config.outlands_headland_width if is_outland else config.headland_width),
+            sideland_width=(config.outlands_sideland_width if is_outland else config.sideland_width),
             species_mix=dict(config.species_mix),
             seed=parcel_seed,
             optimize_tree_layout=config.optimize_tree_layout,

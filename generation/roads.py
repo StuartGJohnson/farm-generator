@@ -26,7 +26,7 @@ from __future__ import annotations
 
 from shapely.geometry import Polygon
 
-from farm_ir.schema import FarmScene, RoadClass, RoadEdge, RoadNode, RoadNodeType
+from farm_ir.schema import FarmScene, ParcelGroup, RoadClass, RoadEdge, RoadNode, RoadNodeType
 
 from generation._geom_utils import exterior_coords, largest_polygon
 
@@ -36,6 +36,8 @@ def run(scene: FarmScene, config, rng) -> FarmScene:
     edge_idx = 0
 
     for pid, parcel in scene.parcels.items():
+        if parcel.parcel_group == ParcelGroup.OUTLAND:
+            continue
         poly = Polygon(parcel.polygon)
         eroded = poly.buffer(-config.standoff, join_style="mitre", mitre_limit=config.mitre_limit)
         eroded = largest_polygon(eroded)

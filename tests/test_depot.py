@@ -26,6 +26,24 @@ def depot_config():
         standoff=3, depot_enabled=True, depot_cross_row_size=4)
 
 
+def test_outlands_do_not_move_existing_depot_or_inner_trees():
+    config = FarmGenerationConfig(
+        bounds=(0, 0, 120, 120), seed=1, max_faces=4,
+        row_spacing=5, tree_spacing=4, headland_width=7.5,
+        sideland_width=6.5, standoff=3.5,
+        optimize_tree_layout=True, depot_enabled=True, depot_cross_row_size=4,
+    )
+    original = generate_farm(config)
+    expanded = generate_farm(replace(config, outlands_m=10))
+    assert expanded.depot == original.depot
+    assert expanded.roads == original.roads
+    assert expanded.crossings == original.crossings
+    for pid in original.parcels:
+        assert expanded.parcels[pid].polygon == original.parcels[pid].polygon
+        assert [t.position for t in expanded.trees.values() if t.tags.get("parcel_id") == pid] == [
+            t.position for t in original.trees.values() if t.tags.get("parcel_id") == pid]
+
+
 def test_depot_clearances_default_from_crop_spacing_and_only_trim_adjacent_trees():
     config = depot_config()
     assert config.depot_headland_m == pytest.approx(config.headland_width)

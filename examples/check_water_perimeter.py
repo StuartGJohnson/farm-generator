@@ -20,7 +20,7 @@ def main():
     parser.add_argument("--output", default="debug_out/mesh/water_perimeter_report.json")
     args = parser.parse_args()
     scene, config = load_farm(args.scene)
-    mesh = build_ground_mesh(scene, config.bounds, undulation=ChannelUndulationConfig())
+    mesh = build_ground_mesh(scene, config.domain_bounds, undulation=ChannelUndulationConfig())
     if mesh.surface_height is None or mesh.height_weights is None:
         raise ValueError("scene has no generated height field")
     ground = np.asarray(mesh.points)
@@ -28,9 +28,9 @@ def main():
     offsets = sample_height(mesh.surface_height, ground[:, :2])
     original_z = ground[:, 2] - offsets * weights
     tree = cKDTree(ground[:, :2])
-    domain_edge = box(*config.bounds).boundary
+    domain_edge = box(*config.domain_bounds).boundary
     road_area = next(
-        (patch.polygon for patch in build_road_surface_patches(scene, config.bounds)
+        (patch.polygon for patch in build_road_surface_patches(scene, config.domain_bounds)
          if not patch.is_crossing), None
     )
     road_edge = road_area.boundary if road_area is not None else None

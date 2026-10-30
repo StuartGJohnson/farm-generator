@@ -243,6 +243,11 @@ class ParcelType(str, Enum):
     EASEMENT = "easement"
 
 
+class ParcelGroup(str, Enum):
+    FARM = "farm"
+    OUTLAND = "outland"
+
+
 @dataclass
 class BoundaryRef:
     """One segment of a parcel's boundary, tied back to the network edge it follows."""
@@ -254,6 +259,7 @@ class BoundaryRef:
 class Parcel(SpatialFeature):
     polygon: Polygon = field(default_factory=list)
     parcel_type: ParcelType = ParcelType.CROP
+    parcel_group: ParcelGroup = ParcelGroup.FARM
     boundary_refs: list[BoundaryRef] = field(default_factory=list)
 
     def __post_init__(self):

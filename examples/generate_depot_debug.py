@@ -100,12 +100,12 @@ def main():
     if args.plots_only:
         print(output.resolve())
         return
-    mesh = build_ground_mesh(scene, config.bounds)
+    mesh = build_ground_mesh(scene, config.domain_bounds)
     save_surface_height_plot(mesh, output / "height_fields.png")
     save_surface_friction_plot(mesh, output / "friction_fields.png")
     save_ground_mesh_plan(mesh, str(output / "ground_plan.png"))
     write_ground_mesh_usda(mesh, str(output / "ground.usda"), scene=scene)
-    export_gis(scene, config.bounds, output, tiles=False)
+    export_gis(scene, config.domain_bounds, output, tiles=False)
     print(output.resolve())
 
 

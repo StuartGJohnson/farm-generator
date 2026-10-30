@@ -21,7 +21,7 @@ import numpy as np
 from shapely.geometry import LineString, Point, Polygon
 from shapely.ops import split as shapely_split
 
-from farm_ir.schema import CropArea, FarmScene, ParcelType
+from farm_ir.schema import CropArea, FarmScene, ParcelGroup, ParcelType
 
 from generation._geom_utils import exterior_coords
 
@@ -255,10 +255,32 @@ def run(scene: FarmScene, config, rng: np.random.Generator) -> FarmScene:
         )
         scene.parcels[pid] = parcel
 
+    if config.outlands_m > 0:
+        x0, y0, x1, y1 = config.bounds
+        ox0, oy0, ox1, oy1 = config.domain_bounds
+        rectangles = {
+            "outlands_north": (ox0, y1, ox1, oy1),
+            "outlands_south": (ox0, oy0, ox1, y0),
+            "outlands_east": (x1, y0, ox1, y1),
+            "outlands_west": (ox0, y0, x0, y1),
+        }
+        for pid, (left, bottom, right, top) in rectangles.items():
+            scene.parcels[pid] = CropArea(
+                id=pid,
+                polygon=[(left, bottom), (right, bottom),
+                         (right, top), (left, top)],
+                parcel_type=ParcelType.CROP,
+                parcel_group=ParcelGroup.OUTLAND,
+                crop_type=config.crop_type,
+                irrigation_type=config.irrigation_type,
+            )
+
     # RAW (pre-cleanup) total area, stashed for orchestrator.validate()'s
     # tight algorithm-correctness check -- see CLAUDE.md "Area conservation
     # should only be checked strictly on RAW tessellation output".
     raw_area = sum(f.area for f in faces_raw)
+    if config.outlands_m > 0:
+        raw_area += sum(Polygon(scene.parcels[pid].polygon).area for pid in rectangles)
     scene.provenance.generator_params["tessellation_raw_area"] = repr(raw_area)
     scene.provenance.generator_params["tessellation_raw_face_count"] = str(len(faces_raw))
 

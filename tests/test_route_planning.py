@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import json
 from dataclasses import replace
 from pathlib import Path
 
@@ -25,6 +26,21 @@ from route_planning.path_feasibility import (TractorFootprint, path_feasibility,
                                              road_turn_region, tree_concave_hulls)
 from route_planning.reconstruct import reconstruct_route
 from route_planning.rs import connection
+
+
+@pytest.mark.skipif(
+    not all((Path("debug_out/routes") / stem / "route_01.json").exists()
+            for stem in ("farm_seed_1_120m2_depot",
+                         "farm_seed_1_120m2_depot_outlands")),
+    reason="both depot route_01 outputs have not been generated",
+)
+def test_outlands_preserve_depot_route_01():
+    routes = [json.loads((Path("debug_out/routes") / stem / "route_01.json").read_text())
+              for stem in ("farm_seed_1_120m2_depot",
+                           "farm_seed_1_120m2_depot_outlands")]
+    for route in routes:
+        route.pop("solver_wall_time_s", None)
+    assert routes[0] == routes[1]
 
 
 def _toy_graph(start, end, edges, requirements):

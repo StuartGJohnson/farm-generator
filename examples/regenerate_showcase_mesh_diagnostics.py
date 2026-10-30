@@ -35,7 +35,7 @@ def main() -> None:
         tree_assets = tuple(sorted((farm_dir / "procedural_assets").glob("trees/*/*.usda")))
         weed_assets = tuple(sorted((farm_dir / "procedural_assets").glob("weeds/*/*.usda")))
         mesh = export_scene_ground(
-            scene, config.bounds, str(mesh_dir / f"{stem}_ground.usda"),
+            scene, config.domain_bounds, str(mesh_dir / f"{stem}_ground.usda"),
             undulation=ChannelUndulationConfig(max_amplitude=0.10,
                                                min_wavelength=1.0,
                                                sample_spacing=1.0),

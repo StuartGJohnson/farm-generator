@@ -27,8 +27,8 @@ def generate_field(parameters, bounds, resolution):
 
 def generate_surface_friction(config):
     return SurfaceFriction(
-        generate_field(config.crop_surface, config.bounds, config.farm_resolution_m),
-        generate_field(config.road_surface, config.bounds, config.farm_resolution_m),
+        generate_field(config.crop_surface, config.domain_bounds, config.farm_resolution_m),
+        generate_field(config.road_surface, config.domain_bounds, config.farm_resolution_m),
         config.channel_friction, config.farm_resolution_m,
     )
 

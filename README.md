@@ -917,6 +917,61 @@ marks the concave tree hull, including the boundary beside the depot. Use
 
 ![Route 03 servicing two fields from the depot](debug_out/routes/farm_seed_1_120m2_depot/route_03.png)
 
+## Outlands
+
+`outlands_m` extends the rectangular inner farm by that distance on every
+side. The extension is divided into four rectangular crop parcels named
+`outlands_north`, `outlands_south`, `outlands_east`, and `outlands_west`.
+Extending the north and south inner boundary channels to the outer edge
+creates their T-shaped channel junctions. The outlands have irrigation
+channels along field boundaries and at the outer perimeter, but no roads.
+They receive tree rows and weeds like the inner crop fields. Their GIS
+`parcel_group` is `outland`, so they keep directional names and do not consume
+the `Field 001`, `Field 002`, ... numbering of the inner farm.
+
+The default `outlands_m=0` leaves outlands disabled. The 120 m examples use
+`outlands_m=10`: the inner farm stays at `(0, 0)` to `(120, 120)`, while the
+full domain runs from `(-10, -10)` to `(130, 130)`. This keeps the inner
+parcel, tree, road, and depot coordinates fixed. Outlands have separate
+`outlands_headland_width` and `outlands_sideland_width` settings (defaults
+2.0 m and 1.5 m); changing them does not change the inner farm's headland
+and sideland settings. The seeded surface height and crop/road friction
+fields cover the full extended domain, including the outlands. Road
+friction applies only where roads exist.
+
+Generate the seed 1 depot bundle with outlands, its orthophoto, and routes
+from the repository root:
+
+```bash
+conda activate isaacsim61-cu13
+python examples/generate_showcase_farm.py --seed 1 --depot --outlands-m 10
+python examples/plan_depot_route.py --case 2 --outlands
+python examples/plan_depot_route.py --case 3 --outlands
+```
+
+The bundle is saved under `debug_out/farms/farm_seed_1_120m2_depot_outlands/`;
+route JSON, overview plots, depot zooms, and manifests are saved under
+`debug_out/routes/farm_seed_1_120m2_depot_outlands/`. The showcase generator
+also supports `--vector-only` when an orthophoto is not needed.
+
+The route 02 and 03 planner graphs are identical with and without outlands,
+including ordered arcs and integer costs. CP-SAT uses a fixed random seed
+but eight search workers. Route 02 has two equally optimal, 657.0 m field
+traversals: the outlands run serviced the rows in the reverse order and
+direction while retaining the same depot legs. Route 03 stops at its 120 s
+limit with a feasible solution, so its path and cost can vary between runs
+even on the unchanged non-outlands farm. Compare objectives and optimality
+status when checking these routes; an `OPTIMAL` result can still have more
+than one equally good traversal.
+
+### Outlands depot route 02: depot field
+
+![Route 02 servicing the depot field with outlands](debug_out/routes/farm_seed_1_120m2_depot_outlands/route_02.png)
+
+### Outlands depot route 03: two non-depot fields
+
+![Route 03 servicing two fields from the depot with outlands](debug_out/routes/farm_seed_1_120m2_depot_outlands/route_03.png)
+
 ## AI assistance
 
 ChatGPT 5.6 (OpenAI, 08/2026), Codex CLI (gpt-5.6-sol, OpenAI, 08/2026), ChatGPT 6 (OpenAI, 09/2026), Codex CLI (gpt-6-sol/astra, OpenAI, 09/2026), Claude Code 2.1.248 CLI (Anthropic, 08/20206) and Google Antigravity 1.0.14 CLI (Google, 08/2026) were used to assist in the creation of this repo. In particular, the python code is entirely AI created, with git operations, feedback, debugging help, and generation of .md/.txt/.tex file instructions (in collaboration with AI!) by Stuart Johnson (SJ). Generally speaking, my procedure is:

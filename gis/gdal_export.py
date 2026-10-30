@@ -19,7 +19,7 @@ from osgeo import gdal, ogr, osr
 
 
 LAYER_SPECS = {
-    "fields": (ogr.wkbPolygon, ["id", "name", "label", "kind", "crop_type"]),
+    "fields": (ogr.wkbPolygon, ["id", "name", "label", "kind", "parcel_group", "crop_type"]),
     "row_centerlines": (ogr.wkbLineString, ["id", "name", "label", "field_id", "row_number", "tree_count"]),
     "roads": (ogr.wkbPolygon, ["id", "name", "node_a", "node_b", "road_class", "width_m", "surface", "field_id", "field_a", "field_b"]),
     "road_centerlines": (ogr.wkbLineString, ["id", "name", "node_a", "node_b", "road_class", "width_m", "surface", "field_id", "field_a", "field_b"]),

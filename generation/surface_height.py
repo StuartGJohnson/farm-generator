@@ -8,17 +8,17 @@ from shapely.geometry import Point
 
 
 def generate_surface_height(config):
-    values = generate_values(config.bounds, config.farm_resolution_m,
+    values = generate_values(config.domain_bounds, config.farm_resolution_m,
                              config.height_mean, config.height_variation_range_m,
                              config.height_scale_m, config.height_spectral_slope,
                              config.height_seed)
     half_range = config.height_variation_range_m / 2
-    road = generate_values(config.bounds, config.farm_resolution_m,
+    road = generate_values(config.domain_bounds, config.farm_resolution_m,
                            config.height_mean, config.road_height_variation_range_m,
                            config.road_height_scale_m, config.road_height_spectral_slope,
                            config.road_height_seed)
     road_half_range = config.road_height_variation_range_m / 2
-    return SurfaceHeightField(tuple(config.bounds), values.tolist(),
+    return SurfaceHeightField(tuple(config.domain_bounds), values.tolist(),
                               config.farm_resolution_m,
                               config.height_mean - half_range,
                               config.height_mean + half_range,

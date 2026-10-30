@@ -1,6 +1,7 @@
 """Integration check: independent GDAL reload of generated semantic layers."""
 
 import json
+import sqlite3
 import subprocess
 import zipfile
 from pathlib import Path
@@ -32,3 +33,34 @@ def test_gis_roundtrip(tmp_path):
         qgs = archive.read(next(name for name in archive.namelist() if name.endswith(".qgs"))).decode()
     assert "./orthophoto.tif" in qgs
     assert "./farm.gpkg|layername=fields" in qgs
+
+
+def test_outlands_field_semantics(tmp_path):
+    config = FarmGenerationConfig(
+        bounds=(0, 0, 60, 60), seed=1, max_faces=4,
+        outlands_m=10, standoff=3.5,
+        headland_width=7.5, sideland_width=6.5,
+        outlands_headland_width=2, outlands_sideland_width=1.5,
+        row_spacing=5, tree_spacing=4,
+    )
+    scene, issues, _ = generate_validated(config)
+    assert not issues
+    output = tmp_path / "outlands_gis"
+    export_gis(scene, config.domain_bounds, output, tiles=False)
+    with sqlite3.connect(output / "gis" / "farm.gpkg") as gpkg:
+        fields = gpkg.execute(
+            "SELECT id, name, kind, parcel_group FROM fields WHERE parcel_group = 'outland'"
+        ).fetchall()
+        assert sorted((field_id, name) for field_id, name, _, _ in fields) == [
+            ("outlands_east", "Outlands East"),
+            ("outlands_north", "Outlands North"),
+            ("outlands_south", "Outlands South"),
+            ("outlands_west", "Outlands West"),
+        ]
+        assert all(kind == "crop" for _, _, kind, _ in fields)
+        farm_names = [name for (name,) in gpkg.execute(
+            "SELECT name FROM fields WHERE parcel_group = 'farm' ORDER BY id"
+        )]
+        assert farm_names == [f"Field {i:03d}" for i in range(1, len(farm_names) + 1)]
+        assert gpkg.execute("SELECT COUNT(*) FROM trees WHERE field_id LIKE 'outlands_%'").fetchone()[0] > 0
+        assert gpkg.execute("SELECT COUNT(*) FROM roads WHERE field_id LIKE 'outlands_%'").fetchone()[0] == 0

@@ -29,6 +29,8 @@ def main() -> None:
     parser.add_argument("--output-root", type=Path, default=Path("debug_out/farms"))
     parser.add_argument("--vector-only", action="store_true", help="skip Isaac rendering for GIS development")
     parser.add_argument("--depot", action="store_true", help="include a tractor depot and suffix the farm name")
+    parser.add_argument("--outlands-m", type=float, default=0.0,
+                        help="width of cropped outlands around the fixed inner farm")
     parser.add_argument("--seed4-debug-profile", action="store_true",
                         help="use the seed 4 depot regression geometry in a full farm bundle")
     args = parser.parse_args()
@@ -36,7 +38,8 @@ def main() -> None:
     if args.seed4_debug_profile and (seed != 4 or not args.depot):
         parser.error("--seed4-debug-profile requires --seed 4 --depot")
     bounds = (0.0, 0.0, 120.0, 120.0)
-    stem = f"farm_seed_{seed}_120m2" + ("_depot" if args.depot else "")
+    stem = (f"farm_seed_{seed}_120m2" + ("_depot" if args.depot else "")
+            + ("_outlands" if args.outlands_m > 0 else ""))
     scene_dir = Path("debug_out") / "farm_scenes"
     mesh_dir = Path("debug_out") / "mesh"
     asset_dir = Path("debug_out") / "procedural_assets"
@@ -57,6 +60,9 @@ def main() -> None:
     config = FarmGenerationConfig(
         bounds=bounds,
         seed=seed,
+        outlands_m=args.outlands_m,
+        outlands_headland_width=2.0,
+        outlands_sideland_width=1.5,
         # Increase variation_range for stronger contrasts; decrease scale_m
         # for finer spatial variation. The shortest wavelength is 2 * resolution.
         farm_resolution_m=1.0,
@@ -102,17 +108,20 @@ def main() -> None:
     )
     if args.seed4_debug_profile:
         config = FarmGenerationConfig(
-            bounds=bounds, seed=4, max_faces=3, row_spacing=5.0,
+            bounds=bounds, seed=4, outlands_m=args.outlands_m,
+            outlands_headland_width=2.0, outlands_sideland_width=1.5,
+            max_faces=3, row_spacing=5.0,
             tree_spacing=4.0, headland_width=6.0, sideland_width=5.0,
             standoff=3.0, depot_enabled=True, depot_cross_row_size=4.0,
         )
     scene, issues, used_seed = generate_validated(config)
     if issues:
         raise RuntimeError(f"showcase generation failed validation: {issues}")
+    domain_bounds = config.domain_bounds
 
     save_scene_png(
         scene, str(scene_dir / f"{stem}.png"),
-        title=f"farm-gen showcase — seed {used_seed}, 120 m × 120 m",
+        title=f"farm-gen showcase — seed {used_seed}, {domain_bounds[2] - domain_bounds[0]:g} m × {domain_bounds[3] - domain_bounds[1]:g} m",
     )
     save_farm(scene, config, str(scene_dir / f"{stem}.yaml"))
     save_farm(scene, config, str(farm_dir / "farm.yaml"))
@@ -125,7 +134,7 @@ def main() -> None:
     weed_assets = tuple(sorted(bundled_procedural.glob("weeds/*/*.usda")))
     mesh = export_scene_ground(
         scene,
-        bounds,
+        domain_bounds,
         str(world_dir / "farm.usda"),
         undulation=ChannelUndulationConfig(
             max_amplitude=0.10,
@@ -140,9 +149,9 @@ def main() -> None:
     if not args.vector_only:
         subprocess.run([
             sys.executable, "-m", "gis.render_orthophoto", str(world_dir / "farm.usda"),
-            str(rgb_path), "--bounds", *(str(v) for v in bounds), "--gsd", str(args.gsd),
+            str(rgb_path), "--bounds", *(str(v) for v in domain_bounds), "--gsd", str(args.gsd),
         ], check=True)
-    export_gis(scene, bounds, farm_dir, rgb_path=rgb_path if not args.vector_only else None,
+    export_gis(scene, domain_bounds, farm_dir, rgb_path=rgb_path if not args.vector_only else None,
                gsd_m=args.gsd, tiles=not args.vector_only)
     rgb_path.unlink(missing_ok=True)
     bins, assignments = quantize_friction(mesh)
@@ -221,15 +230,15 @@ def main() -> None:
             from PIL import Image
             margin = 2.0
             image = Image.open(farm_dir / "gis" / "orthophoto.tif").convert("RGB")
-            left = max(0, round((x0 - margin - bounds[0]) / args.gsd))
-            top = max(0, round((bounds[3] - y1 - margin) / args.gsd))
-            right = min(image.width, round((x1 + margin - bounds[0]) / args.gsd))
-            bottom = min(image.height, round((bounds[3] - y0 + margin) / args.gsd))
+            left = max(0, round((x0 - margin - domain_bounds[0]) / args.gsd))
+            top = max(0, round((domain_bounds[3] - y1 - margin) / args.gsd))
+            right = min(image.width, round((x1 + margin - domain_bounds[0]) / args.gsd))
+            bottom = min(image.height, round((domain_bounds[3] - y0 + margin) / args.gsd))
             image.crop((left, top, right, bottom)).save(diagnostics / "depot_orthophoto.png")
     save_ground_mesh_wireframe(
         mesh,
         str(mesh_dir / f"{stem}_ground_wireframe.png"),
-        title=f"hydrology ground mesh — showcase seed {used_seed}, 120 m × 120 m",
+        title=f"hydrology ground mesh — showcase seed {used_seed}, {domain_bounds[2] - domain_bounds[0]:g} m × {domain_bounds[3] - domain_bounds[1]:g} m",
     )
     save_ground_mesh_plan(
         mesh,

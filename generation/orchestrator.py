@@ -44,7 +44,7 @@ import networkx as nx
 import numpy as np
 from shapely.geometry import Polygon
 
-from farm_ir.schema import FarmScene, GenerationProvenance, IrrigationType, RoadSurface, SceneOrigin
+from farm_ir.schema import FarmScene, GenerationProvenance, IrrigationType, ParcelGroup, RoadSurface, SceneOrigin
 from farm_ir.serialize import from_plain, read, write
 from generation.surface_friction import generate_surface_friction
 from generation.surface_height import generate_surface_height
@@ -180,9 +180,18 @@ class FarmGenerationConfig:
     # parcel-wide background weed population.
     weed_row_density_per_m: float = 4.5
     weed_row_falloff_m: float = 0.35
+    outlands_m: float = 0.0
+    outlands_headland_width: float = 2.0
+    outlands_sideland_width: float = 1.5
 
     def __post_init__(self):
         import math
+        if not math.isfinite(self.outlands_m):
+            raise ValueError("outlands_m must be finite")
+        for name in ("outlands_headland_width", "outlands_sideland_width"):
+            value = getattr(self, name)
+            if not math.isfinite(value) or value < 0:
+                raise ValueError(f"{name} must be finite and non-negative")
         if self.depot_headland_m is None:
             self.depot_headland_m = self.headland_width
         if self.depot_sideland_m is None:
@@ -236,6 +245,13 @@ class FarmGenerationConfig:
         if self.hydrology_node_merge_tol is None:
             self.hydrology_node_merge_tol = self.standoff * 0.05
 
+    @property
+    def domain_bounds(self) -> tuple[float, float, float, float]:
+        """Full generated domain; bounds remains the inner farm rectangle."""
+        x0, y0, x1, y1 = self.bounds
+        d = max(0.0, self.outlands_m)
+        return (x0 - d, y0 - d, x1 + d, y1 + d)
+
 
 def generate_farm(config: FarmGenerationConfig) -> FarmScene:
     """
@@ -285,7 +301,8 @@ def validate(scene: FarmScene, config: FarmGenerationConfig) -> list[str]:
     signal, secondary to visualization/debug_view.py.
     """
     issues: list[str] = []
-    domain_area = (config.bounds[2] - config.bounds[0]) * (config.bounds[3] - config.bounds[1])
+    bounds = config.domain_bounds
+    domain_area = (bounds[2] - bounds[0]) * (bounds[3] - bounds[1])
 
     for pid, parcel in scene.parcels.items():
         poly = Polygon(parcel.polygon)
@@ -320,7 +337,8 @@ def validate(scene: FarmScene, config: FarmGenerationConfig) -> list[str]:
         )
 
     g = nx.Graph()
-    g.add_nodes_from(scene.parcels.keys())
+    g.add_nodes_from(pid for pid, parcel in scene.parcels.items()
+                     if parcel.parcel_group != ParcelGroup.OUTLAND)
     for c in scene.crossings.values():
         if len(c.refs) == 2:
             g.add_edge(c.refs[0], c.refs[1])
