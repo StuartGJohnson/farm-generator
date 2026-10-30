@@ -1,0 +1,296 @@
+#usda 1.0
+(
+    defaultPrim = "World"
+    metersPerUnit = 1
+    upAxis = "Z"
+)
+
+def Xform "World"
+{
+    def "Materials"
+    {
+        def Material "Ground"
+        {
+            token outputs:surface.connect = </World/Materials/Ground/PreviewSurface.outputs:surface>
+
+            def Shader "PreviewSurface"
+            {
+                uniform token info:id = "UsdPreviewSurface"
+                color3f inputs:diffuseColor = (0.27, 0.34, 0.27)
+                float inputs:roughness = 0.8
+                token outputs:surface
+            }
+        }
+
+        def Material "Blue"
+        {
+            token outputs:surface.connect = </World/Materials/Blue/PreviewSurface.outputs:surface>
+
+            def Shader "PreviewSurface"
+            {
+                uniform token info:id = "UsdPreviewSurface"
+                color3f inputs:diffuseColor = (0.07, 0.35, 0.8)
+                float inputs:roughness = 0.8
+                token outputs:surface
+            }
+        }
+
+        def Material "Orange"
+        {
+            token outputs:surface.connect = </World/Materials/Orange/PreviewSurface.outputs:surface>
+
+            def Shader "PreviewSurface"
+            {
+                uniform token info:id = "UsdPreviewSurface"
+                color3f inputs:diffuseColor = (0.9, 0.35, 0.06)
+                float inputs:roughness = 0.8
+                token outputs:surface
+            }
+        }
+    }
+
+    def Cube "Ground" (
+        prepend apiSchemas = ["MaterialBindingAPI"]
+    )
+    {
+        rel material:binding = </World/Materials/Ground>
+        double size = 1
+        float3 xformOp:scale = (9, 11, 0.04)
+        double3 xformOp:translate = (3, 4, -0.02)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
+    }
+
+    def "Fence"
+    {
+        def Xform "Post_00" (
+            prepend references = @./assets/chain_link_post.usda@
+        )
+        {
+            double3 xformOp:translate = (0, 0, 0)
+            uniform token[] xformOpOrder = ["xformOp:translate"]
+        }
+
+        def Xform "Post_01" (
+            prepend references = @./assets/chain_link_post.usda@
+        )
+        {
+            double3 xformOp:translate = (2, 0, 0)
+            uniform token[] xformOpOrder = ["xformOp:translate"]
+        }
+
+        def Xform "Post_02" (
+            prepend references = @./assets/chain_link_post.usda@
+        )
+        {
+            double3 xformOp:translate = (4, 0, 0)
+            uniform token[] xformOpOrder = ["xformOp:translate"]
+        }
+
+        def Xform "Post_03" (
+            prepend references = @./assets/chain_link_post.usda@
+        )
+        {
+            double3 xformOp:translate = (6, 0, 0)
+            uniform token[] xformOpOrder = ["xformOp:translate"]
+        }
+
+        def Xform "Post_04" (
+            prepend references = @./assets/chain_link_post.usda@
+        )
+        {
+            double3 xformOp:translate = (6, 2, 0)
+            uniform token[] xformOpOrder = ["xformOp:translate"]
+        }
+
+        def Xform "Post_05" (
+            prepend references = @./assets/chain_link_post.usda@
+        )
+        {
+            double3 xformOp:translate = (6, 4, 0)
+            uniform token[] xformOpOrder = ["xformOp:translate"]
+        }
+
+        def Xform "Post_06" (
+            prepend references = @./assets/chain_link_post.usda@
+        )
+        {
+            double3 xformOp:translate = (6, 6, 0)
+            uniform token[] xformOpOrder = ["xformOp:translate"]
+        }
+
+        def Xform "Post_07" (
+            prepend references = @./assets/chain_link_post.usda@
+        )
+        {
+            double3 xformOp:translate = (6, 8, 0)
+            uniform token[] xformOpOrder = ["xformOp:translate"]
+        }
+
+        def Xform "Panel_00" (
+            prepend references = @./assets/chain_link_panel.usda@
+        )
+        {
+            float xformOp:rotateZ = 0
+            double3 xformOp:translate = (0, 0, 0)
+            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:rotateZ"]
+        }
+
+        def Xform "Panel_01" (
+            prepend references = @./assets/chain_link_panel.usda@
+        )
+        {
+            float xformOp:rotateZ = 0
+            double3 xformOp:translate = (2, 0, 0)
+            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:rotateZ"]
+        }
+
+        def Xform "Panel_02" (
+            prepend references = @./assets/chain_link_panel.usda@
+        )
+        {
+            float xformOp:rotateZ = 0
+            double3 xformOp:translate = (4, 0, 0)
+            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:rotateZ"]
+        }
+
+        def Xform "Panel_03" (
+            prepend references = @./assets/chain_link_panel.usda@
+        )
+        {
+            float xformOp:rotateZ = 90
+            double3 xformOp:translate = (6, 0, 0)
+            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:rotateZ"]
+        }
+
+        def Xform "Panel_04" (
+            prepend references = @./assets/chain_link_panel.usda@
+        )
+        {
+            float xformOp:rotateZ = 90
+            double3 xformOp:translate = (6, 2, 0)
+            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:rotateZ"]
+        }
+
+        def Xform "Panel_05" (
+            prepend references = @./assets/chain_link_panel.usda@
+        )
+        {
+            float xformOp:rotateZ = 90
+            double3 xformOp:translate = (6, 4, 0)
+            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:rotateZ"]
+        }
+
+        def Xform "Panel_06" (
+            prepend references = @./assets/chain_link_panel.usda@
+        )
+        {
+            float xformOp:rotateZ = 90
+            double3 xformOp:translate = (6, 6, 0)
+            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:rotateZ"]
+        }
+    }
+
+    def "BehindFence"
+    {
+        def Cube "Marker_00" (
+            prepend apiSchemas = ["MaterialBindingAPI"]
+        )
+        {
+            rel material:binding = </World/Materials/Blue>
+            double size = 1
+            float3 xformOp:scale = (0.42, 0.35, 0.75)
+            double3 xformOp:translate = (1, 0.75, 0.375)
+            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
+        }
+
+        def Cube "Marker_01" (
+            prepend apiSchemas = ["MaterialBindingAPI"]
+        )
+        {
+            rel material:binding = </World/Materials/Orange>
+            double size = 1
+            float3 xformOp:scale = (0.42, 0.35, 0.75)
+            double3 xformOp:translate = (3, 0.75, 0.375)
+            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
+        }
+
+        def Cube "Marker_02" (
+            prepend apiSchemas = ["MaterialBindingAPI"]
+        )
+        {
+            rel material:binding = </World/Materials/Blue>
+            double size = 1
+            float3 xformOp:scale = (0.42, 0.35, 0.75)
+            double3 xformOp:translate = (5, 0.75, 0.375)
+            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
+        }
+
+        def Cube "Marker_03" (
+            prepend apiSchemas = ["MaterialBindingAPI"]
+        )
+        {
+            rel material:binding = </World/Materials/Orange>
+            double size = 1
+            float3 xformOp:scale = (0.42, 0.35, 0.75)
+            double3 xformOp:translate = (5.25, 1, 0.375)
+            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
+        }
+
+        def Cube "Marker_04" (
+            prepend apiSchemas = ["MaterialBindingAPI"]
+        )
+        {
+            rel material:binding = </World/Materials/Blue>
+            double size = 1
+            float3 xformOp:scale = (0.42, 0.35, 0.75)
+            double3 xformOp:translate = (5.25, 3, 0.375)
+            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
+        }
+
+        def Cube "Marker_05" (
+            prepend apiSchemas = ["MaterialBindingAPI"]
+        )
+        {
+            rel material:binding = </World/Materials/Orange>
+            double size = 1
+            float3 xformOp:scale = (0.42, 0.35, 0.75)
+            double3 xformOp:translate = (5.25, 5, 0.375)
+            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
+        }
+
+        def Cube "Marker_06" (
+            prepend apiSchemas = ["MaterialBindingAPI"]
+        )
+        {
+            rel material:binding = </World/Materials/Blue>
+            double size = 1
+            float3 xformOp:scale = (0.42, 0.35, 0.75)
+            double3 xformOp:translate = (5.25, 7, 0.375)
+            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
+        }
+    }
+
+    def "Lights"
+    {
+        def DomeLight "Sky"
+        {
+            float inputs:intensity = 500
+        }
+
+        def DistantLight "Sun"
+        {
+            float inputs:intensity = 1200
+            float3 xformOp:rotateXYZ = (35, 15, 25)
+            uniform token[] xformOpOrder = ["xformOp:rotateXYZ"]
+        }
+    }
+
+    def Camera "InspectionCamera"
+    {
+        float focalLength = 20
+        token projection = "perspective"
+        matrix4d xformOp:transform = ( (0.7071067811865476, 0.7071067811865476, 0, 0), (-0.276172385369497, 0.276172385369497, 0.9205746178983233, -0), (0.6509445549041194, -0.6509445549041194, 0.3905667329424716, 0), (13.5, -6.500000000000001, 7, 1.0000000000000002) )
+        uniform token[] xformOpOrder = ["xformOp:transform"]
+    }
+}
+

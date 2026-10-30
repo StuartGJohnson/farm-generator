@@ -1,0 +1,58 @@
+#usda 1.0
+(
+    defaultPrim = "FencePost"
+    metersPerUnit = 1
+    upAxis = "Z"
+)
+
+def Xform "FencePost"
+{
+    def Material "GalvanizedSteel"
+    {
+        token outputs:surface.connect = </FencePost/GalvanizedSteel/PreviewSurface.outputs:surface>
+
+        def Shader "PreviewSurface"
+        {
+            uniform token info:id = "UsdPreviewSurface"
+            color3f inputs:diffuseColor = (0.66, 0.71, 0.73)
+            float inputs:metallic = 0.82
+            float inputs:roughness = 0.37
+            token outputs:surface
+        }
+    }
+
+    def Cylinder "Shaft" (
+        prepend apiSchemas = ["MaterialBindingAPI"]
+    )
+    {
+        uniform token axis = "Z"
+        double height = 1.94
+        rel material:binding = </FencePost/GalvanizedSteel>
+        double radius = 0.03
+        double3 xformOp:translate = (0, 0, 0.97)
+        uniform token[] xformOpOrder = ["xformOp:translate"]
+    }
+
+    def Cylinder "CapRim" (
+        prepend apiSchemas = ["MaterialBindingAPI"]
+    )
+    {
+        uniform token axis = "Z"
+        double height = 0.014
+        rel material:binding = </FencePost/GalvanizedSteel>
+        double radius = 0.038
+        double3 xformOp:translate = (0, 0, 1.94)
+        uniform token[] xformOpOrder = ["xformOp:translate"]
+    }
+
+    def Sphere "RoundedCap" (
+        prepend apiSchemas = ["MaterialBindingAPI"]
+    )
+    {
+        rel material:binding = </FencePost/GalvanizedSteel>
+        double radius = 0.038
+        double3 xformOp:translate = (0, 0, 1.962)
+        uniform token[] xformOpOrder = ["xformOp:translate"]
+    }
+}
+
