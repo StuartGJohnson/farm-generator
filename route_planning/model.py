@@ -83,6 +83,7 @@ class PlannerConfig:
     road_turn_setback_m: float = 2.7
     road_interface_candidates: int = 2
     road_interface_offset_m: float = 2.7
+    road_min_split_spacing_m: Optional[float] = None
     max_arc_uses: Optional[int] = None
     solver_time_s: float = 60.0
     cost_scale_per_m: int = 100
@@ -116,6 +117,10 @@ class PlannerConfig:
         if (not math.isfinite(self.road_interface_offset_m) or
                 self.road_interface_offset_m < 0):
             raise ValueError("road_interface_offset_m must be nonnegative and finite")
+        if (self.road_min_split_spacing_m is not None and
+                (not math.isfinite(self.road_min_split_spacing_m) or
+                 self.road_min_split_spacing_m <= 0)):
+            raise ValueError("road_min_split_spacing_m must be positive and finite")
         if not math.isfinite(self.depot_road_sampling_m) or self.depot_road_sampling_m <= 0:
             raise ValueError("depot_road_sampling_m must be positive and finite")
         if not math.isfinite(self.depot_reverse_cost_multiplier) or self.depot_reverse_cost_multiplier < 1:

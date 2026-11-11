@@ -1,0 +1,19 @@
+absl-py==2.5.1
+Bottleneck==1.6.0
+condeltri==0.1.0
+-e git+ssh://git@github.com/StuartGJohnson/farm-generator.git@edf4a9fbd76fd5a9f9849486e92fd196a5011df8#egg=farm_generator
+immutabledict==4.3.1
+networkx==3.4.2
+numexpr==2.14.1
+numpy==1.24.3
+ortools==9.9.3963
+pandas==2.3.3
+protobuf==6.33.6
+pyproj==3.7.1
+python-dateutil==3.0.0
+PyYAML==6.0.3
+rsplan==1.0.10
+scipy==1.15.3
+shapely==2.1.2
+typing_extensions==4.16.0
+tzdata==2026.6

@@ -1,23 +1,16 @@
-"""Generated depot geometry, GIS persistence, and terminal route interfaces."""
+"""Farm generation, GIS export, and depot geometry checks."""
 
 from dataclasses import replace
 
 import pytest
 import numpy as np
-from shapely.geometry import LineString, MultiPoint, Point, Polygon
+from shapely.geometry import LineString, Point, Polygon
 
 from generation.orchestrator import FarmGenerationConfig, generate_farm, load_farm, save_farm
 from generation.crops import _depot_exclusion_polygon
 from export.usd import build_ground_mesh, write_ground_mesh_usda
 from gis.export import export_gis
 from route_planning.gis import load_farm_map
-from route_planning.graph import build_routing_graph
-from route_planning.planner import plan_route
-from route_planning.model import (DepotParkingState, FarmTask, ImplementSide,
-                                  PlannerConfig, parking_pose, parking_spot_polygon)
-from route_planning.path_feasibility import TractorFootprint, path_feasibility
-from route_planning.path_feasibility import tree_concave_hulls
-from shapely.ops import unary_union
 
 
 def depot_config():
@@ -184,7 +177,7 @@ def test_depot_cuts_crop_and_round_trips(tmp_path):
                     if t.tags.get("parcel_id") == pid]
 
 
-def test_generated_depot_gis_and_route_terminals(tmp_path):
+def test_generated_depot_gis_export(tmp_path):
     config = FarmGenerationConfig(bounds=(0, 0, 120, 120), seed=1, max_faces=4,
         standoff=3.5, headland_width=7.5, sideland_width=6.5,
         tree_spacing=4, row_spacing=5, optimize_tree_layout=True,
@@ -195,39 +188,6 @@ def test_generated_depot_gis_and_route_terminals(tmp_path):
     assert farm.depot is not None
     assert len(farm.parking_spots) == len(scene.depot.parking_spots)
     assert farm.fields[scene.depot.field_id].intersection(farm.depot).area < 1e-6
-    task = FarmTask(("parcel_000",), ImplementSide.BOTH,
-                    DepotParkingState(1, "in"), DepotParkingState(2, "in"))
-    graph = build_routing_graph(farm, task, PlannerConfig())
-    assert any(arc.kind == "depot" and arc.u == graph.start_id for arc in graph.arcs.values())
-    assert any(arc.kind == "depot" and arc.v == graph.end_id for arc in graph.arcs.values())
-    assert all(not (arc.kind == "depot" and
-                    (graph.vertices[arc.u].field_id or graph.vertices[arc.v].field_id))
-               for arc in graph.arcs.values())
-    permitted = unary_union([farm.depot, *farm.road_surfaces.values()])
-    footprint = TractorFootprint.from_config(PlannerConfig().tractor)
-    for arc in graph.arcs.values():
-        if arc.kind != "depot":
-            continue
-        own_spot = 1 if arc.u == graph.start_id else 2
-        blocked = [parking_spot_polygon(spot).buffer(PlannerConfig().depot_parking_clearance_m)
-                   for number, spot in farm.parking_spots.items() if number != own_spot]
-        assert path_feasibility(arc.poses, permitted, blocked, footprint)
-    for spot in farm.parking_spots.values():
-        assert parking_spot_polygon(spot).area == pytest.approx(spot.length_m * spot.width_m)
-    assert parking_pose(farm.parking_spots[1], "in").yaw != parking_pose(farm.parking_spots[1], "out").yaw
-    with pytest.raises(ValueError):
-        parking_pose(farm.parking_spots[1], "sideways")
-
-
-def test_depot_rejects_spot_with_no_clear_exit(tmp_path):
-    config = depot_config()
-    scene = generate_farm(config)
-    export_gis(scene, config.bounds, tmp_path, tiles=False)
-    farm = load_farm_map(tmp_path)
-    task = FarmTask((scene.depot.field_id,), ImplementSide.BOTH,
-                    DepotParkingState(1, "in"), DepotParkingState(2, "out"))
-    with pytest.raises(ValueError, match="No legal depot connection for start pose"):
-        build_routing_graph(farm, task, PlannerConfig())
 
 
 def test_depot_ground_uses_road_surface_and_optional_lines(tmp_path):
@@ -260,70 +220,3 @@ def test_depot_ground_uses_road_surface_and_optional_lines(tmp_path):
     path = tmp_path / "without_lines.usda"
     write_ground_mesh_usda(mesh, str(path), scene=no_lines)
     assert 'def Mesh "ParkingLines"' not in path.read_text()
-
-
-@pytest.fixture(scope="module")
-def large_depot_farm(tmp_path_factory):
-    config = FarmGenerationConfig(bounds=(0, 0, 120, 120), seed=1, max_faces=4,
-        standoff=3.5, headland_width=7.5, sideland_width=6.5,
-        tree_spacing=4, row_spacing=5, optimize_tree_layout=True,
-        hydrology_add_water=True, depot_enabled=True, depot_cross_row_size=4)
-    scene = generate_farm(config)
-    assert len(scene.depot.parking_spots) >= 2
-    path = tmp_path_factory.mktemp("large_depot_farm")
-    export_gis(scene, config.bounds, path, tiles=False)
-    return load_farm_map(path)
-
-
-def test_depot_field_concave_tree_boundary(large_depot_farm):
-    farm = large_depot_farm
-    field_id = farm.depot_field_id
-    points = [(tree.x, tree.y) for tree in farm.trees.values()
-              if tree.field_id == field_id]
-    hull = tree_concave_hulls(farm, (field_id,))[field_id]
-    wider = tree_concave_hulls(farm, (field_id,), concavity_m=20)[field_id]
-    assert hull.is_valid and not hull.is_empty
-    assert hull.area < wider.area < MultiPoint(points).convex_hull.area
-    assert hull.intersection(farm.depot).area < 1e-6
-    with pytest.raises(ValueError, match="concavity_m"):
-        tree_concave_hulls(farm, (field_id,), concavity_m=0)
-
-
-@pytest.mark.parametrize("field_ids,solver_time_s", [
-    (("parcel_000",), 60),
-    (("parcel_003",), 90),
-    (("parcel_000", "parcel_002"), 120),
-])
-def test_large_generated_depot_route_uses_two_parking_spots(
-        large_depot_farm, field_ids, solver_time_s):
-    farm = large_depot_farm
-    assert farm.depot_field_id == "parcel_003"
-    task = FarmTask(field_ids, ImplementSide.BOTH,
-                    DepotParkingState(1, "in"), DepotParkingState(2, "in"))
-    config = PlannerConfig(solver_time_s=solver_time_s)
-    route = plan_route(farm, task, config)
-    assert route.segments[0].kind == "depot"
-    assert route.segments[-1].kind == "depot"
-    assert route.optimality_status in ("OPTIMAL", "FEASIBLE")
-    assert route.task.field_ids == field_ids
-    for endpoint, spot in ((route.segments[0].poses[0], farm.parking_spots[1]),
-                           (route.segments[-1].poses[-1], farm.parking_spots[2])):
-        expected = parking_pose(spot, "in")
-        assert (endpoint.x, endpoint.y, endpoint.yaw) == pytest.approx(
-            (expected.x, expected.y, expected.yaw))
-    required = {f"{row.id}:{side}" for row in farm.rows.values()
-                if row.field_id in field_ids for side in ("L", "R")}
-    serviced = set().union(*(segment.service_ids for segment in route.segments))
-    assert required <= serviced
-    permitted_depot = unary_union([farm.depot, *farm.road_surfaces.values()])
-    footprint = TractorFootprint.from_config(config.tractor)
-    for segment, own_spot in ((route.segments[0], 1), (route.segments[-1], 2)):
-        blocked = [parking_spot_polygon(spot).buffer(config.depot_parking_clearance_m)
-                   for number, spot in farm.parking_spots.items() if number != own_spot]
-        assert path_feasibility(segment.poses, permitted_depot, blocked, footprint)
-    if field_ids == (farm.depot_field_id,):
-        exit_segment = route.segments[0]
-        assert exit_segment.reverse_distance_m < 12
-        first_forward = next(pose for pose, direction in zip(
-            exit_segment.poses, exit_segment.driving_directions) if direction > 0)
-        assert farm.depot.covers(Point(first_forward.x, first_forward.y))

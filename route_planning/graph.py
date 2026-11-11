@@ -9,6 +9,7 @@ from __future__ import annotations
 import math
 from collections import defaultdict
 from dataclasses import replace
+from statistics import median
 
 from shapely.geometry import LineString, Point
 from shapely.ops import substring, unary_union
@@ -61,6 +62,16 @@ def infer_implement_range(farm: FarmMap, field_ids: tuple[str, ...]) -> float:
         raise ValueError("Cannot infer row spacing; specify implement_range_m")
     distances.sort()
     return distances[len(distances) // 2] / 2
+
+
+def road_min_split_spacing(farm: FarmMap, config: PlannerConfig) -> float:
+    """Spacing for optional road interfaces, defaulting to half a tree interval."""
+    if config.road_min_split_spacing_m is not None:
+        return config.road_min_split_spacing_m
+    tree_spacings = [row.line.length / (row.tree_count - 1)
+                     for row in farm.rows.values()
+                     if row.line is not None and row.tree_count > 1]
+    return median(tree_spacings) / 2 if tree_spacings else 0.02
 
 
 def _field_driveable(farm: FarmMap, field_id: str):
@@ -231,6 +242,7 @@ def build_routing_graph(farm: FarmMap, task: FarmTask,
 
     # Road travel stops short of each junction. Directed RS arcs below replace
     # position-only switches between incident GIS road centerlines.
+    min_split_spacing = road_min_split_spacing(farm, config)
     splits = {road.id: {} for road in farm.roads.values()}
     junction_legs = defaultdict(list)
     for road in farm.roads.values():
@@ -247,16 +259,19 @@ def build_routing_graph(farm: FarmMap, task: FarmTask,
                                            "r" if at_start else "f",
                                            "f" if at_start else "r"))
 
-    def insert_on_road(road, station, prefix):
+    def insert_on_road(road, station, prefix, minimum_spacing=None):
         station = max(0.0, min(road.line.length, station))
-        for existing, identifier in splits[road.id].items():
-            if abs(existing - station) < 0.02:
-                return identifier
+        # Exact mission endpoints use the old 2 cm merge tolerance. Other
+        # samples reuse the closest state to avoid clusters of tiny road arcs.
+        spacing = min_split_spacing if minimum_spacing is None else minimum_spacing
+        existing = min(splits[road.id], key=lambda value: abs(value - station))
+        if abs(existing - station) < spacing:
+            return splits[road.id][existing], existing
         identifier = f"{prefix}_{road.id}_{len(splits[road.id]):03d}"
         point = road.line.interpolate(station)
         graph.vertices[identifier] = Vertex(identifier, Pose(point.x, point.y, _tangent(road.line, station)), False)
         splits[road.id][station] = identifier
-        return identifier
+        return identifier, station
 
     road_direction_states = {}
 
@@ -287,7 +302,7 @@ def build_routing_graph(farm: FarmMap, task: FarmTask,
         hi = _setback_station(road.line.length, False, config.road_turn_setback_m)
         if not lo + 0.25 < station < hi - 0.25:
             raise ValueError(f"{label} pose lies inside a road turn setback")
-        insert_on_road(road, station, f"{label}_road")
+        insert_on_road(road, station, f"{label}_road", minimum_spacing=0.02)
         return road, station, tangent
 
     def is_depot_pose(pose):
@@ -310,7 +325,7 @@ def build_routing_graph(farm: FarmMap, task: FarmTask,
         target_station = station + (sign if outbound else -sign) * 0.25
         if not 0 <= target_station <= road.line.length:
             raise ValueError(f"{label} pose has no road in its travel direction")
-        insert_on_road(road, target_station, f"{label}_interface")
+        insert_on_road(road, target_station, f"{label}_interface", minimum_spacing=0.02)
         interface_id = road_state(road, target_station, "f" if sign > 0 else "r")
         interface_pose = graph.vertices[interface_id].pose
         if outbound:
@@ -332,6 +347,7 @@ def build_routing_graph(farm: FarmMap, task: FarmTask,
         nearby = [road for road in farm.roads.values()
                   if road.road_class != "crossing_spur" and
                   road.line.distance(farm.depot) <= max(3.0, config.tractor_half_width_m * 2)]
+        depot_interface_keys = set()
         for road in nearby:
             lo = _setback_station(road.line.length, True, config.road_turn_setback_m)
             hi = _setback_station(road.line.length, False, config.road_turn_setback_m)
@@ -340,8 +356,11 @@ def build_routing_graph(farm: FarmMap, task: FarmTask,
             stations = [lo + 0.2 + k * config.depot_road_sampling_m
                         for k in range(int((hi - lo - 0.4) / config.depot_road_sampling_m) + 1)]
             for station in stations:
-                insert_on_road(road, station, "depot_interface")
-                depot_interfaces.append((road, station))
+                _, snapped_station = insert_on_road(road, station, "depot_interface")
+                key = (road.id, snapped_station)
+                if key not in depot_interface_keys:
+                    depot_interface_keys.add(key)
+                    depot_interfaces.append((road, snapped_station))
 
     # Each row endpoint sees its own nearby frontage-road states. A projection
     # alone can demand a near U-turn at a short row; offsets along the road
@@ -367,8 +386,8 @@ def build_routing_graph(farm: FarmMap, task: FarmTask,
                             projection + config.road_interface_offset_m):
                 if not lo + 0.1 < station < hi - 0.1:
                     continue
-                interface_id = insert_on_road(road, station, "interface")
-                interfaces[vertex.id].add((interface_id, road.id, station))
+                interface_id, snapped_station = insert_on_road(road, station, "interface")
+                interfaces[vertex.id].add((interface_id, road.id, snapped_station))
 
     footprint = TractorFootprint.from_config(config.tractor)
     turn_region = road_turn_region(farm)
@@ -381,8 +400,6 @@ def build_routing_graph(farm: FarmMap, task: FarmTask,
         permitted_depot = unary_union([farm.depot, *farm.road_surfaces.values()])
         spot_polygons = {number: parking_spot_polygon(spot)
                          for number, spot in farm.parking_spots.items()}
-        depot_config = replace(config, rs_candidate_radius_m=max(
-            config.rs_candidate_radius_m, farm.depot.length + 2 * config.road_turn_setback_m))
         for label, terminal_id, terminal_pose, outbound in (
                 ("start", graph.start_id, task.start, True),
                 ("end", graph.end_id, task.end, False)):
@@ -400,7 +417,7 @@ def build_routing_graph(farm: FarmMap, task: FarmTask,
 
             def depot_rs(a, b):
                 return rs_connection(a, b, permitted_depot, blocked_spots,
-                    depot_config, blocked_index, permitted_region=permitted_depot,
+                    config, blocked_index, permitted_region=permitted_depot,
                     footprint=footprint,
                     reverse_cost_multiplier=config.depot_reverse_cost_multiplier,
                     reverse_event_penalty_m=config.depot_reverse_event_penalty_m,
@@ -531,15 +548,12 @@ def build_routing_graph(farm: FarmMap, task: FarmTask,
         if key in rs_seen:
             return
         rs_seen.add(key)
-        field_config = (replace(config, rs_candidate_radius_m=max(
-            config.rs_candidate_radius_m, farm.depot.length + config.rs_candidate_radius_m))
-            if farm.depot is not None and farm.fields[field_id].distance(farm.depot) < 1e-5 else config)
         permitted_region = permitted_fields[field_id]
         hull = tree_hulls[field_id]
         if farm.depot is not None and (graph.vertices[u].field_id is None or graph.vertices[v].field_id is None):
             permitted_region = permitted_region.union(farm.depot).buffer(1e-4)
         candidate = rs_connection(start_pose, end_pose, farm.fields[field_id],
-                                  tree_geometries[field_id], field_config, tree_indices[field_id],
+                                  tree_geometries[field_id], config, tree_indices[field_id],
                                   permitted_region=permitted_region,
                                   footprint=footprint, tree_hull=hull,
                                   forward_only=config.field_rs_forward_only)
@@ -554,9 +568,7 @@ def build_routing_graph(farm: FarmMap, task: FarmTask,
 
     row_vertices = [v for v in graph.vertices.values() if v.oriented and v.field_id is not None]
     for vertex in row_vertices:
-        search_radius = (config.rs_candidate_radius_m + farm.depot.length
-                         if farm.depot is not None and farm.fields[vertex.field_id].distance(farm.depot) < 1e-5
-                         else config.rs_candidate_radius_m)
+        search_radius = config.rs_candidate_radius_m
         nearby = sorted((other for other in row_vertices
                          if other.id != vertex.id and other.field_id == vertex.field_id
                          and _distance(vertex.pose, other.pose) <= search_radius),

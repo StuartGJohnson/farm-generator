@@ -1,9 +1,10 @@
 # GIS task route planning
 
-Run from the repository root:
+Run from the repository root with a farm GIS bundle already generated under
+`debug_out/farms`:
 
 ```bash
-conda activate isaacsim61-cu13
+source activate_venv.sh
 python -m route_planning --farm debug_out/farms/farm_seed_1_120m2/gis
 ```
 
@@ -33,6 +34,25 @@ stretches are dashed red on the route plots. If a solved route contains a
 zero-distance 180-degree road reversal, the demo reports that failure for the
 fixed task.
 
+The route planner and its depot tests consume the saved GIS bundle; they do
+not generate a farm. For a portable route-planning fixture, keep
+`gis/farm.gpkg` and `gis/map_frame.json` from
+`debug_out/farms/farm_seed_1_120m2_depot`. Add `gis/orthophoto.tif` only when
+the route plots should show the farm image. The USD world, procedural assets,
+tiles, and `farm.yaml` are not required. Run the depot planner tests in the
+ROS venv with `python -m pytest tests/test_depot_route_planning.py`; farm
+generation and USD checks remain in `tests/test_depot.py`. The GeoPackage
+reader uses `/usr/bin/python3` with system GDAL; the route venv does not need
+Isaac Sim or the farm generation modules. The blocked-exit test also reads
+`gis/farm.gpkg` and `gis/map_frame.json` from
+`debug_out/farms/farm_seed_4_120m2_depot`. The depot showcase
+script reads the same bundle, for example:
+
+```bash
+python examples/plan_depot_route.py --case 3 \
+  --output-dir debug_out/routes/farm_seed_1_120m2_depot_rs15m
+```
+
 The package follows `writeup/route_planning.tex` in four modules:
 
 1. `gis.py` reads GeoPackage features and translates EPSG:32610 to the local
@@ -57,6 +77,10 @@ The package follows `writeup/route_planning.tex` in four modules:
    road interface states are also sampled 2.7 m on either side of its road
    projection by default. This gives a short or partial row room to connect
    forward to a road. `--road-interface-offset` changes that distance.
+   Nearby depot and field interface samples snap to existing road states when
+   separated by less than half the median tree spacing inferred from the GIS
+   rows (2 m for the 4 m showcase trees). `PlannerConfig.road_min_split_spacing_m`
+   overrides this minimum. Exact mission terminals retain their own states.
 3. `ordering.py` duplicates road states by field stage. Only the current
    field's row and field-maneuver arcs exist in each stage; a zero-motion
    switch at a road exit interface from that field advances to the next

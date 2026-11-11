@@ -6,6 +6,7 @@ import argparse
 
 from route_planning.diagnostic import load_route_json, save_route_json, save_route_plot
 from route_planning.gis import load_farm_map
+from route_planning.graph import road_min_split_spacing
 from route_planning.model import DepotParkingState, FarmTask, ImplementSide, PlannerConfig
 from route_planning.planner import plan_route
 
@@ -27,6 +28,8 @@ def main():
                         help="use the depot farm with outlands and write routes separately")
     parser.add_argument("--output-dir", type=Path,
                         help="override the route output directory")
+    parser.add_argument("--solver-time", type=float,
+                        help="override the case's CP-SAT time limit in seconds")
     args = parser.parse_args()
     stem = "farm_seed_1_120m2_depot" + ("_outlands" if args.outlands else "")
     farm_dir = Path("debug_out/farms") / stem
@@ -43,7 +46,8 @@ def main():
             continue  # Keep the original, previously reviewed route.
         task = FarmTask(CASES[number], ImplementSide.BOTH,
                         DepotParkingState(1, "in"), DepotParkingState(2, "in"))
-        config = PlannerConfig(solver_time_s={1: 60, 2: 90, 3: 120}[number])
+        config = PlannerConfig(solver_time_s=(args.solver_time if args.solver_time is not None
+                                              else {1: 60, 2: 90, 3: 120}[number]))
         route = (load_route_json(output / f"{stem}.json") if args.reuse_route
                  else plan_route(farm, task, config))
         if not args.reuse_route:
@@ -59,6 +63,8 @@ def main():
             "end_spot": 2,
             "parking_direction": "in",
             "solver_time_limit_s": config.solver_time_s,
+            "rs_candidate_radius_m": config.rs_candidate_radius_m,
+            "road_min_split_spacing_m": road_min_split_spacing(farm, config),
             "depot_reverse_cost_multiplier": config.depot_reverse_cost_multiplier,
             "depot_reverse_allowance_m": config.depot_reverse_allowance_m,
             "depot_excess_reverse_cost_multiplier": config.depot_excess_reverse_cost_multiplier,

@@ -1,0 +1,7 @@
+{
+  "crs": "EPSG:32610",
+  "origin_easting_m": 631341.0882453356,
+  "origin_northing_m": 4229069.150082922,
+  "ros2_map_x": "easting - origin_easting_m",
+  "ros2_map_y": "northing - origin_northing_m"
+}

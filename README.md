@@ -29,6 +29,23 @@ in this conda environment; it is not a project dependency.
 The Isaac Sim environment supplies the compatible USD Python packages used by
 the tractor and farm exporters.
 
+For the ROS 2 Humble venv, activate it and upgrade its bundled pip once before
+installing the project:
+
+```bash
+source activate_venv.sh
+python -m pip install --upgrade pip
+python -m pip install --editable .
+```
+
+The ROS venv includes system Python packages. Its original pip 22.0.2 can
+select the system setuptools 59.6.0 during an isolated editable build, which
+lacks the PEP 660 hook. Upgrading pip lets the build use the setuptools version
+declared in `pyproject.toml`. That version is kept below 80 for the ROS
+`colcon-core` requirement. On Python 3.10, the project keeps NumPy 1.x and
+OR-Tools 9.9.3963 for the ROS environment. The Isaac Sim Python 3.12
+environment keeps its newer OR-Tools requirement.
+
 GIS writing uses the system `/usr/bin/python3` with Ubuntu GDAL and QGIS
 bindings; the showcase script invokes that helper automatically.
 
@@ -672,6 +689,25 @@ implementation also includes the refinements summarized below. The PDF version
 of the writeup is:
 
 [route_planning.pdf](writeup/route_planning.pdf)
+
+Farm generation and route planning use the GIS bundle as their handoff. The
+generation and export tests create farms and verify their GIS; the route tests
+read farms already saved under `debug_out/farms` and do not regenerate them.
+For route planning, keep each farm's `gis/farm.gpkg` and `gis/map_frame.json`.
+`gis/orthophoto.tif` adds the image to diagnostic plots but is optional for
+planning. The USDA world, procedural assets, tiles, and `farm.yaml` are not
+route-planner inputs. The depot route tests use the saved seed 1 farm, plus the
+saved seed 4 farm for a blocked-exit case:
+
+```bash
+source activate_venv.sh
+python -m pytest tests/test_route_planning.py tests/test_depot_route_planning.py -q
+```
+
+The GIS reader currently invokes system `/usr/bin/python3` for GDAL. Route
+planning and farm generation still live in one repository and share the tractor
+configuration; this GIS input boundary is the first step toward separating
+their packages. See [route planning details](route_planning/README.md).
 
 The planner builds directed road and tree-row service arcs from the GeoPackage,
 connects them with tractor-feasible Reeds–Shepp (RS) maneuvers, and uses CP-SAT

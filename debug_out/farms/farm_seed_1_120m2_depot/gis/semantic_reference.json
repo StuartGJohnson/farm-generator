@@ -1,0 +1,50 @@
+{
+  "field_tree_counts": {
+    "parcel_000": 162,
+    "parcel_001": 103,
+    "parcel_002": 95,
+    "parcel_003": 65
+  },
+  "field_row_counts": {
+    "parcel_000": 6,
+    "parcel_001": 7,
+    "parcel_002": 6,
+    "parcel_003": 6
+  },
+  "row_tree_counts": {
+    "parcel_000_row_001": 27,
+    "parcel_000_row_002": 27,
+    "parcel_000_row_003": 27,
+    "parcel_000_row_004": 27,
+    "parcel_000_row_005": 27,
+    "parcel_000_row_006": 27,
+    "parcel_001_row_001": 16,
+    "parcel_001_row_002": 16,
+    "parcel_001_row_003": 16,
+    "parcel_001_row_004": 16,
+    "parcel_001_row_005": 16,
+    "parcel_001_row_006": 16,
+    "parcel_001_row_007": 7,
+    "parcel_002_row_001": 17,
+    "parcel_002_row_002": 17,
+    "parcel_002_row_003": 17,
+    "parcel_002_row_004": 17,
+    "parcel_002_row_005": 17,
+    "parcel_002_row_006": 10,
+    "parcel_003_row_001": 10,
+    "parcel_003_row_002": 10,
+    "parcel_003_row_003": 10,
+    "parcel_003_row_004": 10,
+    "parcel_003_row_005": 17,
+    "parcel_003_row_006": 8
+  },
+  "field_road_counts": {
+    "parcel_000": 4,
+    "parcel_001": 4,
+    "parcel_002": 4,
+    "parcel_003": 4
+  },
+  "road_edges": 22,
+  "channel_edges": 16,
+  "crossings": 6
+}

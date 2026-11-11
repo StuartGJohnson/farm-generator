@@ -1,0 +1,55 @@
+{
+  "field_tree_counts": {
+    "parcel_000": 254,
+    "parcel_001": 180,
+    "parcel_002": 93
+  },
+  "field_row_counts": {
+    "parcel_000": 11,
+    "parcel_001": 14,
+    "parcel_002": 8
+  },
+  "row_tree_counts": {
+    "parcel_000_row_001": 28,
+    "parcel_000_row_002": 28,
+    "parcel_000_row_003": 28,
+    "parcel_000_row_004": 28,
+    "parcel_000_row_005": 28,
+    "parcel_000_row_006": 28,
+    "parcel_000_row_007": 28,
+    "parcel_000_row_008": 27,
+    "parcel_000_row_009": 19,
+    "parcel_000_row_010": 10,
+    "parcel_000_row_011": 2,
+    "parcel_001_row_001": 15,
+    "parcel_001_row_002": 14,
+    "parcel_001_row_003": 14,
+    "parcel_001_row_004": 14,
+    "parcel_001_row_005": 14,
+    "parcel_001_row_006": 14,
+    "parcel_001_row_007": 13,
+    "parcel_001_row_008": 13,
+    "parcel_001_row_009": 13,
+    "parcel_001_row_010": 13,
+    "parcel_001_row_011": 13,
+    "parcel_001_row_012": 13,
+    "parcel_001_row_013": 12,
+    "parcel_001_row_014": 5,
+    "parcel_002_row_001": 8,
+    "parcel_002_row_002": 8,
+    "parcel_002_row_003": 8,
+    "parcel_002_row_004": 9,
+    "parcel_002_row_005": 16,
+    "parcel_002_row_006": 16,
+    "parcel_002_row_007": 16,
+    "parcel_002_row_008": 12
+  },
+  "field_road_counts": {
+    "parcel_000": 4,
+    "parcel_001": 4,
+    "parcel_002": 4
+  },
+  "road_edges": 16,
+  "channel_edges": 12,
+  "crossings": 4
+}

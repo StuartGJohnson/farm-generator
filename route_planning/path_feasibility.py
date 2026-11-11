@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from statistics import median
 from typing import Sequence
 
+from shapely import multipoints
 from shapely.geometry import LineString, MultiPoint, Polygon
 from shapely.geometry.base import BaseGeometry
 from shapely.ops import triangulate, unary_union
@@ -142,8 +143,8 @@ def path_feasibility(poses: Sequence[Pose], allowed_region: BaseGeometry,
                         start.y + fraction * (end.y - start.y),
                         start.yaw + fraction * delta_yaw)
             current = footprint.at(pose)
-            swept = MultiPoint((*previous.exterior.coords[:-1],
-                                *current.exterior.coords[:-1])).convex_hull.buffer(0.01)
+            swept = multipoints((*previous.exterior.coords[:-1],
+                                 *current.exterior.coords[:-1])).convex_hull.buffer(0.01)
             if not clear(swept):
                 return False
             previous = current
