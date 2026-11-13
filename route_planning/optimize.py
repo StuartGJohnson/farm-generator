@@ -65,8 +65,6 @@ def row_repeat_counts(graph: RoutingGraph, counts: dict[str, int]) -> dict[str, 
 
 def optimize_arc_counts(graph: RoutingGraph,
                         config: PlannerConfig = PlannerConfig()) -> TraversalSolution:
-    if not graph.requirements:
-        raise ValueError("Routing graph has no service requirements")
     if graph.start_id not in graph.vertices or graph.end_id not in graph.vertices:
         raise ValueError("Routing graph lacks start or end vertex")
     arcs = list(graph.arcs.values())
@@ -80,7 +78,7 @@ def optimize_arc_counts(graph: RoutingGraph,
         if not any(requirement in arc.service_ids for arc in arcs):
             raise ValueError(f"No arc can service {requirement}")
     model = cp_model.CpModel()
-    default_limit = 2 * len(graph.requirements) + 2
+    default_limit = max(2, 2 * len(graph.requirements) + 2)
     limits = {a.id: a.max_uses or config.max_arc_uses or default_limit for a in arcs}
     x = {a.id: model.new_int_var(0, limits[a.id], f"x_{a.id}") for a in arcs}
     for requirement in graph.requirements:
@@ -132,7 +130,7 @@ def optimize_arc_counts(graph: RoutingGraph,
     counts = {a.id: solver.value(x[a.id]) for a in arcs if solver.value(x[a.id]) > 0}
     saturated = [arc_id for arc_id, count in counts.items()
                  if count == limits[arc_id] and not arc_id.startswith("terminal_")]
-    return TraversalSolution(counts, int(solver.objective_value),
+    return TraversalSolution(counts, round(solver.objective_value),
                              solver.status_name(status), saturated,
                              solver.best_objective_bound, solver.wall_time,
                              sum(solver.value(value) for value in excess.values()))

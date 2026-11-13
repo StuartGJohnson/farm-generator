@@ -12,7 +12,7 @@ from shapely.strtree import STRtree
 
 from .graph import _field_driveable
 from .model import (FarmMap, FarmTask, PlannerConfig, Route, RouteSegment,
-                    RoutingGraph, parking_spot_polygon)
+                    RoutingGraph, depot_parking_dividers, parking_spot_polygon)
 from .optimize import TraversalSolution, arc_cost, row_repeat_counts
 from .path_feasibility import (TractorFootprint, path_feasibility,
                                road_turn_region, tree_concave_hulls)
@@ -80,7 +80,8 @@ def validate_route(route: Route, graph: RoutingGraph, farm: FarmMap,
             assert segment.distance_m == 0 and not segment.service_ids
         elif segment.kind in ("row", "rs"):
             assert segment.field_id == route.task.field_ids[stage]
-    assert stage == len(route.task.field_ids) - 1
+    if route.task.field_ids:
+        assert stage == len(route.task.field_ids) - 1
     selected_fields = set(route.task.field_ids)
     footprint = TractorFootprint.from_config(config.tractor)
     channel_union = unary_union(list(farm.irrigation_channels.values()))
@@ -128,16 +129,22 @@ def validate_route(route: Route, graph: RoutingGraph, farm: FarmMap,
             assert path_feasibility(segment.poses, turn_region, turn_obstacles,
                                     footprint, turn_index, turn_tree_hull)
         if segment.kind == "depot":
-            permitted_depot = unary_union([farm.depot, *farm.road_surfaces.values()])
-            terminal_pose = (segment.poses[0] if arc.u == graph.start_id else
-                             segment.poses[-1] if arc.v == graph.end_id else None)
-            assert terminal_pose is not None
-            own_spot = next((number for number, spot in farm.parking_spots.items()
-                             if parking_spot_polygon(spot).covers(
-                                 Point(terminal_pose.x, terminal_pose.y))), None)
-            assert own_spot is not None
+            depot_only = not route.task.field_ids and all(
+                farm.depot.covers(Point(pose.x, pose.y))
+                for pose in (route.task.start, route.task.end))
+            permitted_depot = (farm.depot if depot_only else
+                               unary_union([farm.depot, *farm.road_surfaces.values()]))
+            terminal_poses = ([segment.poses[0]] if arc.u == graph.start_id else []) + (
+                [segment.poses[-1]] if arc.v == graph.end_id else [])
+            own_spots = {number for pose in terminal_poses
+                         for number, spot in farm.parking_spots.items()
+                         if parking_spot_polygon(spot).covers(Point(pose.x, pose.y))}
             blocked_spots = [parking_spot_polygon(spot).buffer(config.depot_parking_clearance_m)
-                             for number, spot in farm.parking_spots.items() if number != own_spot]
+                             for number, spot in farm.parking_spots.items()
+                             if number not in own_spots]
+            if depot_only:
+                blocked_spots.extend(depot_parking_dividers(
+                    farm.parking_spots, config.depot_parking_clearance_m))
             assert path_feasibility(segment.poses, permitted_depot, blocked_spots, footprint)
         if segment.kind == "road" and segment.field_id is None:
             assert path_feasibility(segment.poses, turn_region, turn_obstacles,

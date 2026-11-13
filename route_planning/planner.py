@@ -18,7 +18,7 @@ def plan_route(farm: FarmMap, task: FarmTask,
             return parking_pose(farm.parking_spots[value.number], value.direction)
         return value
     task = replace(task, start=resolve(task.start), end=resolve(task.end))
-    if task.implement_range_m is None:
+    if task.field_ids and task.implement_range_m is None:
         task = replace(task, implement_range_m=infer_implement_range(farm, task.field_ids))
     graph = ordered_field_graph(build_routing_graph(farm, task, config), task)
     counts = optimize_arc_counts(graph, config)

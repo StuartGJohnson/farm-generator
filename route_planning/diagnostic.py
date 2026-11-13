@@ -188,7 +188,8 @@ def save_route_plot(route: Route, farm: FarmMap, path: str | Path,
                           linestyle="--", label="RS exclusion: concave tree hull"))
     ax.legend(handles=handles, loc="lower center", bbox_to_anchor=(0.5, -0.09),
               ncol=2, framealpha=0.96, fontsize=9)
-    field_names = ", ".join(farm.field_names.get(fid, fid) for fid in route.task.field_ids)
+    field_names = (", ".join(farm.field_names.get(fid, fid) for fid in route.task.field_ids)
+                   if route.task.field_ids else "Point-to-point travel")
     reverse_m = sum(s.reverse_distance_m for s in route.segments)
     gap = optimality_gap_percent(route)
     status = route.optimality_status

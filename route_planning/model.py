@@ -55,6 +55,23 @@ def parking_spot_polygon(spot: DepotSpot) -> Polygon:
     ])
 
 
+def depot_parking_dividers(spots: dict[int, DepotSpot], clearance_m: float) -> list[Polygon]:
+    """Virtual no-cross bands along the painted boundaries of adjacent bays."""
+    dividers = []
+    ordered = sorted(spots.values(), key=lambda spot: spot.number)
+    for first, second in zip(ordered, ordered[1:]):
+        midpoint = ((first.center[0] + second.center[0]) / 2,
+                    (first.center[1] + second.center[1]) / 2)
+        along = (math.cos(first.yaw_in), math.sin(first.yaw_in))
+        half_length = min(first.length_m, second.length_m) / 2
+        line = LineString([(midpoint[0] - half_length * along[0],
+                            midpoint[1] - half_length * along[1]),
+                           (midpoint[0] + half_length * along[0],
+                            midpoint[1] + half_length * along[1])])
+        dividers.append(line.buffer(clearance_m, cap_style=2))
+    return dividers
+
+
 class ImplementSide(str, Enum):
     LEFT = "left"
     RIGHT = "right"
@@ -63,6 +80,8 @@ class ImplementSide(str, Enum):
 
 @dataclass(frozen=True)
 class FarmTask:
+    """Service listed fields in order; an empty tuple requests travel only."""
+
     field_ids: tuple[str, ...]
     implement_side: ImplementSide
     start: Pose | DepotParkingState

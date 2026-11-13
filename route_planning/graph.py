@@ -16,7 +16,8 @@ from shapely.ops import substring, unary_union
 from shapely.strtree import STRtree
 
 from .model import (Arc, DepotParkingState, FarmMap, FarmTask, ImplementSide, PlannerConfig,
-                    Pose, RoutingGraph, Vertex, parking_pose, parking_spot_polygon)
+                    Pose, RoutingGraph, Vertex, depot_parking_dividers,
+                    parking_pose, parking_spot_polygon)
 from .rs import connection as rs_connection
 from .path_feasibility import (TractorFootprint, path_feasibility,
                                road_turn_region, tree_concave_hulls)
@@ -173,6 +174,89 @@ def _row_candidates(farm: FarmMap, task: FarmTask, config: PlannerConfig):
     return merged, requirements
 
 
+def _depot_travel_graph(farm: FarmMap, task: FarmTask,
+                        config: PlannerConfig) -> RoutingGraph:
+    """Route between depot poses without leaving the depot for a road state."""
+    graph = RoutingGraph(start_id="terminal_start", end_id="terminal_end")
+    graph.vertices[graph.start_id] = Vertex(graph.start_id, task.start, True)
+    graph.vertices[graph.end_id] = Vertex(graph.end_id, task.end, True)
+    footprint = TractorFootprint.from_config(config.tractor)
+    spots = {number: parking_spot_polygon(spot)
+             for number, spot in farm.parking_spots.items()}
+    dividers = depot_parking_dividers(farm.parking_spots,
+                                      config.depot_parking_clearance_m)
+
+    def terminal_spot(pose):
+        point = Point(pose.x, pose.y)
+        return next((number for number, polygon in spots.items()
+                     if polygon.covers(point)), None)
+
+    start_spot = terminal_spot(task.start)
+    end_spot = terminal_spot(task.end)
+
+    def add_connection(u, v):
+        source, target = graph.vertices[u].pose, graph.vertices[v].pose
+        allowed_spots = {number for number in (
+            start_spot if u == graph.start_id else None,
+            end_spot if v == graph.end_id else None) if number is not None}
+        blocked = [polygon.buffer(config.depot_parking_clearance_m)
+                   for number, polygon in spots.items() if number not in allowed_spots]
+        blocked.extend(dividers)
+        candidate = rs_connection(
+            source, target, farm.depot, blocked, config, STRtree(blocked),
+            permitted_region=farm.depot, footprint=footprint,
+            reverse_cost_multiplier=config.depot_reverse_cost_multiplier,
+            reverse_event_penalty_m=config.depot_reverse_event_penalty_m,
+            reverse_allowance_m=config.depot_reverse_allowance_m,
+            excess_reverse_cost_multiplier=config.depot_excess_reverse_cost_multiplier)
+        if candidate is None:
+            return
+        poses, length, directions, reverse_m, changes, events = candidate
+        arc_id = f"depot_travel_{u}_{v}"
+        graph.arcs[arc_id] = Arc(arc_id, u, v, poses, length, "depot",
+                                 driving_directions=directions,
+                                 reverse_distance_m=reverse_m, gear_changes=changes,
+                                 reverse_events=events, max_uses=1)
+
+    # Distinct parking bays must be exited and entered through the aisle.
+    # A direct arc would have to treat both terminal bays as free space for
+    # its whole length, even while the tractor is between them.
+    if start_spot is None or end_spot is None or start_spot == end_spot:
+        add_connection(graph.start_id, graph.end_id)
+    # Sample both aisle headings in front of each parking bay. Use each bay's
+    # orientation so the candidate graph also works for rotated depots.
+    aisle = {"left": [], "right": []}
+    for number, spot in sorted(farm.parking_spots.items()):
+        outward_yaw = spot.yaw_in + math.pi
+        setback = spot.length_m / 2 + 1.5 * config.turn_radius_m
+        x = spot.center[0] + setback * math.cos(outward_yaw)
+        y = spot.center[1] + setback * math.sin(outward_yaw)
+        for direction, yaw in (("left", outward_yaw + math.pi / 2),
+                               ("right", outward_yaw - math.pi / 2)):
+            pose = Pose(x, y, _wrap(yaw))
+            shape = footprint.at(pose)
+            if (not farm.depot.covers(shape) or
+                    any(shape.intersects(polygon.buffer(config.depot_parking_clearance_m))
+                        for polygon in spots.values()) or
+                    any(shape.intersects(divider) for divider in dividers)):
+                continue
+            identifier = f"depot_aisle_{number}_{direction}"
+            graph.vertices[identifier] = Vertex(identifier, pose, True)
+            aisle[direction].append(identifier)
+            add_connection(graph.start_id, identifier)
+            add_connection(identifier, graph.end_id)
+    for states in aisle.values():
+        for u, v in zip(states, states[1:]):
+            add_connection(u, v)
+            add_connection(v, u)
+    incident = {node for arc in graph.arcs.values() for node in (arc.u, arc.v)}
+    graph.vertices = {key: value for key, value in graph.vertices.items()
+                      if key in incident}
+    if not graph.arcs:
+        raise ValueError("No legal depot route between terminal poses")
+    return graph
+
+
 def build_routing_graph(farm: FarmMap, task: FarmTask,
                         config: PlannerConfig = PlannerConfig()) -> RoutingGraph:
     terminal_spot_numbers = {
@@ -186,7 +270,7 @@ def build_routing_graph(farm: FarmMap, task: FarmTask,
             return parking_pose(farm.parking_spots[value.number], value.direction)
         return value
     task = replace(task, start=resolve(task.start), end=resolve(task.end))
-    if not task.field_ids or len(task.field_ids) != len(set(task.field_ids)):
+    if len(task.field_ids) != len(set(task.field_ids)):
         raise ValueError("Task must list distinct fields")
     if any(field_id not in farm.fields for field_id in task.field_ids):
         raise ValueError("Task names an unknown field")
@@ -194,9 +278,14 @@ def build_routing_graph(farm: FarmMap, task: FarmTask,
             config.rs_step_m <= 0 or config.cost_scale_per_m <= 0 or
             config.reverse_cost_multiplier < 1 or config.gear_change_penalty_m < 0):
         raise ValueError("Invalid planner geometry or cost configuration")
+    if (not task.field_ids and farm.depot is not None and
+            all(farm.depot.covers(Point(pose.x, pose.y))
+                for pose in (task.start, task.end))):
+        return _depot_travel_graph(farm, task, config)
     graph = RoutingGraph(start_id="", end_id="", selected_fields=set(task.field_ids))
-    paths, graph.requirements = _row_candidates(farm, task, config)
-    if len(graph.requirements) == 0:
+    paths, graph.requirements = (_row_candidates(farm, task, config)
+                                 if task.field_ids else ([], set()))
+    if task.field_ids and len(graph.requirements) == 0:
         raise ValueError("Task has no service requirements")
 
     def add_arc(arc: Arc):
