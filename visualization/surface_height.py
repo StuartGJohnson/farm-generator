@@ -5,7 +5,7 @@ from pathlib import Path
 import numpy as np
 
 
-def save_surface_height_plot(mesh, path):
+def save_surface_height_plot(mesh, path, open_surface=None):
     import matplotlib.pyplot as plt
     from matplotlib.collections import PolyCollection
     from matplotlib.colors import Normalize
@@ -39,7 +39,7 @@ def save_surface_height_plot(mesh, path):
     axes[2].set_xlim(xy[:, 0].min(), xy[:, 0].max())
     axes[2].set_ylim(xy[:, 1].min(), xy[:, 1].max())
     figure.colorbar(mesh_colors, ax=axes[2], label="Ground elevation [m]")
-    axes[2].set_title("Blended ground and channels")
+    axes[2].set_title("Open ground mesh" if open_surface else "Blended ground and channels")
     for axis in axes:
         axis.set_aspect("equal")
         axis.set_xlabel("East [m]")

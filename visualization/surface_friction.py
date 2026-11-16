@@ -6,7 +6,7 @@ import numpy as np
 from generation.surface_friction import face_surface_regions
 
 
-def save_surface_friction_plot(mesh, path, quantized=None):
+def save_surface_friction_plot(mesh, path, quantized=None, open_surface=None):
     import matplotlib.pyplot as plt
     from matplotlib.collections import PolyCollection
     from matplotlib.colors import Normalize
@@ -18,12 +18,16 @@ def save_surface_friction_plot(mesh, path, quantized=None):
     regions = np.asarray(mesh.face_surface_regions if mesh.face_surface_regions is not None else
                          face_surface_regions(mesh.points, mesh.triangles, mesh.face_classes))
     values = np.asarray(mesh.face_friction)
-    figure, axes = plt.subplots(1, 4 if quantized is not None else 3, figsize=(20 if quantized is not None else 15, 5), constrained_layout=True)
-    panels = [("Crop field (masked)", regions == "crop", values),
-              ("Road field (masked)", regions == "road", values),
-              ("All surfaces; channels included", np.ones(len(values), dtype=bool), values)]
+    panels = ([("Crop field (masked)", regions == "crop", values),
+               ("Road field (masked)", regions == "road", values),
+               ("All surfaces; channels included", np.ones(len(values), dtype=bool), values)]
+              if open_surface is None else
+              [(f"Open {open_surface} ground", np.ones(len(values), dtype=bool), values),
+               ("All ground", np.ones(len(values), dtype=bool), values)])
     if quantized is not None:
         panels.append(("USD midpoint bins", np.ones(len(values), dtype=bool), np.asarray(quantized)))
+    figure, axes = plt.subplots(1, len(panels), figsize=(5 * len(panels), 5),
+                               constrained_layout=True)
     for ax, (title, mask, data) in zip(axes, panels):
         limits = (data[mask].min(), data[mask].max()) if mask.any() else (0, 1)
         if limits[0] == limits[1]:
@@ -41,7 +45,8 @@ def save_surface_friction_plot(mesh, path, quantized=None):
         ax.set_xlabel("East [m]")
         ax.set_ylabel("North [m]")
         figure.colorbar(colors, ax=ax, shrink=0.65, label="Surface friction μ")
-    figure.suptitle("Seeded surface friction at triangle centroids (gray = other surface types)")
+    figure.suptitle("Seeded surface friction at triangle centroids" if open_surface
+                     else "Seeded surface friction at triangle centroids (gray = other surface types)")
     Path(path).parent.mkdir(parents=True, exist_ok=True)
     figure.savefig(path, dpi=160)
     plt.close(figure)

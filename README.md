@@ -1036,6 +1036,28 @@ than one equally good traversal.
 
 ![Route 03 servicing two fields from the depot with outlands](debug_out/routes/farm_seed_1_120m2_depot_outlands/route_03.png)
 
+## Open worlds
+
+Open worlds provide an unobstructed 120 m × 120 m driving area for testing
+tractor kinematics and dynamics. They retain the farm coordinate system, GIS
+support, and configurable height and friction variation, but use one visual
+ground texture throughout. Generate a road-surface example with
+`python examples/generate_open_world.py --surface road --seed 1` in the
+`isaacsim61-cu13` environment. Use `--surface field` for the field texture.
+
+From the repository root, launch the teleop tractor at the center of the road
+world with:
+
+```bash
+python -m bringup.launch_tractor \
+  --world debug_out/farms/open_seed_1_road/world/farm.usda \
+  --farm-config debug_out/farms/open_seed_1_road/farm.yaml \
+  --position 60 60 0.25
+```
+
+The keyboard controls are W/S for throttle and reverse, A/D for steering, and
+Space for the brake.
+
 ## AI assistance
 
 ChatGPT 5.6 (OpenAI, 08/2026), Codex CLI (gpt-5.6-sol, OpenAI, 08/2026), ChatGPT 6 (OpenAI, 09/2026), Codex CLI (gpt-6-sol/astra, OpenAI, 09/2026), Claude Code 2.1.248 CLI (Anthropic, 08/20206) and Google Antigravity 1.0.14 CLI (Google, 08/2026) were used to assist in the creation of this repo. In particular, the python code is entirely AI created, with git operations, feedback, debugging help, and generation of .md/.txt/.tex file instructions (in collaboration with AI!) by Stuart Johnson (SJ). Generally speaking, my procedure is:

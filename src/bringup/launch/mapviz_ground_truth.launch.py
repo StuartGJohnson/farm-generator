@@ -51,7 +51,7 @@ def generate_launch_description():
         DeclareLaunchArgument(
             "farm",
             default_value="debug_out/farms/farm_seed_1_120m2",
-            description="Generated farm directory containing farm.yaml and gis/.",
+            description="Generated world directory containing farm.yaml and gis/.",
         ),
         OpaqueFunction(function=_launch_farm),
     ])

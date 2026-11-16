@@ -172,7 +172,8 @@ def _features(scene):
 
 
 def export_gis(scene, bounds, farm_dir: Path, *, rgb_path: Path | None = None,
-               gsd_m: float = 0.05, tiles: bool = True) -> dict:
+               gsd_m: float = 0.05, tiles: bool = True,
+               open_surface: str | None = None) -> dict:
     """Write GeoPackage and optional rendered orthophoto, QGIS project, and tiles.
 
     rgb_path is an Isaac Sim RGB image whose top row is geographic north.
@@ -184,11 +185,21 @@ def export_gis(scene, bounds, farm_dir: Path, *, rgb_path: Path | None = None,
     gis_dir.mkdir(parents=True, exist_ok=True)
     reference = semantic_reference(scene)
     (gis_dir / "semantic_reference.json").write_text(json.dumps(reference, indent=2) + "\n")
+    if open_surface not in (None, "field", "road"):
+        raise ValueError("open_surface must be 'field' or 'road'")
+    if open_surface:
+        layers = {"ground_surface": [_feature(Polygon([
+            (bounds[0], bounds[1]), (bounds[2], bounds[1]),
+            (bounds[2], bounds[3]), (bounds[0], bounds[3]),
+        ]), id="open_ground", surface=open_surface)]}
+    else:
+        layers = _features(scene)
     payload = {
         "origin": {"lat": scene.origin.lat0, "lon": scene.origin.lon0},
         "bounds": bounds,
         "gsd_m": gsd_m,
-        "layers": _features(scene),
+        "layers": layers,
+        "world_kind": "open" if open_surface else "farm",
         "rgb_path": str(Path(rgb_path).resolve()) if rgb_path else None,
         "tiles": tiles,
     }

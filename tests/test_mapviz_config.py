@@ -47,3 +47,18 @@ def test_generated_mapviz_config_uses_farm_georeference_and_tiles(tmp_path):
             for display in config["displays"][1:]] == [
                 ("/ground_truth/odom", "arrows"), ("/gps/fix", "points")
             ]
+
+
+def test_open_world_map_origin(tmp_path):
+    world = tmp_path / "open"
+    gis = world / "gis"
+    gis.mkdir(parents=True)
+    (gis / "map_frame.json").write_text(json.dumps({
+        "crs": "EPSG:32610", "origin_easting_m": 631341.0882453356,
+        "origin_northing_m": 4229069.150082922,
+    }))
+    (world / "farm.yaml").write_text(yaml.safe_dump({
+        "scene": {"origin": {"alt0": 7.5}},
+    }))
+    lat, lon, alt, _ = farm_map_origin(world)
+    assert (lat, lon, alt) == pytest.approx((38.2, -121.5, 7.5))

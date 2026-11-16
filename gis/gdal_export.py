@@ -19,6 +19,7 @@ from osgeo import gdal, ogr, osr
 
 
 LAYER_SPECS = {
+    "ground_surface": (ogr.wkbPolygon, ["id", "surface"]),
     "fields": (ogr.wkbPolygon, ["id", "name", "label", "kind", "parcel_group", "crop_type"]),
     "row_centerlines": (ogr.wkbLineString, ["id", "name", "label", "field_id", "row_number", "tree_count"]),
     "roads": (ogr.wkbPolygon, ["id", "name", "node_a", "node_b", "road_class", "width_m", "surface", "field_id", "field_a", "field_b"]),
@@ -60,6 +61,8 @@ def _write_gpkg(path, layers, east, north, srs):
     if ds is None:
         raise RuntimeError("Could not create GeoPackage")
     for name, (geometry_type, fields) in LAYER_SPECS.items():
+        if name not in layers:
+            continue
         layer = ds.CreateLayer(name, srs, geometry_type)
         if layer is None:
             raise RuntimeError(f"Could not create {name} layer")
@@ -104,7 +107,7 @@ def _write_orthophoto(path, rgb_path, bounds, gsd, east, north, srs):
     ds = None
 
 
-def _write_qgis(path, gpkg, tif, extent):
+def _write_qgis(path, gpkg, tif, extent, world_kind="farm"):
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
     from qgis.core import (Qgis, QgsApplication, QgsFillSymbol, QgsLineSymbol,
                            QgsMarkerSymbol, QgsPalLayerSettings, QgsProject,
@@ -116,7 +119,8 @@ def _write_qgis(path, gpkg, tif, extent):
     app.initQgis()
     project = QgsProject.instance()
     project.setFileName(str(path))
-    project.setCrs(QgsVectorLayer(f"{gpkg}|layername=fields", "Fields", "ogr").crs())
+    crs_layer = "ground_surface" if world_kind == "open" else "fields"
+    project.setCrs(QgsVectorLayer(f"{gpkg}|layername={crs_layer}", "Ground", "ogr").crs())
     project.setFilePathStorage(Qgis.FilePathType.Relative)
     if tif is not None and tif.exists():
         raster = QgsRasterLayer(str(tif), "Orthophoto")
@@ -124,6 +128,7 @@ def _write_qgis(path, gpkg, tif, extent):
             raise RuntimeError("QGIS could not read orthophoto")
         project.addMapLayer(raster)
     styles = {
+        "ground_surface": ("Open ground", "fill", "190,170,115,90", "110,95,65,255"),
         "fields": ("Fields", "fill", "255,215,80,0", "115,90,20,255"),
         "row_centerlines": ("Tree rows", "line", "240,220,65,255", None),
         "roads": ("Road surfaces", "fill", "160,120,80,55", "90,65,45,170"),
@@ -136,6 +141,10 @@ def _write_qgis(path, gpkg, tif, extent):
         "parking_spots": ("Parking spots", "marker", "255,255,255,255", None),
         "depot_fence": ("Depot fence", "line", "225,40,170,255", None),
     }
+    if world_kind == "open":
+        styles = {"ground_surface": styles["ground_surface"]}
+    else:
+        styles.pop("ground_surface")
     # Add in draw order: channels and roads under row lines and trees.
     vector_layers = {}
     for key in styles:
@@ -173,7 +182,7 @@ def _write_qgis(path, gpkg, tif, extent):
     # Foreign-key relations expose fields -> roads/rows and rows -> trees in
     # QGIS forms and the "Select Related Features" tools without duplicating
     # feature records into a layer per field or row.
-    relation_specs = [
+    relation_specs = [] if world_kind == "open" else [
         ("field_rows", "Rows in field", "row_centerlines", "field_id", "fields"),
         ("field_trees", "Trees in field", "trees", "field_id", "fields"),
         ("row_trees", "Trees in row", "trees", "row_id", "row_centerlines"),
@@ -202,7 +211,9 @@ def main(input_path, output_dir):
     data = json.loads(Path(input_path).read_text())
     output_dir = Path(output_dir)
     east, north, srs = _utm_origin(data["origin"])
-    gpkg = output_dir / "farm.gpkg"
+    world_kind = data.get("world_kind", "farm")
+    stem = "farm"
+    gpkg = output_dir / f"{stem}.gpkg"
     _write_gpkg(gpkg, data["layers"], east, north, srs)
     (output_dir / "map_frame.json").write_text(json.dumps({
         "crs": "EPSG:32610", "origin_easting_m": east,
@@ -217,8 +228,9 @@ def main(input_path, output_dir):
         subprocess.run(["/usr/bin/gdal2tiles.py", "--xyz", "--zoom=16-21", "--processes=1",
                         "--webviewer=none", str(tif), str(output_dir / "tiles")], check=True)
     bounds = data["bounds"]
-    _write_qgis(output_dir / "farm.qgz", gpkg, tif if data["rgb_path"] else None,
-                (east + bounds[0], north + bounds[1], east + bounds[2], north + bounds[3]))
+    _write_qgis(output_dir / f"{stem}.qgz", gpkg, tif if data["rgb_path"] else None,
+                (east + bounds[0], north + bounds[1], east + bounds[2], north + bounds[3]),
+                world_kind)
     print(f"EPSG:32610 origin=({east:.3f}, {north:.3f}); {gpkg}")
 
 

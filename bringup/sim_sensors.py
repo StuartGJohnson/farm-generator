@@ -128,8 +128,8 @@ def load_sensor_config(path: str | Path, farm_path: str | Path) -> tuple[dict, G
             geo["origin_altitude"], geo["world_to_grid_heading_deg"],
         )
     else:
-        farm = yaml.safe_load(Path(farm_path).read_text())
-        origin = farm["scene"]["origin"]
+        world = yaml.safe_load(Path(farm_path).read_text())
+        origin = world["scene"]["origin"]
         reference = GeoReference.from_wgs84_origin(
             origin["lat0"], origin["lon0"], origin["alt0"], geo["projected_crs"],
             geo["world_to_grid_heading_deg"],

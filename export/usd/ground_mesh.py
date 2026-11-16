@@ -754,8 +754,15 @@ def build_ground_mesh(
     bounds: tuple[float, float, float, float],
     flat_resolution: float | None = None,
     undulation: ChannelUndulationConfig | None = None,
+    *,
+    surface_region: str | None = None,
 ) -> GroundMesh:
     """Create a breakline-constrained Delaunay mesh over ``bounds``."""
+    if surface_region not in (None, "crop", "road"):
+        raise ValueError("surface_region must be 'crop' or 'road'")
+    if surface_region is not None and (scene.parcels or scene.roads.edges or
+                                       scene.hydrology.edges or scene.crossings):
+        raise ValueError("uniform surface_region requires an open scene")
     if flat_resolution is None:
         flat_resolution = scene.surface_friction.farm_resolution_m if scene.surface_friction else 1.0
     if flat_resolution <= 0:
@@ -1066,13 +1073,16 @@ def build_ground_mesh(
 
     # Classify the original hydrology profile before adding terrain offsets.
     # A raised channel bottom or depressed crop face must keep its material.
-    regions = face_surface_regions(points, triangles, face_classes)
+    regions = ([surface_region] * len(triangles) if surface_region is not None else
+               face_surface_regions(points, triangles, face_classes))
     face_friction = (sample_mesh_friction(scene.surface_friction, points, triangles,
                                           face_classes, regions)
                      if scene.surface_friction else None)
     height_weights = None
     if scene.surface_height is not None:
-        offsets = sample_ground_height(scene.surface_height, [point[:2] for point in points], road_area)
+        height_road_area = box(*bounds) if surface_region == "road" else road_area
+        offsets = sample_ground_height(scene.surface_height, [point[:2] for point in points],
+                                       height_road_area)
         height_weights = _shoreline_taper_weights(
             points, water_surfaces, bounds, road_area,
             scene.surface_height.shoreline_taper_m, road_index.values(),
@@ -1770,13 +1780,15 @@ def export_scene_ground(
     flat_resolution: float | None = None,
     undulation: ChannelUndulationConfig | None = None,
     *,
+    surface_region: str | None = None,
     tree_assets: tuple[Path, ...] = (),
     weed_assets: tuple[Path, ...] = (),
     fence_assets: tuple[Path, Path] = (),
     friction_config: UsdFrictionConfig = UsdFrictionConfig(),
     asset_root: Path | None = None,
 ) -> GroundMesh:
-    mesh = build_ground_mesh(scene, bounds, flat_resolution, undulation)
+    mesh = build_ground_mesh(scene, bounds, flat_resolution, undulation,
+                             surface_region=surface_region)
     write_ground_mesh_usda(
         mesh,
         path,

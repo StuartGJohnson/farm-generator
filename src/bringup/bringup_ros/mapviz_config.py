@@ -24,8 +24,8 @@ def farm_map_origin(farm_dir: str | Path) -> tuple[float, float, float, float]:
     # Mapviz's local XY axes are true ENU. The farm's axes are projected grid
     # east/north, so account for meridian convergence at the map origin.
     heading = 90.0 - azimuth
-    farm = yaml.safe_load((farm_dir / "farm.yaml").read_text())
-    altitude = float(farm["scene"]["origin"]["alt0"])
+    world = yaml.safe_load((farm_dir / "farm.yaml").read_text())
+    altitude = float(world["scene"]["origin"]["alt0"])
     return latitude, longitude, altitude, heading
 
 
