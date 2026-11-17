@@ -9,7 +9,11 @@ find_package(nav_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(ament_index_cpp REQUIRED)
 add_executable(tractor_control_node src/tractor_control_node.cpp)
+target_include_directories(tractor_control_node PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>)
 ament_target_dependencies(tractor_control_node rclcpp geometry_msgs nav_msgs std_msgs ament_index_cpp)
 install(TARGETS tractor_control_node DESTINATION lib/${PROJECT_NAME})
+install(DIRECTORY include/ DESTINATION include)
 install(DIRECTORY config/ DESTINATION share/${PROJECT_NAME}/config)
 ament_package()

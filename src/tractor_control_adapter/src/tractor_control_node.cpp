@@ -1,31 +1,21 @@
 #include <algorithm>
-#include <chrono>
 #include <cmath>
 #include <functional>
 #include <fstream>
-#include <memory>
 #include <sstream>
 #include <stdexcept>
-#include <string>
 
-#include "geometry_msgs/msg/twist.hpp"
 #include "ament_index_cpp/get_package_share_directory.hpp"
-#include "nav_msgs/msg/odometry.hpp"
-#include "rclcpp/rclcpp.hpp"
-#include "std_msgs/msg/float32_multi_array.hpp"
+#include "tractor_control_adapter/tractor_control_node.hpp"
 
-using namespace std::chrono_literals;
+namespace tractor_control_adapter {
 
 namespace {
 // Float32MultiArray contract: accelerator, service brake, parking brake,
 // normalized steering, target gear. Teleop confirms forward gear is 1.
 constexpr size_t kAccelerator = 0, kBrake0 = 1, kBrake1 = 2, kSteer = 3, kGear = 4;
 double clamp(double x, double lo, double hi) { return std::max(lo, std::min(hi, x)); }
-struct Model {
-  double coast0 = 0, coast1 = 0, throttle_gain = 0, brake_gain = 0;
-  double coast(double speed) const { return coast0 + coast1 * clamp(speed, 0, 2); }
-};
-Model parse_model(const std::string &line, int expected_gear) {
+FeedforwardModel parse_model(const std::string &line, int expected_gear) {
   std::stringstream stream(line);
   std::string cell;
   double values[4];
@@ -37,13 +27,15 @@ Model parse_model(const std::string &line, int expected_gear) {
     if (!std::isfinite(value)) throw std::runtime_error("Nonfinite feedforward coefficient");
   }
   if (values[2] <= 0 || values[3] <= 0) throw std::runtime_error("Nonpositive pedal gain");
-  return Model{values[0], values[1], values[2], values[3]};
+  return FeedforwardModel{values[0], values[1], values[2], values[3]};
 }
 }  // namespace
 
-class TractorControlNode : public rclcpp::Node {
- public:
-  TractorControlNode() : Node("tractor_control_node") {
+double FeedforwardModel::coast(double speed) const {
+  return coast0 + coast1 * clamp(speed, 0, 2);
+}
+
+TractorControlNode::TractorControlNode() : Node("tractor_control_node") {
     cmd_topic_ = declare_parameter<std::string>("cmd_topic", "/cmd_vel");
     feedback_topic_ = declare_parameter<std::string>("feedback_topic", "/ground_truth/odom");
     actuation_topic_ = declare_parameter<std::string>("actuation_topic", "/vehicle/actuation");
@@ -88,7 +80,7 @@ class TractorControlNode : public rclcpp::Node {
           const auto now = std::chrono::steady_clock::now();
           if (!std::isfinite(msg->linear.x) || !std::isfinite(msg->angular.z)) {
             cmd_valid_ = false;
-            RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 2000, "Invalid or reverse cmd_vel; stopping");
+            RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 2000, "Invalid cmd_vel; stopping");
             return;
           }
           target_ = clamp(msg->linear.x, -max_speed_, max_speed_);
@@ -108,13 +100,11 @@ class TractorControlNode : public rclcpp::Node {
           feedback_valid_ = true;
         });
     timer_ = create_wall_timer(std::chrono::duration<double>(1.0 / rate_), [this]() { tick(); });
-  }
+}
 
-  void stop() { publish(0, 1, 0, 0); }
+void TractorControlNode::stop() { publish(0, 1, 0, 0); }
 
- private:
-  using Steady = std::chrono::steady_clock;
-  void publish(double accelerator, double brake, double brake1, double steer) {
+void TractorControlNode::publish(double accelerator, double brake, double brake1, double steer) {
     std_msgs::msg::Float32MultiArray msg;
     msg.data.resize(5);
     msg.data[kAccelerator] = static_cast<float>(accelerator);
@@ -123,16 +113,18 @@ class TractorControlNode : public rclcpp::Node {
     msg.data[kSteer] = static_cast<float>(steer);
     msg.data[kGear] = static_cast<float>(gear_);
     pub_->publish(msg);
-  }
-  void debug(double desired_accel, double throttle, double brake) {
+}
+
+void TractorControlNode::debug(double desired_accel, double throttle, double brake) {
     std_msgs::msg::Float32MultiArray msg;
     msg.data = {static_cast<float>(target_), static_cast<float>(setpoint_),
                 static_cast<float>(speed_), static_cast<float>(desired_accel),
                 static_cast<float>(throttle), static_cast<float>(brake),
                 static_cast<float>(integral_), static_cast<float>(gear_)};
     debug_pub_->publish(msg);
-  }
-  void tick() {
+}
+
+void TractorControlNode::tick() {
     const auto now = Steady::now();
     double dt = last_tick_ == Steady::time_point{} ? 1.0 / rate_ :
         clamp(std::chrono::duration<double>(now - last_tick_).count(), 0.001, 0.2);
@@ -182,7 +174,7 @@ class TractorControlNode : public rclcpp::Node {
       debug(0, 0, stop_brake_);
       return;
     }
-    const Model &model = gear_ == 1 ? forward_model_ : reverse_model_;
+    const FeedforwardModel &model = gear_ == 1 ? forward_model_ : reverse_model_;
     const double error = gear_ * (setpoint_ - speed_);
     const double candidate = clamp(integral_ + error * dt, -2.0, 2.0);
     const double raw_accel = gear_ * (setpoint_ - old_setpoint) / dt + kp_ * error + ki_ * candidate;
@@ -202,24 +194,14 @@ class TractorControlNode : public rclcpp::Node {
     }
     publish(throttle, brake, 0, steer);
     debug(desired_accel, throttle, brake);
-  }
-  std::string cmd_topic_, feedback_topic_, actuation_topic_, base_frame_;
-  double rate_, kp_, ki_, wheelbase_, max_steer_, max_curvature_, accel_limit_, decel_limit_, max_speed_, stop_brake_, max_rolling_brake_, timeout_;
-  double target_ = 0, yaw_rate_ = 0, speed_ = 0, setpoint_ = 0, integral_ = 0;
-  int gear_ = 1;
-  Model forward_model_, reverse_model_;
-  bool cmd_valid_ = false, feedback_valid_ = false;
-  Steady::time_point cmd_time_{}, feedback_time_{}, last_tick_{}, stationary_since_{}, shift_until_{};
-  rclcpp::Publisher<std_msgs::msg::Float32MultiArray>::SharedPtr pub_, debug_pub_;
-  rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr cmd_sub_;
-  rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_;
-  rclcpp::TimerBase::SharedPtr timer_;
-};
+}
+
+}  // namespace tractor_control_adapter
 
 int main(int argc, char **argv) {
   rclcpp::init(argc, argv);
   try {
-    auto node = std::make_shared<TractorControlNode>();
+    auto node = std::make_shared<tractor_control_adapter::TractorControlNode>();
     rclcpp::spin(node);
     node->stop();
   } catch (const std::exception &e) {

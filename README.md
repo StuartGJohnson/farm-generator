@@ -1168,7 +1168,7 @@ The 2026-11-16 road calibration collected 3,184 open-loop samples in forward
 and reverse. Held-out acceleration RMSE was 0.040 m/s² forward and
 0.044 m/s² reverse over approximately 0.12–1.5 m/s. With the fitted model,
 `kp=1.1`, `ki=0.15`, and 0.7 m/s² speed ramp limits, the forward profile's
-velocity RMSE was 0.192 m/s and peak 1 m/s overshoot was 0.093 m/s. The
+velocity RMSE was 0.193 m/s and peak 1 m/s overshoot was 0.093 m/s. The
 1 → 0.5 m/s transition used at most 0.047 brake and did not approach zero
 speed. The straight reverse profile reached -1.081 m/s peak, with 0.239 m/s
 RMSE. The forward trial's [samples](debug_out/vehicle_speed_trial_feedforward_forward/samples.csv)
