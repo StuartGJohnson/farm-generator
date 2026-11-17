@@ -1058,6 +1058,148 @@ python -m bringup.launch_tractor \
 The keyboard controls are W/S for throttle and reverse, A/D for steering, and
 Space for the brake.
 
+## Physx vehicle control adapter
+
+The ROS 2 controller in `src/tractor_control_adapter` subscribes to
+`/cmd_vel` (`Twist`, m/s and rad/s) and `/ground_truth/odom` (`Odometry`, body-frame
+`base_link` twist). It publishes `/vehicle/actuation` at 20 Hz. Signed speed
+commands select forward (`1`) or reverse (`-1`) gear. The controller stops,
+holds the brake, waits at least 0.4 s at near-zero speed, shifts, and holds
+another 0.5 s before applying throttle. The Isaac adapter independently
+rejects moving or unbraked gear changes. Reverse steering is disabled until
+its yaw sign has been measured; straight reverse motion is supported.
+
+The controller maps a rate-limited desired acceleration plus PI correction
+through a surface-specific inverse drivetrain model. Its default road model
+is installed from `src/tractor_control_adapter/config/road.csv`. The model is
+`a_along_gear = coast0 + coast1*|v| + throttle_gain*accelerator - brake_gain*brake0`.
+The controller's PI gains, model path, wheelbase, steering limit, curvature
+limit, speed ramp, maximum rolling brake, stop holding brake, topics, frame,
+and watchdog timeout are ROS parameters. `/vehicle/control_debug` publishes
+`[raw_target, ramped_target, measured_speed, desired_acceleration, throttle,
+brake0, integral, gear]` for tuning.
+
+`/vehicle/actuation` is `std_msgs/msg/Float32MultiArray` with exactly five
+finite values:
+
+| Index | Value | Range |
+| --- | --- | --- |
+| 0 | accelerator | 0 to 1 |
+| 1 | service brake (`brake0`) | 0 to 1 |
+| 2 | rear parking brake (`brake1`) | 0 to 1; currently zero |
+| 3 | normalized steering | -1 to 1; positive is left |
+| 4 | target gear | `1` forward; `-1` reverse |
+
+Both controller and Isaac adapter use monotonic receive-time watchdogs
+(default 0.5 s). Invalid or stale messages apply full service brake in Isaac.
+The adapter runs on the simulation update thread, alongside the existing ROS
+sensor Action Graphs. `--control-source` explicitly selects `ros`, `teleop`,
+or `none`; only one source writes the vehicle at a time.
+
+In separate terminals, from the repository root:
+
+```bash
+# Isaac Sim terminal (isaacsim61-cu13 environment and ROS bridge library path)
+conda activate isaacsim61-cu13
+export ROS_DISTRO=humble
+export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/home/sjohnson/anaconda3/envs/isaacsim61-cu13/lib/python3.12/site-packages/isaacsim/exts/isaacsim.ros2.core/humble/lib"
+python -m bringup.launch_tractor_physx --ros2 --headless \
+  --world debug_out/farms/open_seed_1_road/world/farm.usda \
+  --farm-config debug_out/farms/open_seed_1_road/farm.yaml \
+  --position 60 60 0.25
+
+# Controller terminal (system ROS 2 Humble; separate from Isaac terminal)
+source activate_venv.sh
+colcon build --base-paths src --packages-select tractor_control_adapter
+source install/setup.bash
+ros2 run tractor_control_adapter tractor_control_node
+
+# Profile terminal (system ROS 2 Humble)
+source activate_venv.sh
+python tools/test_vehicle_speed_profile.py --output debug_out/vehicle_speed_trial_feedforward_forward
+python tools/test_vehicle_speed_profile.py --reverse --output debug_out/vehicle_speed_trial_feedforward_reverse
+```
+
+To regenerate the model for the road surface, stop the C++ controller and
+leave Isaac running with `--control-source ros`. In a separate system ROS 2
+shell, run:
+
+```bash
+source activate_venv.sh
+python tools/calibrate_vehicle.py \
+  --surface road \
+  --world debug_out/farms/open_seed_1_road/world/farm.usda \
+  --output debug_out/vehicle_calibration/road_run_1
+python tools/fit_vehicle_feedforward.py \
+  debug_out/vehicle_calibration/road_run_1/samples.csv \
+  src/tractor_control_adapter/config/road.csv
+colcon build --base-paths src --packages-select tractor_control_adapter
+```
+
+The calibration script sends bounded throttle, coast, and gentle brake phases
+in both gears. It enforces a 2 m/s speed cap, a 35 m displacement cap, fresh
+odometry, and exclusive publication of `/vehicle/actuation`. It writes raw
+`samples.csv` and a `manifest.json` with surface, world, phase list, and
+outcome. The fitter writes separate gear coefficients to `road.csv` and fit
+diagnostics to `road.json`; it withholds one throttle and one brake level when
+checking model interpolation. For another surface, use a new output directory
+and model filename, then pass `-p model_path:=/absolute/path/to/model.csv`
+to the controller. Restart the controller after rebuilding or changing the
+model. Record each run separately so calibration data remains reproducible.
+
+The tracking profile sends 0, ±1, ±0.5, and 0 m/s steps through 20 simulation
+seconds, then waits until stopped. It saves `samples.csv`, `metrics.json`,
+and `tracking.png` with speed, ramped setpoint, accelerator, brake, and
+controller diagnostics. Plot creation requires matplotlib. On completion,
+the test utility stops publishing and the independent watchdogs brake.
+
+An open-road trial on 2026-11-16 used the shown 20 Hz profile with `kp=0.45`,
+`ki=0.12`, wheelbase 2.7 m, and the default 0.5 s watchdog. Velocity RMSE
+across the step profile was 0.267 m/s. Mean steady-state errors were
+0.059 m/s at 1 m/s and 0.017 m/s at 0.5 m/s. Peak 1 m/s overshoot was
+0.279 m/s; rise to 90% took 1.73 s and 10% settling took 5.08 s. The
+[tracking plot](debug_out/vehicle_speed_trial/tracking.png),
+[`samples.csv`](debug_out/vehicle_speed_trial/samples.csv), and
+[`metrics.json`](debug_out/vehicle_speed_trial/metrics.json) contain the data.
+After the profile publisher exited, `/vehicle/actuation` reported
+`[0, 1, 0, 0, 1]`, confirming the controller watchdog's brake command.
+
+The 2026-11-16 road calibration collected 3,184 open-loop samples in forward
+and reverse. Held-out acceleration RMSE was 0.040 m/s² forward and
+0.044 m/s² reverse over approximately 0.12–1.5 m/s. With the fitted model,
+`kp=1.1`, `ki=0.15`, and 0.7 m/s² speed ramp limits, the forward profile's
+velocity RMSE was 0.192 m/s and peak 1 m/s overshoot was 0.093 m/s. The
+1 → 0.5 m/s transition used at most 0.047 brake and did not approach zero
+speed. The straight reverse profile reached -1.081 m/s peak, with 0.239 m/s
+RMSE. The forward trial's [samples](debug_out/vehicle_speed_trial_feedforward_forward/samples.csv)
+and [metrics](debug_out/vehicle_speed_trial_feedforward_forward/metrics.json)
+are saved beside the plot; see also the
+[reverse plot](debug_out/vehicle_speed_trial_feedforward_reverse/tracking.png).
+The fitted coefficients and diagnostics are in
+[`road.csv`](src/tractor_control_adapter/config/road.csv) and
+[`road.json`](src/tractor_control_adapter/config/road.json).
+
+![Forward feedforward velocity tracking check](debug_out/vehicle_speed_trial_feedforward_forward/tracking.png)
+
+A faster forward test uses the same time intervals with 2 m/s and 1 m/s
+targets:
+
+```bash
+python tools/test_vehicle_speed_profile.py --high-speed 2 --low-speed 1 \
+  --output debug_out/vehicle_speed_trial_feedforward_forward_fast
+```
+
+In the 2026-11-16 run, velocity RMSE over the full stepped profile was
+0.504 m/s; the 2 m/s hold averaged 2.061 m/s and peaked at 2.089 m/s.
+The 1 m/s hold averaged 0.971 m/s. Peak brake during the 2 → 1 m/s
+transition was 0.050. The configured 0.7 m/s² command ramp contributes
+substantially to full-profile RMSE at this higher target. The
+[fast tracking plot](debug_out/vehicle_speed_trial_feedforward_forward_fast/tracking.png),
+[`samples.csv`](debug_out/vehicle_speed_trial_feedforward_forward_fast/samples.csv),
+and [`metrics.json`](debug_out/vehicle_speed_trial_feedforward_forward_fast/metrics.json)
+contain the complete trial. The model fit data extends to about 1.5 m/s;
+the 2 m/s hold exercises it beyond that calibrated speed range.
+
 ## AI assistance
 
 ChatGPT 5.6 (OpenAI, 08/2026), Codex CLI (gpt-5.6-sol, OpenAI, 08/2026), ChatGPT 6 (OpenAI, 09/2026), Codex CLI (gpt-6-sol/astra, OpenAI, 09/2026), Claude Code 2.1.248 CLI (Anthropic, 08/20206) and Google Antigravity 1.0.14 CLI (Google, 08/2026) were used to assist in the creation of this repo. In particular, the python code is entirely AI created, with git operations, feedback, debugging help, and generation of .md/.txt/.tex file instructions (in collaboration with AI!) by Stuart Johnson (SJ). Generally speaking, my procedure is:

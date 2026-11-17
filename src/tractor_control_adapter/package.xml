@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>tractor_control_adapter</name>
+  <version>0.1.0</version>
+  <description>Forward speed PI and Ackermann command conversion for the PhysX tractor.</description>
+  <maintainer email="stuart.g.johnson@gmail.com">Stuart G Johnson</maintainer>
+  <license>MIT</license>
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <depend>rclcpp</depend>
+  <depend>geometry_msgs</depend>
+  <depend>nav_msgs</depend>
+  <depend>std_msgs</depend>
+  <depend>ament_index_cpp</depend>
+  <export><build_type>ament_cmake</build_type></export>
+</package>

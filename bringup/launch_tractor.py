@@ -13,7 +13,7 @@ if str(PROJECT_ROOT) not in sys.path:
 from isaacsim import SimulationApp
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args(default_control_source="teleop") -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--world", default="debug_out/farms/farm_seed_1_120m2/world/farm.usda"
@@ -25,6 +25,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--position", nargs=3, type=float, default=(60.0, 60.0, 2.0))
     parser.add_argument("--headless", action="store_true")
     parser.add_argument("--ros2", action="store_true")
+    parser.add_argument("--control-source", choices=("teleop", "ros", "none"),
+                        default=default_control_source)
+    parser.add_argument("--actuation-timeout", type=float, default=0.5)
     parser.add_argument("--max-updates", type=int, default=None, help="stop after this many app updates")
     parser.add_argument(
         "--frame-report",
@@ -34,10 +37,13 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def main() -> None:
-    args = parse_args()
+def main(default_control_source="teleop") -> None:
+    args = parse_args(default_control_source)
+    if args.control_source == "ros" and not args.ros2:
+        raise ValueError("ROS control requires --ros2 for odometry and bridge")
     app = SimulationApp({"headless": args.headless})
     teleop = None
+    actuation = None
     state_streams = None
     try:
         import omni.timeline
@@ -80,12 +86,17 @@ def main() -> None:
             sensor_config, reference = load_sensor_config(args.sensor_config, args.farm_config)
             state_streams = TractorStateStreams(stage, sensor_config, reference)
 
-        if not args.headless:
+        vehicle = stage.GetPrimAtPath("/World/Tractor/base_link")
+        if args.control_source == "teleop" and not args.headless:
             from bringup.teleop import TractorKeyboardTeleop
 
-            vehicle = stage.GetPrimAtPath("/World/Tractor/base_link")
             teleop = TractorKeyboardTeleop(vehicle)
             print("W/S throttle and reverse, A/D steer, Space brake")
+        elif args.control_source == "ros":
+            from bringup.vehicle_actuation import VehicleActuationAdapter
+
+            actuation = VehicleActuationAdapter(vehicle, timeout=args.actuation_timeout)
+            print("ROS actuator control on /vehicle/actuation")
 
         # Generated assets have no animation range. Give this interactive
         # simulation a usable range so Kit does not loop a single frame.
@@ -98,6 +109,8 @@ def main() -> None:
         while app.is_running():
             if teleop is not None:
                 teleop.update()
+            if actuation is not None:
+                actuation.update()
             app.update()
             update_count += 1
             if args.max_updates is not None and update_count >= args.max_updates:
@@ -121,10 +134,12 @@ def main() -> None:
             truth_count = state_streams.truth.samples if state_streams.truth else 0
             gnss_count = state_streams.gnss.samples if state_streams.gnss else 0
             print(f"State stream samples: ground_truth={truth_count}, gnss={gnss_count}")
-        if state_streams is not None:
-            state_streams.close()
         if teleop is not None:
             teleop.close()
+        if actuation is not None:
+            actuation.close()
+        if state_streams is not None:
+            state_streams.close()
         app.close()
 
 
