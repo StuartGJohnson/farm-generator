@@ -61,6 +61,8 @@ class TractorConfig:
                 raise ValueError(f"{name} must be positive")
         if self.tractor_body_ground_clearance < 0:
             raise ValueError("tractor_body_ground_clearance must be non-negative")
+        if self.turning_radius <= self.front_track_width / 2:
+            raise ValueError("turning_radius must exceed half the front track width")
         if self.wheel_well_clearance < 0:
             raise ValueError("wheel_well_clearance must be non-negative")
         if not 0 < self.tractor_body_front_axle < self.tractor_body_length:
@@ -88,6 +90,10 @@ class TractorConfig:
         return self.front_axle_x - self.wheelbase
 
     @property
+    def rear_axle_z(self) -> float:
+        return self.rear_tire_dia * 0.5
+
+    @property
     def body_center_z(self) -> float:
         return self.tractor_body_ground_clearance + self.tractor_body_height * 0.5
 
@@ -97,9 +103,10 @@ class TractorConfig:
 
     @property
     def max_steer_angle_rad(self) -> float:
-        # Bicycle-model inner/nominal steering limit implied by requested radius.
+        # PhysX Ackermann maxSteerAngle is the inner front wheel angle. The
+        # requested turning radius is measured at the rear axle center.
         import math
-        return math.atan2(self.wheelbase, self.turning_radius)
+        return math.atan2(self.wheelbase, self.turning_radius - self.front_track_width / 2)
 
     @property
     def enabled_cameras(self) -> tuple[str, ...]:

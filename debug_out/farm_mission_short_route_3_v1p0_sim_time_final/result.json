@@ -1,0 +1,58 @@
+{
+  "success": true,
+  "base_link_reference": "rear_axle",
+  "rear_axle_x_m": -1.2500000000000002,
+  "reversal_stations_m": [
+    14.04166520307011
+  ],
+  "mission_id": "dd1eb82f-7130-48ec-afd5-119c82f33832",
+  "planned_distance_m": 24.0832648310104,
+  "action_status": 4,
+  "message": "Mission completed",
+  "samples": 1736,
+  "sections_observed": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5
+  ],
+  "handoffs": [
+    {
+      "section": 1,
+      "station_m": 4.045284718641818,
+      "cmd_before_mps": -1.0,
+      "cmd_at_mps": -1.0,
+      "min_cmd_next_meter_mps": -1.0
+    },
+    {
+      "section": 2,
+      "station_m": 9.028713781791733,
+      "cmd_before_mps": -1.0,
+      "cmd_at_mps": -1.0,
+      "min_cmd_next_meter_mps": -1.0
+    },
+    {
+      "section": 3,
+      "station_m": 14.039441702125321,
+      "cmd_before_mps": 0.0,
+      "cmd_at_mps": 1.0,
+      "min_cmd_next_meter_mps": 1.0
+    },
+    {
+      "section": 4,
+      "station_m": 18.081059880357035,
+      "cmd_before_mps": 1.0,
+      "cmd_at_mps": 1.0,
+      "min_cmd_next_meter_mps": 1.0
+    },
+    {
+      "section": 5,
+      "station_m": 23.07913786602469,
+      "cmd_before_mps": 1.0,
+      "cmd_at_mps": 1.0,
+      "min_cmd_next_meter_mps": 0.0
+    }
+  ]
+}

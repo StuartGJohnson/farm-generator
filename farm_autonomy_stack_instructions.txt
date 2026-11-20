@@ -1,0 +1,102 @@
+This document describes the farm autonomy stack (FAS). The FAS is a collection of ROS2 nodes and packages which accept farm tasks, produces mission plans, then executes these plans. Generally speaking, the components of the FAS are accepting and planning for a single farm task until completion (or a user abort).
+
+The FAS interfaces to the user via ROS2 actions. The base implementation of the FAS will use nav2 to execute the mission, so the mission executor will produce a sequence of FollowPath goals from the mission plan and monitor/manage the execution of these goals by nav2. The implementation should assume we are running ROS2 Humble, and will need to use the venv (acessible via activate_venv.sh) in the repo to execute the python components. The simulation node of the FAS should use the conda env isaacsim61-cu13 to run the tractor/farm simulation.
+
+Architecture:
+
+The FAS can have variable ROS2 nodes, but the current implementation target is for simulation with exact positioning and velocity, with navigation by nav2. The node collection with a brief description of node function is:
+
+python nodes: 
+farm_mission_processor (venv) - plans and executes farm tasks as missions - to be written.
+bringup.launch_tractor_physx (conda env isaacsim61-cu13) - launches the isaacsim simulation for a given tractor and farm (already present in repo)
+
+c++ nodes:
+ground_truth_localization - injects the tractor ground truth position and velocity into the ros2 system (already present in repo)
+nav2 - standard ros2 package which navigates along the path segments provided by the farm_mission_processor (already present in system ros2)
+mapviz - displays the current tractor position and other useful information during missions  (already present in system ros2)
+swri_transform_util - coordinate conversion utility for mapviz (already present in system ros2)
+tractor_control_adapter - converts nav2 commands into isaacsim tractor controls (already present in repo)
+
+Components:
+
+Most components are already available. However, we shall need to implement farm_mission_processor, and the launch and configuration files for nav2 and the components in general.
+
+farm_mission_processor:
+
+The farm_mission_processor is composed of two distinct parts: the mission_planner and the mission_executor. These two components are implemented as ROS2 action servers.
+
+The mission_planner accepts a FarmTask (see route_planning/model.py) and generates a mission: a global path and a set of path segments which represent distinct parts of the path from a planning perspective. See the code in route_planning/model.py, in particular the Route and RouteSegment classes. Currently the Route is synonymous with a Mission - but the mission may evolve to extend the Route to more complex behaviors; for example, the tractor will take non-navigation (i.e., non "route") actions during the mission. The mission_planner should delegate route planning to the code in route_planning.
+
+The mission_planner accepts a goal from the user which provides a FarmTask (see route_planning/planner.py). The route_planner (see route_planning/planner.py) is used to compute a Route, which contains RouteSegments. The Route object should be retained by the farm_mission_processor for further processing by the mission_executor. The route_planner can take considerable time to complete, and so should be abortable within it's graph building section, and it's call to the OR-Tools cp-sat solver (which can be commanded to stop). This also implies the mission_executor runs the route_planner in background threads. The mission_planner will only accept a new mission goal or a cancel request. If the mission_planner is busy, it should refuse a new mission goal. ROS2 action server best practices should be followed.
+
+The mission_executor accepts an execute goal or a cancel request. Currently, we shall have the mission_executor execute the last Route computed by the route_planner. In future, we may have stored missions/routes which the mission_executor can choose from - especially since missions can take some time to plan. This argues for the mission_executor to accept a goal, not just a signal. The job of the mission_executor is to manage the nav2 FollowPath action server; so the mission_executor is an action client of the nav2 server. The mission_executor should return an error if an invalid mission goal is provided. This can happen, for example, if there are no missions available.
+
+Managing the nav2 FollowPath server will require a fairly complex state machine. In the case of path seqments without reversals, the mission_executor will feed overlapping paths (as goals which are pose lists) to nav2 - nav2 is capable of processing overlapping paths without stopping. The exception to this is a RouteSegment (or Route) with a reversal. Our choice here is to cause nav2 to come to a full stop at the reversal point before starting again with a new goal (or path segment). Route reversal can be detected within a RouteSegment by checking the RouteSegment.driving_directions list. (see route_planning.planner.py). 
+
+The mission_executor should provide three ways to subdivide (mission_segmentation_strategy) the mission into path segments. by_region is to concatenate (into a single nav2 FollowPath goal) segments within a region, such as field, depot and road. Another choice (by_activity) would be to process each segment returned from the planner as a separate FollowPath goal (more or less). This would correspond to path segments being from different planning regions: road, field switch (or channel crossing), field headlands, or row traversal. In either case, segments with the same driving directions should be overlapped. For the purposes of testing, the by_length option would split or join segments at every by_length_m meters. This will be the first option to be tested on a short Route (see the testing section), as the seamless dispatch of overlapping sections to nav2 is non-trivial.
+
+Each FollowPath goal should eventually include a particular plugin definition of FollowPath, as defined in the nav2 configuration file. However, for initial testing, we shall simply use a single FollowPath plugin (see the nav2 config example below). These plugin definitions can adjust target tractor speed, controller parameters and other nav2 settings - presumably this can help increase the likelihood of path completion.
+
+For route_segments with a single driving direction, smooth operation is accomplished by continous monitoring of tractor progress and updating the FollowPath goal with overlapped paths. This implementation will depend on the mission_segmentation_strategy and the overlap_distance_m. Also, nav2 can be finicky in path searching. The nav2 option max_robot_pose_search_dist should be set to several times the tractor length (see the nav2 configuration example below). In order to compute the current distance along the route, we should implement a RouteProgressTracker which uses the TF updates and the annotated route to determine where we are along the route. nav2's action progress via FollowPath feedback is not sufficient. Whatever method is used within RouteProgressTracker, any searching of the reference route should search forward some maximum number of meters from the previous progress check (max_robot_pose_search_dist might be sufficient).
+
+nav2 will have to be operated without a local or global postmap, and using RPP as a controller. An example would be:
+
+controller_server:
+  ros__parameters:
+    use_sim_time: true
+    controller_frequency: 20.0
+    odom_topic: /odom
+
+    controller_plugins: ["FollowPath"]
+    progress_checker_plugin: "progress_checker"
+    goal_checker_plugins: ["goal_checker"]
+
+    progress_checker:
+      plugin: "nav2_controller::SimpleProgressChecker"
+      required_movement_radius: 0.2
+      movement_time_allowance: 10.0
+
+    goal_checker:
+      plugin: "nav2_controller::SimpleGoalChecker"
+      xy_goal_tolerance: 0.15
+      yaw_goal_tolerance: 0.20
+      stateful: true
+
+    FollowPath:
+      plugin: "nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController"
+      desired_linear_vel: 0.5
+      lookahead_dist: 0.8
+      use_rotate_to_heading: false
+      allow_reversing: true
+      use_collision_detection: false
+      use_cost_regulated_linear_velocity_scaling: false
+      use_regulated_linear_velocity_scaling: true
+      max_robot_pose_search_dist: 10.0
+
+local_costmap:
+  local_costmap:
+    ros__parameters:
+      use_sim_time: true
+      global_frame: odom
+      robot_base_frame: base_link
+      rolling_window: true
+      width: 10
+      height: 10
+      resolution: 0.10
+      track_unknown_space: false
+      plugins: []
+
+The farm_mission_processor should be defined as a ros2 package in src/farm_mission_processor. A resulting ros2 node will be running the two action servers/clients (mission_planner and mission_executor).
+
+
+We will need a launch file (in src/bringup) which launches all of our system-ros2 (non-sim) nodes for test runs. I can also imagine that individual launches might be reasonable in codex agent-managed development and testing. Recall that the FAS launch (and non-sim ros2 nodes) should be launched with the venv.
+
+
+Tests:
+
+Tests for the mission_planner should start the farm_mission_processor and send it a known test farm task. See tests/test_short_route_planning.py. The mission_planner should compute the route and validate the output as a Route class object. The examples in tests/test_short_route_planning.py are fast to compute and should not take long to test. Validate these tests first.
+
+Tests for the mission_executor should start simple. I would suggest writing the farm_mission_processor in such a way that we can directly inject a route within a unit test - the testing of multiple ros2 nodes at the same time can get complicated. The mission_executor should be tested first via short_route_1, a 10m straight-line route. For this route, use the by_length option to split the route into two 5m long segments. Overlap these segments by 1m and use the nav2 client logic developed for the mission_executor to complete the route. Collect tractor velocity along the route and produce a plot of tractor commanded and actual velocity along the route. Also, produce a 2d plan view plot of the route - this will come in handy when we are actually turning in later tests. I would suggest putting these outputs in a new directory in debug_out/.
+
+Tests should be done with the simulator in headless mode - so you can run them. As well, for initial testing, we can skip the mapviz display.
+

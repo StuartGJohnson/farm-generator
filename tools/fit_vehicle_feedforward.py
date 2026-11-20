@@ -39,7 +39,7 @@ def fit(input_path: Path, output_path: Path):
     report = {"source": str(input_path), "model": "a_along_gear = coast0 + coast1*speed_abs + throttle_gain*accelerator - brake_gain*brake0",
               "gears": {}}
     with output_path.open("w", newline="") as file:
-        writer = csv.writer(file)
+        writer = csv.writer(file, lineterminator="\n")
         writer.writerow(["gear", "coast0", "coast1", "throttle_gain", "brake_gain"])
         for gear in (1, -1):
             part = [s for s in samples if s[0] == gear]

@@ -1090,8 +1090,9 @@ finite values:
 | 3 | normalized steering | -1 to 1; positive is left |
 | 4 | target gear | `1` forward; `-1` reverse |
 
-Both controller and Isaac adapter use monotonic receive-time watchdogs
-(default 0.5 s). Invalid or stale messages apply full service brake in Isaac.
+Both controller and Isaac adapter use simulation-time receive watchdogs when
+running with `use_sim_time` (default timeout 0.5 s). Invalid or stale messages
+apply full service brake in Isaac.
 The adapter runs on the simulation update thread, alongside the existing ROS
 sensor Action Graphs. `--control-source` explicitly selects `ros`, `teleop`,
 or `none`; only one source writes the vehicle at a time.
@@ -1112,12 +1113,12 @@ python -m bringup.launch_tractor_physx --ros2 --headless \
 source activate_venv.sh
 colcon build --base-paths src --packages-select tractor_control_adapter
 source install/setup.bash
-ros2 run tractor_control_adapter tractor_control_node
+ros2 run tractor_control_adapter tractor_control_node --ros-args -p use_sim_time:=true
 
 # Profile terminal (system ROS 2 Humble)
 source activate_venv.sh
-python tools/test_vehicle_speed_profile.py --output debug_out/vehicle_speed_trial_feedforward_forward
-python tools/test_vehicle_speed_profile.py --reverse --output debug_out/vehicle_speed_trial_feedforward_reverse
+python tools/test_vehicle_speed_profile.py --output debug_out/vehicle_speed_trial_sim_time_forward
+python tools/test_vehicle_speed_profile.py --reverse --output debug_out/vehicle_speed_trial_sim_time_reverse
 ```
 
 To regenerate the model for the road surface, stop the C++ controller and
@@ -1129,11 +1130,10 @@ source activate_venv.sh
 python tools/calibrate_vehicle.py \
   --surface road \
   --world debug_out/farms/open_seed_1_road/world/farm.usda \
-  --output debug_out/vehicle_calibration/road_run_1
+  --output debug_out/vehicle_calibration/road_repeat
 python tools/fit_vehicle_feedforward.py \
-  debug_out/vehicle_calibration/road_run_1/samples.csv \
-  src/tractor_control_adapter/config/road.csv
-colcon build --base-paths src --packages-select tractor_control_adapter
+  debug_out/vehicle_calibration/road_repeat/samples.csv \
+  debug_out/vehicle_calibration/road_repeat/road.csv
 ```
 
 The calibration script sends bounded throttle, coast, and gentle brake phases
@@ -1144,8 +1144,9 @@ outcome. The fitter writes separate gear coefficients to `road.csv` and fit
 diagnostics to `road.json`; it withholds one throttle and one brake level when
 checking model interpolation. For another surface, use a new output directory
 and model filename, then pass `-p model_path:=/absolute/path/to/model.csv`
-to the controller. Restart the controller after rebuilding or changing the
-model. Record each run separately so calibration data remains reproducible.
+to the controller. Compare a new fit with the installed model before changing
+the default, and restart the controller after changing its model. Record each
+run separately so calibration data remains reproducible.
 
 The tracking profile sends 0, ±1, ±0.5, and 0 m/s steps through 20 simulation
 seconds, then waits until stopped. It saves `samples.csv`, `metrics.json`,
@@ -1153,52 +1154,134 @@ and `tracking.png` with speed, ramped setpoint, accelerator, brake, and
 controller diagnostics. Plot creation requires matplotlib. On completion,
 the test utility stops publishing and the independent watchdogs brake.
 
-An open-road trial on 2026-11-16 used the shown 20 Hz profile with `kp=0.45`,
-`ki=0.12`, wheelbase 2.7 m, and the default 0.5 s watchdog. Velocity RMSE
-across the step profile was 0.267 m/s. Mean steady-state errors were
-0.059 m/s at 1 m/s and 0.017 m/s at 0.5 m/s. Peak 1 m/s overshoot was
-0.279 m/s; rise to 90% took 1.73 s and 10% settling took 5.08 s. The
-[tracking plot](debug_out/vehicle_speed_trial/tracking.png),
-[`samples.csv`](debug_out/vehicle_speed_trial/samples.csv), and
-[`metrics.json`](debug_out/vehicle_speed_trial/metrics.json) contain the data.
-After the profile publisher exited, `/vehicle/actuation` reported
-`[0, 1, 0, 0, 1]`, confirming the controller watchdog's brake command.
+### Sim-time road reference runs
 
-The 2026-11-16 road calibration collected 3,184 open-loop samples in forward
-and reverse. Held-out acceleration RMSE was 0.040 m/s² forward and
-0.044 m/s² reverse over approximately 0.12–1.5 m/s. With the fitted model,
-`kp=1.1`, `ki=0.15`, and 0.7 m/s² speed ramp limits, the forward profile's
-velocity RMSE was 0.193 m/s and peak 1 m/s overshoot was 0.093 m/s. The
-1 → 0.5 m/s transition used at most 0.047 brake and did not approach zero
-speed. The straight reverse profile reached -1.081 m/s peak, with 0.239 m/s
-RMSE. The forward trial's [samples](debug_out/vehicle_speed_trial_feedforward_forward/samples.csv)
-and [metrics](debug_out/vehicle_speed_trial_feedforward_forward/metrics.json)
-are saved beside the plot; see also the
-[reverse plot](debug_out/vehicle_speed_trial_feedforward_reverse/tracking.png).
-The fitted coefficients and diagnostics are in
-[`road.csv`](src/tractor_control_adapter/config/road.csv) and
-[`road.json`](src/tractor_control_adapter/config/road.json).
+The adapter, open-loop calibration tool, and speed-profile tool use ROS
+simulation time. Their control and publication intervals advance with `/clock`;
+wall time is used only to detect stalled trials. The current feedforward model
+was fitted from the 20 Hz run in
+[`road_sim_time_20hz`](debug_out/vehicle_calibration/road_sim_time_20hz/manifest.json)
+and installed as [`road.csv`](src/tractor_control_adapter/config/road.csv).
+The open-road world used for calibration has a generated friction mean of
+1.05 and a range of 0.95–1.15. The fit is empirical for that world and does
+not adjust itself for field friction or grade.
 
-![Forward feedforward velocity tracking check](debug_out/vehicle_speed_trial_feedforward_forward/tracking.png)
+The current 20 Hz speed-profile checks used `kp=1.1`, `ki=0.15`, and 0.7 m/s²
+command ramps. Their 1 m/s step overshoots were 0.045 m/s forward and
+0.024 m/s reverse. Full-profile RMSE, including the ramps, was 0.185 m/s
+forward and 0.275 m/s reverse. The reproducible plots, samples, and metrics
+are in [`vehicle_speed_trial_sim_time_forward`](debug_out/vehicle_speed_trial_sim_time_forward/tracking.png)
+and [`vehicle_speed_trial_sim_time_reverse`](debug_out/vehicle_speed_trial_sim_time_reverse/tracking.png).
 
-A faster forward test uses the same time intervals with 2 m/s and 1 m/s
-targets:
+![Sim-time forward road speed tracking](debug_out/vehicle_speed_trial_sim_time_forward/tracking.png)
+
+### Short field turning check
+
+`tools/test_field_turns.py` provides a 10 s direct `/cmd_vel` turning check on
+the open field, without Nav2. It records the rear-axle trajectory, velocity,
+yaw rate, and requested actuation. Use the generated rear-axle `base_link`
+tractor in `debug_out/tractor_route_2m/tractor.usda`, its matching
+`configs/tractor_route_2m.yaml`, and the `open_seed_1_field` world. The
+adapter still uses the road feedforward model there. For the current
+sim-time field path-following reference, see the injected circular mission
+below; the earlier direct-turn sweeps are exploratory runs.
+
+## Farm autonomy stack
+
+The ROS 2 Humble mission processor exposes `mission_planner` and
+`mission_executor` actions. Planning turns a `FarmTask` into a `Route`;
+execution sends Nav2 `FollowPath` goals and reports route progress. The
+launch file starts localization, the tractor control adapter, Nav2, and the
+mission processor with `use_sim_time:=true`. Isaac Sim runs separately in
+`isaacsim61-cu13`, with the same `ROS_DOMAIN_ID`.
 
 ```bash
-python tools/test_vehicle_speed_profile.py --high-speed 2 --low-speed 1 \
-  --output debug_out/vehicle_speed_trial_feedforward_forward_fast
+source activate_venv.sh
+colcon build --base-paths src --packages-select \
+  farm_mission_interfaces farm_mission_processor bringup tractor_control_adapter
+source activate_venv.sh
+ros2 launch bringup farm_autonomy.launch.py \
+  farm:=debug_out/farms/farm_seed_1_120m2_depot \
+  mission_segmentation_strategy:=by_length by_length_m:=5.0 overlap_distance_m:=1.0
 ```
 
-In the 2026-11-16 run, velocity RMSE over the full stepped profile was
-0.504 m/s; the 2 m/s hold averaged 2.061 m/s and peaked at 2.089 m/s.
-The 1 m/s hold averaged 0.971 m/s. Peak brake during the 2 → 1 m/s
-transition was 0.050. The configured 0.7 m/s² command ramp contributes
-substantially to full-profile RMSE at this higher target. The
-[fast tracking plot](debug_out/vehicle_speed_trial_feedforward_forward_fast/tracking.png),
-[`samples.csv`](debug_out/vehicle_speed_trial_feedforward_forward_fast/samples.csv),
-and [`metrics.json`](debug_out/vehicle_speed_trial_feedforward_forward_fast/metrics.json)
-contain the complete trial. The model fit data extends to about 1.5 m/s;
-the 2 m/s hold exercises it beyond that calibrated speed range.
+Sections can be grouped `by_region`, `by_activity`, or `by_length`. Same-direction
+sections use overlapping goals; a direction reversal forms a stop boundary.
+The processor samples only the source edges needed for each Nav2 goal, with
+`max_nav_pose_spacing_m` defaulting to 0.2 m. Original vertices and section
+metadata are preserved. For example, a 0.328 m source edge becomes two equal
+0.164 m intervals, so the 1 m goal overlap contains at least five intervals.
+The generated tractor's `base_link` is at the rear axle center, while Nav2
+uses a level `base_footprint` for its 2D RPP lookahead. The configured
+lookahead is 0.5 m. The control adapter converts Nav2 curvature to PhysX
+Ackermann steering using the tractor configuration.
+
+### Sim-time mission reference runs
+
+These runs use the corrected rear-axle tractor, the sim-time road feedforward
+model, and the current Nav2 configuration. `short_route_2` and
+`short_route_3` are depot missions exercised by
+`tools/test_farm_mission_short.py`; the circular route is a field mission
+exercised by `tools/test_circular_mission.py`.
+
+| Mission | Speed target | Outcome | Plots and data |
+| --- | ---: | --- | --- |
+| `short_route_2`, 25.61 m | 0.5 m/s | Completed five overlapping handoffs without a commanded-speed dip | [plan](debug_out/farm_mission_short_route_2_sim_time_control/plan_view.png), [velocity](debug_out/farm_mission_short_route_2_sim_time_control/velocity.png), [result](debug_out/farm_mission_short_route_2_sim_time_control/result.json) |
+| `short_route_3`, 24.08 m | 1.0 m/s | Completed reverse-to-forward stop and all sections | [plan](debug_out/farm_mission_short_route_3_v1p0_sim_time_final/plan_view.png), [velocity](debug_out/farm_mission_short_route_3_v1p0_sim_time_final/velocity.png), [result](debug_out/farm_mission_short_route_3_v1p0_sim_time_final/result.json) |
+| Field arc, 2.5 m radius, 11.78 m | 0.5 m/s | Completed; median absolute radial error 0.0032 m | [plan](debug_out/circular_mission_r2p5_pedals/plan_view.png), [velocity](debug_out/circular_mission_r2p5_pedals/velocity.png), [result](debug_out/circular_mission_r2p5_pedals/result.json) |
+
+For the 2.5 m field arc, prepare a single 270° `RouteSegment` with 119 poses
+at about 0.1 m spacing:
+
+```bash
+source activate_venv.sh
+python tools/test_circular_mission.py --radius 2.5 --prepare-only \
+  --output-dir debug_out/circular_mission_r2p5_pedals
+```
+
+Start Isaac Sim with `debug_out/farms/open_seed_1_field/world/farm.usda`, its
+`farm.yaml`, `debug_out/tractor_route_2m/tractor.usda`, and
+`configs/tractor_route_2m.yaml`; place the rear axle at `(60, 60, 0.25)`
+with zero yaw:
+
+```bash
+python -m bringup.launch_tractor_physx --ros2 --headless \
+  --world debug_out/farms/open_seed_1_field/world/farm.usda \
+  --farm-config debug_out/farms/open_seed_1_field/farm.yaml \
+  --tractor debug_out/tractor_route_2m/tractor.usda \
+  --config configs/tractor_route_2m.yaml --position 60 60 0.25 --yaw-deg 0
+```
+
+In a sourced venv shell, launch the ROS stack:
+
+```bash
+ros2 launch bringup farm_autonomy.launch.py \
+  farm:=debug_out/farms/open_seed_1_field \
+  tractor_config_path:=configs/tractor_route_2m.yaml \
+  mission_segmentation_strategy:=by_activity \
+  injected_route_path:=debug_out/circular_mission_r2p5_pedals/route.json \
+  desired_linear_vel_mps:=0.5
+```
+
+In another sourced venv shell, run the trial:
+
+```bash
+python tools/test_circular_mission.py --radius 2.5 \
+  --output-dir debug_out/circular_mission_r2p5_pedals --max-wall-seconds 300
+```
+
+The processor's `inject_route` test hook sends one `FollowPath` goal for this
+arc. The run peaked at 0.659 m/s near station 7.02 m while Nav2 and the
+adapter still requested 0.5 m/s. At that instant the adapter requested zero
+throttle and 0.015 service brake. The [control-effort plot](debug_out/circular_mission_r2p5_pedals/control_effort.png)
+shows the speed target, actual speed, requested pedals, acceleration, and PI
+state. The [surface plan](debug_out/circular_mission_r2p5_pedals/surface_plan_view.png)
+and [surface/time plot](debug_out/circular_mission_r2p5_pedals/surface_vs_time.png)
+show generated friction and terrain height near the path. At the speed peak,
+friction sampled near the four wheels was about 0.34–0.42 and estimated
+terrain grade was 3.8% downhill. These are map samples, not measured wheel
+slip or delivered brake force. The full samples and result are in
+[`circular_mission_r2p5_pedals`](debug_out/circular_mission_r2p5_pedals/samples.csv).
 
 ## AI assistance
 

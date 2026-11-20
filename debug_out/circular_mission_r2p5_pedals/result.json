@@ -1,0 +1,23 @@
+{
+  "route_length_m": 11.78018959927851,
+  "pose_count": 119,
+  "radius_m": 2.5,
+  "sweep_deg": 270.0,
+  "path_spacing_m": 0.09983211524812297,
+  "success": true,
+  "action_status": 4,
+  "message": "Mission completed",
+  "tracking_samples": 1359,
+  "median_abs_radial_error_m": 0.0031522820946969787,
+  "p95_abs_radial_error_m": 0.012167215692117761,
+  "max_abs_radial_error_m": 0.013507111817131712,
+  "median_speed_mps": 0.4892242182210472,
+  "min_speed_mps": 0.311683231481116,
+  "max_speed_mps": 0.6594988391231864,
+  "median_requested_curvature_inv_m": 0.40055691203729465,
+  "fraction_requested_above_steering_limit": 0.0,
+  "median_measured_curvature_inv_m": 0.400551885113478,
+  "final_station_m": 11.634291731581602,
+  "final_goal_error_m": 0.1456877876799646,
+  "samples": 1648
+}

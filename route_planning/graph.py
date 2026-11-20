@@ -10,6 +10,7 @@ import math
 from collections import defaultdict
 from dataclasses import replace
 from statistics import median
+from typing import Callable
 
 from shapely.geometry import LineString, Point
 from shapely.ops import substring, unary_union
@@ -84,7 +85,8 @@ def _field_driveable(farm: FarmMap, field_id: str):
     return region
 
 
-def _row_candidates(farm: FarmMap, task: FarmTask, config: PlannerConfig):
+def _row_candidates(farm: FarmMap, task: FarmTask, config: PlannerConfig,
+                    cancel_requested: Callable[[], bool] | None = None):
     offset = task.implement_range_m or infer_implement_range(farm, task.field_ids)
     if offset <= 0:
         raise ValueError("Implement range must be positive")
@@ -95,6 +97,8 @@ def _row_candidates(farm: FarmMap, task: FarmTask, config: PlannerConfig):
                       for fid in task.field_ids}
     tree_indices = {fid: STRtree(obstacles) for fid, obstacles in tree_obstacles.items()}
     for row in farm.rows.values():
+        if cancel_requested and cancel_requested():
+            raise InterruptedError("Route graph construction canceled")
         if row.field_id not in task.field_ids:
             continue
         if row.line is None:
@@ -175,7 +179,8 @@ def _row_candidates(farm: FarmMap, task: FarmTask, config: PlannerConfig):
 
 
 def _depot_travel_graph(farm: FarmMap, task: FarmTask,
-                        config: PlannerConfig) -> RoutingGraph:
+                        config: PlannerConfig,
+                        cancel_requested: Callable[[], bool] | None = None) -> RoutingGraph:
     """Route between depot poses without leaving the depot for a road state."""
     graph = RoutingGraph(start_id="terminal_start", end_id="terminal_end")
     graph.vertices[graph.start_id] = Vertex(graph.start_id, task.start, True)
@@ -195,6 +200,8 @@ def _depot_travel_graph(farm: FarmMap, task: FarmTask,
     end_spot = terminal_spot(task.end)
 
     def add_connection(u, v):
+        if cancel_requested and cancel_requested():
+            raise InterruptedError("Depot graph construction canceled")
         source, target = graph.vertices[u].pose, graph.vertices[v].pose
         allowed_spots = {number for number in (
             start_spot if u == graph.start_id else None,
@@ -258,7 +265,12 @@ def _depot_travel_graph(farm: FarmMap, task: FarmTask,
 
 
 def build_routing_graph(farm: FarmMap, task: FarmTask,
-                        config: PlannerConfig = PlannerConfig()) -> RoutingGraph:
+                        config: PlannerConfig = PlannerConfig(),
+                        cancel_requested: Callable[[], bool] | None = None) -> RoutingGraph:
+    def check_cancel():
+        if cancel_requested and cancel_requested():
+            raise InterruptedError("Route graph construction canceled")
+    check_cancel()
     terminal_spot_numbers = {
         "start": task.start.number if isinstance(task.start, DepotParkingState) else None,
         "end": task.end.number if isinstance(task.end, DepotParkingState) else None,
@@ -281,9 +293,9 @@ def build_routing_graph(farm: FarmMap, task: FarmTask,
     if (not task.field_ids and farm.depot is not None and
             all(farm.depot.covers(Point(pose.x, pose.y))
                 for pose in (task.start, task.end))):
-        return _depot_travel_graph(farm, task, config)
+        return _depot_travel_graph(farm, task, config, cancel_requested)
     graph = RoutingGraph(start_id="", end_id="", selected_fields=set(task.field_ids))
-    paths, graph.requirements = (_row_candidates(farm, task, config)
+    paths, graph.requirements = (_row_candidates(farm, task, config, cancel_requested)
                                  if task.field_ids else ([], set()))
     if task.field_ids and len(graph.requirements) == 0:
         raise ValueError("Task has no service requirements")
@@ -335,6 +347,7 @@ def build_routing_graph(farm: FarmMap, task: FarmTask,
     splits = {road.id: {} for road in farm.roads.values()}
     junction_legs = defaultdict(list)
     for road in farm.roads.values():
+        check_cancel()
         for at_start, node_id in ((True, road.node_a), (False, road.node_b)):
             station = _setback_station(road.line.length, at_start,
                                        config.road_turn_setback_m)
@@ -456,6 +469,7 @@ def build_routing_graph(farm: FarmMap, task: FarmTask,
     # permit a forward exit or entry with room to align the tractor.
     interfaces = defaultdict(set)
     for vertex in list(graph.vertices.values()):
+        check_cancel()
         if not vertex.oriented or vertex.field_id is None:
             continue
         frontage = [road for road in farm.roads.values()
@@ -572,6 +586,7 @@ def build_routing_graph(farm: FarmMap, task: FarmTask,
                 raise ValueError(f"No legal depot connection for {label} pose")
 
     for road in farm.roads.values():
+        check_cancel()
         stations = sorted(splits[road.id])
         for j, (a, b) in enumerate(zip(stations, stations[1:])):
             if b - a < 1e-4:
@@ -609,6 +624,7 @@ def build_routing_graph(farm: FarmMap, task: FarmTask,
                         for fid in task.field_ids}
     tree_hulls = tree_concave_hulls(farm, task.field_ids)
     for node_id, legs in sorted(junction_legs.items()):
+        check_cancel()
         for incoming_road, incoming_station, incoming_direction, _ in legs:
             u = road_state(incoming_road, incoming_station, incoming_direction)
             for outgoing_road, outgoing_station, _, outgoing_direction in legs:
@@ -657,6 +673,7 @@ def build_routing_graph(farm: FarmMap, task: FarmTask,
 
     row_vertices = [v for v in graph.vertices.values() if v.oriented and v.field_id is not None]
     for vertex in row_vertices:
+        check_cancel()
         search_radius = config.rs_candidate_radius_m
         nearby = sorted((other for other in row_vertices
                          if other.id != vertex.id and other.field_id == vertex.field_id

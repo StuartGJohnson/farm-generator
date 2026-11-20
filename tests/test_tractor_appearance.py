@@ -45,7 +45,7 @@ def test_usd_livery_assets_and_collision_invariants(tmp_path, livery, scale):
     vehicle = stage.GetPrimAtPath("/Tractor/base_link")
     pod = stage.GetPrimAtPath("/Tractor/base_link/sensor_pod_link")
     pod_origin = UsdGeom.Xformable(pod).ComputeLocalToWorldTransform(0).ExtractTranslation()
-    assert tuple(pod_origin) == pytest.approx((0, 0, config.sensor_pod_height_above_ground))
+    assert tuple(pod_origin) == pytest.approx((-config.rear_axle_x, 0, config.sensor_pod_height_above_ground))
     expected_mass = 1000 * (sum(length*width*config.tractor_body_height for _, length, width in config.body_segments)
                             + config.sensor_pod_length*config.sensor_pod_width*config.sensor_pod_height)
     assert UsdPhysics.MassAPI(vehicle).GetMassAttr().Get() == pytest.approx(expected_mass)
@@ -63,6 +63,43 @@ def test_usd_livery_assets_and_collision_invariants(tmp_path, livery, scale):
         assert UsdShade.MaterialBindingAPI(prim).ComputeBoundMaterial()[0].GetPath() == "/Tractor/Looks/Livery"
         mesh = UsdGeom.Mesh(prim)
         assert len(UsdGeom.PrimvarsAPI(prim).GetPrimvar("st").Get()) == len(mesh.GetFaceVertexIndicesAttr().Get())
+
+
+def test_usd_base_link_is_rear_axle_center(tmp_path):
+    pytest.importorskip("pxr.PhysxSchema")
+    from pxr import PhysxSchema, Usd, UsdGeom, UsdPhysics
+    from tractor_generation.usd import write_tractor_usda
+
+    config = TractorConfig(rear_tire_dia=1.4)
+    stage = Usd.Stage.Open(str(write_tractor_usda(config, tmp_path / "tractor.usda")))
+    base = stage.GetPrimAtPath("/Tractor/base_link")
+
+    def position(name):
+        prim = stage.GetPrimAtPath(f"/Tractor/base_link/{name}")
+        return tuple(UsdGeom.Xformable(prim).ComputeLocalToWorldTransform(0).ExtractTranslation())
+
+    assert tuple(UsdGeom.Xformable(base).ComputeLocalToWorldTransform(0).ExtractTranslation()) == pytest.approx(
+        (0, 0, config.rear_axle_z))
+    assert position("rear_left_wheel") == pytest.approx((0, config.rear_track_width / 2, config.rear_axle_z))
+    assert position("rear_right_wheel") == pytest.approx((0, -config.rear_track_width / 2, config.rear_axle_z))
+    assert position("front_left_wheel") == pytest.approx(
+        (config.wheelbase, config.front_track_width / 2, config.front_tire_dia / 2))
+    assert position("Body/segment_0") == pytest.approx(
+        (config.body_segments[0][0] - config.rear_axle_x, 0, config.body_center_z))
+    com = UsdPhysics.MassAPI(base).GetCenterOfMassAttr().Get()
+    body_weights = [(length * width * config.tractor_body_height, center_x)
+                    for center_x, length, width in config.body_segments]
+    pod_weight = config.sensor_pod_length * config.sensor_pod_width * config.sensor_pod_height
+    expected_com_x = (sum(weight * center_x for weight, center_x in body_weights)
+                      / (sum(weight for weight, _ in body_weights) + pod_weight)
+                      - config.rear_axle_x)
+    assert com[0] == pytest.approx(expected_com_x)
+    steering = PhysxSchema.PhysxVehicleAckermannSteeringAPI(base)
+    assert steering.GetMaxSteerAngleAttr().Get() == pytest.approx(config.max_steer_angle_rad)
+    assert (config.wheelbase / math.tan(steering.GetMaxSteerAngleAttr().Get())
+            + config.front_track_width / 2) == pytest.approx(config.turning_radius)
+    suspension = PhysxSchema.PhysxVehicleWheelAttachmentAPI.Get(stage, "/Tractor/base_link/rear_left_wheel")
+    assert suspension.GetSuspensionFramePositionAttr().Get()[0] == pytest.approx(0)
 
 
 @pytest.mark.parametrize("radius,width,depth", [(0.5, 0.2, 0.2), (0.8, 0.3, 0.2), (0.1, 0.05, 0.2)])

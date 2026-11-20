@@ -1,0 +1,9 @@
+# Empty mission_id selects the latest planned mission.
+string mission_id
+---
+bool success
+string message
+---
+float64 distance_traveled_m
+float64 distance_remaining_m
+uint32 section_index

@@ -16,13 +16,15 @@ from pathlib import Path
 
 def run(args):
     import rclpy
+    from rclpy.parameter import Parameter
     from nav_msgs.msg import Odometry
     from rosgraph_msgs.msg import Clock
     from std_msgs.msg import Float32MultiArray
 
     args.output.mkdir(parents=True, exist_ok=True)
     rclpy.init()
-    node = rclpy.create_node("tractor_open_loop_calibration")
+    node = rclpy.create_node("tractor_open_loop_calibration", parameter_overrides=[
+        Parameter("use_sim_time", value=True)])
     pub = node.create_publisher(Float32MultiArray, "/vehicle/actuation", 10)
     state = {"sim": None, "speed": None, "odom_wall": None, "x": None, "y": None}
     def clock_cb(msg):
@@ -64,16 +66,13 @@ def run(args):
     last_sim = None
     start_xy = None
     start_wall = time.monotonic()
-    last_publish = 0.0
+    last_publish_sim = None
     last_publisher_check = 0.0
     outcome = "completed"
     try:
         while rclpy.ok() and phase_index < len(phases):
             rclpy.spin_once(node, timeout_sec=0.01)
             wall = time.monotonic()
-            if wall - last_publish < 1 / args.rate:
-                continue
-            last_publish = wall
             sim = state["sim"]
             if sim is None or state["odom_wall"] is None:
                 if wall - start_wall > 120:
@@ -84,6 +83,9 @@ def run(args):
             if last_sim is not None and sim < last_sim:
                 raise RuntimeError("Simulation time reset during calibration")
             last_sim = sim
+            if last_publish_sim is not None and sim - last_publish_sim < 1 / args.rate - 1e-9:
+                continue
+            last_publish_sim = sim
             if first_sim is None:
                 first_sim = sim
                 start_xy = state["x"], state["y"]

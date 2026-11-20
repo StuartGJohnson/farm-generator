@@ -1,0 +1,12 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>farm_mission_processor</name><version>0.1.0</version>
+  <description>Plans farm tasks and executes routes using Nav2.</description>
+  <maintainer email="stuart.g.johnson@gmail.com">Stuart G Johnson</maintainer><license>MIT</license>
+  <buildtool_depend>ament_python</buildtool_depend>
+  <exec_depend>farm_mission_interfaces</exec_depend>
+  <exec_depend>nav2_msgs</exec_depend><exec_depend>nav_msgs</exec_depend>
+  <exec_depend>geometry_msgs</exec_depend><exec_depend>rclpy</exec_depend>
+  <exec_depend>tf2_ros</exec_depend>
+  <export><build_type>ament_python</build_type></export>
+</package>

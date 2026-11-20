@@ -6,6 +6,7 @@
 #include <stdexcept>
 
 #include "ament_index_cpp/get_package_share_directory.hpp"
+#include "rclcpp/create_timer.hpp"
 #include "tractor_control_adapter/tractor_control_node.hpp"
 
 namespace tractor_control_adapter {
@@ -44,7 +45,8 @@ TractorControlNode::TractorControlNode() : Node("tractor_control_node") {
     kp_ = declare_parameter<double>("kp", 1.1);
     ki_ = declare_parameter<double>("ki", 0.15);
     wheelbase_ = declare_parameter<double>("wheelbase", 2.7);
-    max_steer_ = declare_parameter<double>("max_steer_angle_rad", 0.7853981633974483);
+    front_track_width_ = declare_parameter<double>("front_track_width", 1.0);
+    max_steer_ = declare_parameter<double>("max_steer_angle_rad", 0.8870870151605253);
     max_curvature_ = declare_parameter<double>("max_curvature", 0.37);
     accel_limit_ = declare_parameter<double>("command_accel_limit", 0.7);
     decel_limit_ = declare_parameter<double>("command_decel_limit", 0.7);
@@ -56,7 +58,7 @@ TractorControlNode::TractorControlNode() : Node("tractor_control_node") {
     if (model_path.empty()) {
       model_path = ament_index_cpp::get_package_share_directory("tractor_control_adapter") + "/config/road.csv";
     }
-    if (rate_ <= 0 || kp_ < 0 || ki_ < 0 || wheelbase_ <= 0 || max_steer_ <= 0 ||
+    if (rate_ <= 0 || kp_ < 0 || ki_ < 0 || wheelbase_ <= 0 || front_track_width_ <= 0 || max_steer_ <= 0 ||
         max_curvature_ <= 0 || accel_limit_ <= 0 || decel_limit_ <= 0 || max_speed_ <= 0 ||
         timeout_ <= 0 || stop_brake_ < 0 || stop_brake_ > 1 ||
         max_rolling_brake_ <= 0 || max_rolling_brake_ > 1) {
@@ -77,7 +79,7 @@ TractorControlNode::TractorControlNode() : Node("tractor_control_node") {
     debug_pub_ = create_publisher<std_msgs::msg::Float32MultiArray>("/vehicle/control_debug", 10);
     cmd_sub_ = create_subscription<geometry_msgs::msg::Twist>(cmd_topic_, 10,
         [this](const geometry_msgs::msg::Twist::SharedPtr msg) {
-          const auto now = std::chrono::steady_clock::now();
+          const auto now_ns = get_clock()->now().nanoseconds();
           if (!std::isfinite(msg->linear.x) || !std::isfinite(msg->angular.z)) {
             cmd_valid_ = false;
             RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 2000, "Invalid cmd_vel; stopping");
@@ -85,7 +87,7 @@ TractorControlNode::TractorControlNode() : Node("tractor_control_node") {
           }
           target_ = clamp(msg->linear.x, -max_speed_, max_speed_);
           yaw_rate_ = msg->angular.z;
-          cmd_time_ = now;
+          cmd_time_ns_ = now_ns;
           cmd_valid_ = true;
         });
     odom_sub_ = create_subscription<nav_msgs::msg::Odometry>(feedback_topic_, 10,
@@ -96,10 +98,11 @@ TractorControlNode::TractorControlNode() : Node("tractor_control_node") {
             return;
           }
           speed_ = msg->twist.twist.linear.x;
-          feedback_time_ = std::chrono::steady_clock::now();
+          feedback_time_ns_ = get_clock()->now().nanoseconds();
           feedback_valid_ = true;
         });
-    timer_ = create_wall_timer(std::chrono::duration<double>(1.0 / rate_), [this]() { tick(); });
+    timer_ = rclcpp::create_timer(this, get_clock(),
+        rclcpp::Duration::from_seconds(1.0 / rate_), [this]() { tick(); });
 }
 
 void TractorControlNode::stop() { publish(0, 1, 0, 0); }
@@ -125,13 +128,21 @@ void TractorControlNode::debug(double desired_accel, double throttle, double bra
 }
 
 void TractorControlNode::tick() {
-    const auto now = Steady::now();
-    double dt = last_tick_ == Steady::time_point{} ? 1.0 / rate_ :
-        clamp(std::chrono::duration<double>(now - last_tick_).count(), 0.001, 0.2);
-    last_tick_ = now;
+    const int64_t now_ns = get_clock()->now().nanoseconds();
+    if (last_tick_ns_ >= 0 && now_ns < last_tick_ns_) {
+      // A simulator reset invalidates the previous command, feedback, and PI state.
+      cmd_valid_ = feedback_valid_ = false;
+      cmd_time_ns_ = feedback_time_ns_ = -1;
+      integral_ = setpoint_ = 0;
+      stationary_since_ns_ = shift_until_ns_ = -1;
+    }
+    const double dt = last_tick_ns_ < 0 || now_ns < last_tick_ns_ ? 1.0 / rate_ :
+        clamp((now_ns - last_tick_ns_) * 1e-9, 0.001, 0.2);
+    last_tick_ns_ = now_ns;
     const bool fresh = cmd_valid_ && feedback_valid_ &&
-        std::chrono::duration<double>(now - cmd_time_).count() <= timeout_ &&
-        std::chrono::duration<double>(now - feedback_time_).count() <= timeout_;
+        now_ns >= cmd_time_ns_ && now_ns >= feedback_time_ns_ &&
+        (now_ns - cmd_time_ns_) * 1e-9 <= timeout_ &&
+        (now_ns - feedback_time_ns_) * 1e-9 <= timeout_;
     if (!fresh) {
       integral_ = 0;
       setpoint_ = 0;
@@ -144,22 +155,22 @@ void TractorControlNode::tick() {
       setpoint_ = 0;
       integral_ = 0;
       if (std::abs(speed_) < 0.07) {
-        if (stationary_since_ == Steady::time_point{}) stationary_since_ = now;
-        if (std::chrono::duration<double>(now - stationary_since_).count() >= 0.4) {
+        if (stationary_since_ns_ < 0) stationary_since_ns_ = now_ns;
+        if ((now_ns - stationary_since_ns_) * 1e-9 >= 0.4) {
           gear_ = requested_gear;
-          shift_until_ = now + std::chrono::milliseconds(500);
-          stationary_since_ = Steady::time_point{};
+          shift_until_ns_ = now_ns + 500000000;
+          stationary_since_ns_ = -1;
         }
       } else {
-        stationary_since_ = Steady::time_point{};
+        stationary_since_ns_ = -1;
       }
       const double shift_brake = std::abs(speed_) < 0.07 ? 0.35 : max_rolling_brake_;
       publish(0, shift_brake, 0, 0);
       debug(0, 0, shift_brake);
       return;
     }
-    stationary_since_ = Steady::time_point{};
-    if (now < shift_until_) {
+    stationary_since_ns_ = -1;
+    if (shift_until_ns_ >= 0 && now_ns < shift_until_ns_) {
       publish(0, 0.35, 0, 0);
       debug(0, 0, 0.35);
       return;
@@ -188,9 +199,15 @@ void TractorControlNode::tick() {
         (throttle >= 1 && error < 0) || (brake >= max_rolling_brake_ && error > 0);
     if (accel_allows_integral && pedal_allows_integral) integral_ = candidate;
     double steer = 0;
-    if (std::abs(target_) > 0.05 && std::abs(setpoint_) > 0.1 && gear_ == 1) {
-      const double curvature = clamp(yaw_rate_ / std::max(std::abs(setpoint_), 0.3), -max_curvature_, max_curvature_);
-      steer = clamp(std::atan(wheelbase_ * curvature) / max_steer_, -1, 1);
+    if (std::abs(target_) > 0.05 && std::abs(setpoint_) > 0.1) {
+      // Nav2 angular.z is a yaw-rate request at its linear.x speed. Convert
+      // their ratio to rear-axle curvature, then to the inner front wheel
+      // angle expected by PhysX Ackermann steering.
+      const double curvature = clamp(yaw_rate_ / target_, -max_curvature_, max_curvature_);
+      const double magnitude = std::abs(curvature);
+      const double inner_angle = std::atan2(wheelbase_ * magnitude,
+                                           1.0 - front_track_width_ * magnitude / 2.0);
+      steer = std::copysign(clamp(inner_angle / max_steer_, 0, 1), curvature);
     }
     publish(throttle, brake, 0, steer);
     debug(desired_accel, throttle, brake);

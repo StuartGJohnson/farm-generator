@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass
+from threading import Event, Thread
+from typing import Callable
 
 from ortools.sat.python import cp_model
 
@@ -64,7 +66,10 @@ def row_repeat_counts(graph: RoutingGraph, counts: dict[str, int]) -> dict[str, 
 
 
 def optimize_arc_counts(graph: RoutingGraph,
-                        config: PlannerConfig = PlannerConfig()) -> TraversalSolution:
+                        config: PlannerConfig = PlannerConfig(),
+                        cancel_requested: Callable[[], bool] | None = None) -> TraversalSolution:
+    if cancel_requested and cancel_requested():
+        raise InterruptedError("Route optimization canceled")
     if graph.start_id not in graph.vertices or graph.end_id not in graph.vertices:
         raise ValueError("Routing graph lacks start or end vertex")
     arcs = list(graph.arcs.values())
@@ -124,7 +129,20 @@ def optimize_arc_counts(graph: RoutingGraph,
     solver.parameters.max_time_in_seconds = config.solver_time_s
     solver.parameters.num_search_workers = 8
     solver.parameters.random_seed = 1
-    status = solver.solve(model)
+    done = Event()
+    if cancel_requested:
+        def watch_cancel():
+            while not done.wait(0.05):
+                if cancel_requested():
+                    solver.stop_search()
+                    return
+        Thread(target=watch_cancel, daemon=True).start()
+    try:
+        status = solver.solve(model)
+    finally:
+        done.set()
+    if cancel_requested and cancel_requested():
+        raise InterruptedError("Route optimization canceled")
     if status not in (cp_model.FEASIBLE, cp_model.OPTIMAL):
         raise RuntimeError(f"No farm route found (CP-SAT status: {solver.status_name(status)})")
     counts = {a.id: solver.value(x[a.id]) for a in arcs if solver.value(x[a.id]) > 0}

@@ -1,0 +1,42 @@
+{
+  "source": "debug_out/vehicle_calibration/road_sim_time_20hz/samples.csv",
+  "model": "a_along_gear = coast0 + coast1*speed_abs + throttle_gain*accelerator - brake_gain*brake0",
+  "gears": {
+    "1": {
+      "samples": 555,
+      "rmse_mps2": 0.03602715643057124,
+      "held_out_levels": [
+        "throttle_0.12",
+        "brake_0.06"
+      ],
+      "held_out_samples": 74,
+      "held_out_rmse_mps2": 0.052093888733537805,
+      "coast0_mps2": -0.041597754631954885,
+      "coast1_per_s": 0.03721888478068913,
+      "throttle_gain_mps2": 2.1669322494414054,
+      "brake_gain_mps2": 14.576110725997053,
+      "speed_range_mps": [
+        0.12043613308174037,
+        1.4821839507851362
+      ]
+    },
+    "-1": {
+      "samples": 568,
+      "rmse_mps2": 0.03302069301058002,
+      "held_out_levels": [
+        "throttle_0.12",
+        "brake_0.06"
+      ],
+      "held_out_samples": 77,
+      "held_out_rmse_mps2": 0.04239298132139597,
+      "coast0_mps2": -0.00126799170949623,
+      "coast1_per_s": -0.004749739678630349,
+      "throttle_gain_mps2": 2.018648920066612,
+      "brake_gain_mps2": 14.818374128179341,
+      "speed_range_mps": [
+        0.12216341739792898,
+        1.4663320956947419
+      ]
+    }
+  }
+}

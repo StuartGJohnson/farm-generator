@@ -65,7 +65,9 @@ def main():
         parser.error("rate and speeds must be positive, with low speed below high speed")
     args.output.mkdir(parents=True, exist_ok=True)
     rclpy.init()
-    node = rclpy.create_node("vehicle_speed_profile")
+    from rclpy.parameter import Parameter
+    node = rclpy.create_node("vehicle_speed_profile", parameter_overrides=[
+        Parameter("use_sim_time", value=True)])
     pub = node.create_publisher(Twist, "/cmd_vel", 10)
     state = {"clock": None, "speed": math.nan, "act": [math.nan] * 5, "debug": [math.nan] * 8}
     def on_clock(msg):
@@ -86,22 +88,22 @@ def main():
     start_wall = time.monotonic()
     start_sim = None
     last_sim = None
-    last_publish_wall = 0.0
+    last_publish_sim = None
     stop_since = None
     try:
         while rclpy.ok() and time.monotonic() - start_wall < args.max_wall_seconds:
             rclpy.spin_once(node, timeout_sec=1 / args.rate)
-            wall_now = time.monotonic()
-            if wall_now - last_publish_wall < 1 / args.rate:
-                continue
-            last_publish_wall = wall_now
             now_sim = state["clock"]
             if now_sim is None:
                 continue
             if start_sim is None or now_sim < last_sim:
                 start_sim = now_sim
+                last_publish_sim = None
                 rows.clear()
             last_sim = now_sim
+            if last_publish_sim is not None and now_sim - last_publish_sim < 1 / args.rate - 1e-9:
+                continue
+            last_publish_sim = now_sim
             elapsed = now_sim - start_sim
             direction = -1 if args.reverse else 1
             target = profile(elapsed, direction, args.high_speed, args.low_speed)

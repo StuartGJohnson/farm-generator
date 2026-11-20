@@ -1,0 +1,19 @@
+{
+  "rmse_mps": 0.18488331860292556,
+  "steady_error_high_mps": 0.029847353748198684,
+  "steady_error_low_mps": -0.0045245667571347055,
+  "overshoot_high_mps": 0.04451611453379489,
+  "rise_to_90pct_s": 1.4499999999999997,
+  "settling_high_s": 1.4499999999999997,
+  "profile": "0-2s:0, 2-10s:1.0, 10-18s:0.5, 18+s:0 m/s",
+  "direction": "forward",
+  "rate_hz": 20.0,
+  "high_speed_mps": 1.0,
+  "low_speed_mps": 0.5,
+  "world": "debug_out/farms/open_seed_1_road",
+  "model": "src/tractor_control_adapter/config/road.csv",
+  "controller_gains": {
+    "kp": 1.1,
+    "ki": 0.15
+  }
+}

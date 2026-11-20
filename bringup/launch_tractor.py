@@ -23,6 +23,8 @@ def parse_args(default_control_source="teleop") -> argparse.Namespace:
     parser.add_argument("--sensor-config", default="configs/sim_sensors.yaml")
     parser.add_argument("--farm-config", default="debug_out/farms/farm_seed_1_120m2/farm.yaml")
     parser.add_argument("--position", nargs=3, type=float, default=(60.0, 60.0, 2.0))
+    parser.add_argument("--yaw-deg", type=float, default=0.0,
+                        help="Initial tractor heading in world XY, degrees counterclockwise")
     parser.add_argument("--headless", action="store_true")
     parser.add_argument("--ros2", action="store_true")
     parser.add_argument("--control-source", choices=("teleop", "ros", "none"),
@@ -58,7 +60,9 @@ def main(default_control_source="teleop") -> None:
         stage = context.get_stage()
         tractor = stage.DefinePrim("/World/Tractor", "Xform")
         tractor.GetReferences().AddReference(str(Path(args.tractor).resolve()))
+        tractor_config = load_tractor_config(args.config)
         UsdGeom.Xformable(tractor).AddTranslateOp().Set(Gf.Vec3d(*args.position))
+        UsdGeom.Xformable(tractor).AddRotateZOp().Set(args.yaw_deg)
 
         # The tractor asset contains a scene for convenient manual inspection;
         # the composed farm's /World/PhysicsScene remains authoritative.
@@ -79,7 +83,7 @@ def main(default_control_source="teleop") -> None:
             app.update()
             from bringup.action_graphs import create_ros2_camera_graphs, create_ros2_clock_graph
 
-            create_ros2_camera_graphs(load_tractor_config(args.config))
+            create_ros2_camera_graphs(tractor_config)
             create_ros2_clock_graph()
             from bringup.sim_sensors import TractorStateStreams, load_sensor_config
 

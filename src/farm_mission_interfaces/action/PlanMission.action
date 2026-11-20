@@ -1,0 +1,24 @@
+# Endpoint type is pose or depot. Coordinates are local map meters.
+string[] field_ids
+string implement_side
+string start_type
+float64 start_x
+float64 start_y
+float64 start_yaw
+int32 start_depot_spot
+string start_depot_direction
+string end_type
+float64 end_x
+float64 end_y
+float64 end_yaw
+int32 end_depot_spot
+string end_depot_direction
+float64 implement_range_m
+---
+bool success
+string message
+string mission_id
+nav_msgs/Path path
+float64 total_distance_m
+---
+string stage

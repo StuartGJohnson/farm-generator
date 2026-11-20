@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import math
-import time
 
 ACCELERATOR, BRAKE0, BRAKE1, STEER, GEAR = range(5)
 FORWARD_GEAR = 1  # bringup.teleop uses +1 forward and -1 reverse.
@@ -15,6 +14,8 @@ class VehicleActuationAdapter:
         if not math.isfinite(timeout) or timeout <= 0:
             raise ValueError("actuation timeout must be positive and finite")
         import rclpy
+        from rclpy.parameter import Parameter
+        from isaacsim.core.simulation_manager import SimulationManager
         from pxr import PhysxSchema
         from std_msgs.msg import Float32MultiArray
         from nav_msgs.msg import Odometry
@@ -23,7 +24,9 @@ class VehicleActuationAdapter:
         self.owns_rclpy = not rclpy.ok()
         if self.owns_rclpy:
             rclpy.init()
-        self.node = rclpy.create_node("tractor_physx_actuation")
+        self.node = rclpy.create_node("tractor_physx_actuation", parameter_overrides=[
+            Parameter("use_sim_time", value=True)])
+        self.simulation_manager = SimulationManager
         self.controller = PhysxSchema.PhysxVehicleControllerAPI(vehicle_prim)
         if not self.controller:
             raise ValueError(f"{vehicle_prim.GetPath()} has no PhysxVehicleControllerAPI")
@@ -45,7 +48,7 @@ class VehicleActuationAdapter:
         value = msg.twist.twist.linear.x
         if msg.child_frame_id == "base_link" and math.isfinite(value):
             self.speed = value
-            self.speed_received = time.monotonic()
+            self.speed_received = self.simulation_manager.get_simulation_time()
 
     def _on_message(self, msg):
         values = list(msg.data)
@@ -58,7 +61,7 @@ class VehicleActuationAdapter:
             self.node.get_logger().warn("Invalid actuation vector; braking")
             return
         self.latest = values
-        self.received = time.monotonic()
+        self.received = self.simulation_manager.get_simulation_time()
 
     def stop(self):
         self.controller.GetAcceleratorAttr().Set(0.0)
@@ -70,13 +73,14 @@ class VehicleActuationAdapter:
     def update(self):
         for _ in range(4):
             self.rclpy.spin_once(self.node, timeout_sec=0.0)
-        if self.received is None or time.monotonic() - self.received > self.timeout:
+        sim_time = self.simulation_manager.get_simulation_time()
+        if self.received is None or not 0 <= sim_time - self.received <= self.timeout:
             self.stop()
             return
         a, b0, b1, steer, gear = self.latest
         if gear != self.applied_gear:
             speed_fresh = (self.speed_received is not None and
-                           time.monotonic() - self.speed_received <= self.timeout)
+                           0 <= sim_time - self.speed_received <= self.timeout)
             if (not speed_fresh or abs(self.speed) > 0.08 or a > 0 or b0 < 0.2):
                 self.stop()
                 return

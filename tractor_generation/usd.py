@@ -86,8 +86,13 @@ def write_tractor_usda(config: TractorConfig, path: str | Path) -> Path:
     friction_table.CreateFrictionValuesAttr([0.85])
 
     vehicle_path = f"/Tractor/{BASE_LINK}"
+    # The vehicle rigid frame and ROS base_link are at the rear axle center.
+    # Keep the tractor's physical geometry in the same place by expressing all
+    # body-centered positions relative to that axle.
+    body_x = -config.rear_axle_x
+    body_z = config.body_center_z - config.rear_axle_z
     vehicle = UsdGeom.Xform.Define(stage, vehicle_path)
-    vehicle.AddTranslateOp().Set(Gf.Vec3d(0, 0, config.body_center_z))
+    vehicle.AddTranslateOp().Set(Gf.Vec3d(0, 0, config.rear_axle_z))
     vehicle_prim = vehicle.GetPrim()
     UsdPhysics.RigidBodyAPI.Apply(vehicle_prim)
     # Vehicle 2 wheel/suspension frames below are expressed in the rigid-body
@@ -96,12 +101,12 @@ def write_tractor_usda(config: TractorConfig, path: str | Path) -> Path:
     vehicle_prim.SetCustomDataByKey(
         PhysxSchema.Tokens.referenceFrameIsCenterOfMass, False
     )
-    pod_local_z = config.sensor_pod_height_above_ground - config.body_center_z
+    pod_local_z = config.sensor_pod_height_above_ground - config.rear_axle_z
     components = [
         (
             DENSITY * length * width * config.tractor_body_height,
             (length, width, config.tractor_body_height),
-            (center_x, 0.0, 0.0),
+            (center_x + body_x, 0.0, body_z),
         )
         for center_x, length, width in config.body_segments
     ]
@@ -109,7 +114,7 @@ def write_tractor_usda(config: TractorConfig, path: str | Path) -> Path:
         (
             DENSITY * config.sensor_pod_length * config.sensor_pod_width * config.sensor_pod_height,
             (config.sensor_pod_length, config.sensor_pod_width, config.sensor_pod_height),
-            (0.0, 0.0, pod_local_z),
+            (body_x, 0.0, pod_local_z),
         )
     )
     chassis_mass = sum(mass for mass, _, _ in components)
@@ -165,7 +170,7 @@ def write_tractor_usda(config: TractorConfig, path: str | Path) -> Path:
         body = UsdGeom.Cube.Define(stage, f"{vehicle_path}/Body/segment_{index}")
         body.CreatePurposeAttr(UsdGeom.Tokens.guide)
         body.CreateSizeAttr(1.0)
-        body.AddTranslateOp().Set(Gf.Vec3f(center_x, 0, 0))
+        body.AddTranslateOp().Set(Gf.Vec3f(center_x + body_x, 0, body_z))
         body.AddScaleOp().Set(Gf.Vec3f(length, width, z))
         UsdShade.MaterialBindingAPI.Apply(body.GetPrim()).Bind(body_mat)
         UsdPhysics.CollisionAPI.Apply(body.GetPrim())
@@ -178,11 +183,11 @@ def write_tractor_usda(config: TractorConfig, path: str | Path) -> Path:
     UsdGeom.Xform.Define(stage, coachwork)
     for index, (center_x, length, width) in enumerate(config.body_segments):
         rounded_box(stage, f"{coachwork}/panel_{index}", (length, width, z),
-                    (center_x, 0, 0), body_mat, min(0.12, z * 0.12))
+                    (center_x + body_x, 0, body_z), body_mat, min(0.12, z * 0.12))
     pod = rounded_box(stage, f"{vehicle_path}/{SENSOR_POD_LINK}",
                       (config.sensor_pod_length, config.sensor_pod_width, config.sensor_pod_height),
                       (0, 0, 0), body_mat, config.sensor_pod_height * 0.24)
-    pod.AddTranslateOp().Set(Gf.Vec3d(0, 0, pod_local_z))
+    pod.AddTranslateOp().Set(Gf.Vec3d(body_x, 0, pod_local_z))
     if config.center_gps:
         gps = UsdGeom.Xform.Define(stage, f"{vehicle_path}/{SENSOR_POD_LINK}/{GPS_LINK}")
         gps.AddTranslateOp().Set(Gf.Vec3d(0, 0, config.sensor_pod_height / 2 + GPS_DOME_RADIUS_M / 2))
@@ -193,18 +198,18 @@ def write_tractor_usda(config: TractorConfig, path: str | Path) -> Path:
         dome.AddTranslateOp().Set(Gf.Vec3d(0, 0, -GPS_DOME_RADIUS_M / 2))
         dome.AddScaleOp().Set(Gf.Vec3f(GPS_DOME_RADIUS_M, GPS_DOME_RADIUS_M, GPS_DOME_RADIUS_M))
         UsdShade.MaterialBindingAPI.Apply(dome.GetPrim()).Bind(black_mat)
-    gap = pod_local_z - config.sensor_pod_height / 2 - z / 2
+    gap = pod_local_z - config.sensor_pod_height / 2 - (body_z + z / 2)
     if gap > 0:
         rounded_box(stage, f"{coachwork}/PodSupport", (min(x, config.sensor_pod_length)*0.12,
                     min(y, config.sensor_pod_width)*0.15, gap),
-                    (0, 0, z/2 + gap/2), black_mat, 0.025)
+                    (body_x, 0, body_z + z/2 + gap/2), black_mat, 0.025)
     nose_width = config.body_segments[-1][2]
     rounded_box(stage, f"{coachwork}/Grille", (0.012, nose_width*0.65, z*0.48),
-                (x/2, 0, -z*0.05), black_mat, 0.003)
+                (body_x + x/2, 0, body_z - z*0.05), black_mat, 0.003)
     for index in range(6):
         rounded_box(stage, f"{coachwork}/GrilleSlat_{index}",
                     (0.016, nose_width*0.57, z*0.018),
-                    (x/2 + 0.007, 0, z*(-0.23 + index*0.072)), rim_mat, 0.002)
+                    (body_x + x/2 + 0.007, 0, body_z + z*(-0.23 + index*0.072)), rim_mat, 0.002)
 
     wheel_specs = (
         (config.front_axle_x, config.front_track_width/2, config.front_tire_dia/2, config.front_tire_width, config.front_tire_depth),
@@ -216,10 +221,11 @@ def write_tractor_usda(config: TractorConfig, path: str | Path) -> Path:
     suspension_travel = 0.28
     suspension_rest_length = suspension_travel - 0.12
     for index, (wx, wy, radius, width, tread_depth) in enumerate(wheel_specs):
-        local_z = radius - config.body_center_z
+        local_z = radius - config.rear_axle_z
+        local_x = wx - config.rear_axle_x
         wheel_path = f"{vehicle_path}/{WHEELS[index]}"
         wheel_xform = UsdGeom.Xform.Define(stage, wheel_path)
-        wheel_xform.AddTranslateOp().Set(Gf.Vec3f(wx, wy, local_z))
+        wheel_xform.AddTranslateOp().Set(Gf.Vec3f(local_x, wy, local_z))
         # Match the zero-steer rest basis that Vehicle 2 writes when it takes
         # control.  The render children's local X axle then maps onto vehicle
         # Y both while stopped and while simulation is running.
@@ -232,7 +238,7 @@ def write_tractor_usda(config: TractorConfig, path: str | Path) -> Path:
         attachment = PhysxSchema.PhysxVehicleWheelAttachmentAPI.Apply(wheel_xform.GetPrim())
         attachment.CreateCollisionGroupRel().AddTarget(query_group_path)
         attachment.CreateSuspensionTravelDirectionAttr(Gf.Vec3f(0, 0, -1))
-        attachment.CreateSuspensionFramePositionAttr(Gf.Vec3f(wx, wy, local_z + suspension_rest_length))
+        attachment.CreateSuspensionFramePositionAttr(Gf.Vec3f(local_x, wy, local_z + suspension_rest_length))
         attachment.CreateSuspensionFrameOrientationAttr(Gf.Quatf(1, 0, 0, 0))
         attachment.CreateIndexAttr(index)
         wheel_mass = DENSITY * math.pi * radius * radius * width
@@ -267,10 +273,10 @@ def write_tractor_usda(config: TractorConfig, path: str | Path) -> Path:
         add_wheel_appearance(stage, wheel_path, radius, width, tread_depth, black_mat, hub_mat)
 
     camera_positions = {
-        "front": (config.sensor_pod_length/2, 0, pod_local_z),
-        "rear": (-config.sensor_pod_length/2, 0, pod_local_z),
-        "left": (0, config.sensor_pod_width/2, pod_local_z),
-        "right": (0, -config.sensor_pod_width/2, pod_local_z),
+        "front": (body_x + config.sensor_pod_length/2, 0, pod_local_z),
+        "rear": (body_x - config.sensor_pod_length/2, 0, pod_local_z),
+        "left": (body_x, config.sensor_pod_width/2, pod_local_z),
+        "right": (body_x, -config.sensor_pod_width/2, pod_local_z),
     }
     directions = {
         "front": Gf.Vec3d(math.cos(math.radians(config.camera_pitch)), 0, -math.sin(math.radians(config.camera_pitch))),

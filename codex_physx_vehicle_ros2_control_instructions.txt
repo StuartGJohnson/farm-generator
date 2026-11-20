@@ -1,0 +1,170 @@
+# ROS 2 Longitudinal Vehicle Control and Isaac Sim PhysX Vehicle 2 Adapter
+## Implementation handoff for Codex
+
+### Objective
+Connect Nav2's `geometry_msgs/Twist` `/cmd_vel` output to the existing Isaac Sim tractor's PhysX Vehicle 2 controls. Implement closed-loop longitudinal velocity control in an external ROS 2 Python node, with Ackermann steering conversion and safe gear/brake handling. Implement the final Isaac-side actuator adapter in **Python, not an Action Graph**. Existing Isaac Sim sensor Action Graphs remain unchanged.
+
+Codex has already implemented a working tractor teleoperation path in the existing Isaac Sim launcher. **Inspect and reuse that working code** for the actual PhysX Vehicle 2 control attributes, gear conventions, update timing, and tractor prim path. Do not replace it with unverified API calls. Code is in bringup/launch_tractor.py and bringup/teleop.py.
+
+### Architecture and responsibilities
+1. **ROS 2 velocity controller (outside Isaac Sim):**
+   - Subscribe to `/cmd_vel` (`geometry_msgs/msg/Twist`, with a configurable topic name).
+   - Subscribe to `/ground_truth/odom` (`nav_msgs/msg/Odometry`) for initial longitudinal velocity feedback.
+   - Run a fixed-rate PI speed loop (initially 20 Hz, configurable).
+   - Convert commanded yaw rate to Ackermann steering using wheelbase and forward speed; enforce steering and curvature limits. Accept vehicle parameters as config file or inline parameters.
+   - Manage throttle/brake arbitration, forward/reverse gear transitions, stop behavior, and command timeout.
+   - Publish one coherent actuator message to `/vehicle/actuation`.
+   - Implement as a c++ ROS2 package/node in src/tractor_control_adapter.
+   - Use the system ros2 (humble) for package dev and node execution.
+2. **Isaac Sim Python adapter:**
+   - Similar to bringup/launch_tractor.py (inspect this code), put the new code in bringup/launch_tractor_physx.py.
+   - Use `rclpy` alongside existing `isaacsim.ros2.bridge` sensor Action Graphs. Verify compatible Python/ROS 2 libraries in the Isaac environment.
+   - Use conds env isaacsim61-cu13 for dev, execution and testing.
+   - Subscribe to `/vehicle/actuation`, cache the latest command, and apply it from the simulation/physics update path (not directly from a ROS callback).
+   - Map commands to the existing teleop vehicle control code and `PhysxVehicleControllerAPI` attributes.
+   - Enforce an independent stale-command failsafe; handle simulation pause/shutdown safely.
+   - Ensure teleop and ROS actuator control are mutually exclusive, or explicitly arbitrated, so two writers never fight over the vehicle.
+3. **Test utility:**
+   - Replace Nav2 temporarily with a deterministic `/cmd_vel` profile generator.
+   - Record command, ground-truth speed, and actuator commands.
+   - Plot commanded versus observed velocity, plus accelerator/brake diagnostics.
+   - Use the "open" farm defined in debug_out/farms/open_seed_1_road.
+
+### Topic contract
+| Topic | Type | Direction |
+| --- | --- | --- |
+| `/cmd_vel` | `geometry_msgs/msg/Twist` | Nav2/test -> controller |
+| `/ground_truth/odom` | `nav_msgs/msg/Odometry` | IsaacSim -> controller/test |
+| `/vehicle/actuation` | `std_msgs/msg/Float32MultiArray` (initial) | controller -> IsaacSim |
+| `/clock` | `rosgraph_msgs/msg/Clock` | IsaacSim -> ROS 2, if enabled |
+
+Initial `Float32MultiArray.data` layout:
+- `[0]` accelerator: float in [0, 1]
+- `[1]` brake0: float in [0, 1]
+- `[2]` brake1: float in [0, 1] (initially zero unless the existing vehicle uses it)
+- `[3]` steer: float in [-1, 1]
+- `[4]` target gear: integer-valued float; **use the gear convention verified from existing teleop/PhysX code**, not an assumed forward/reverse encoding.
+
+This vector is a pragmatic prototype contract. Centralize index definitions in both implementations, validate length and finite values, and document the layout. A typed custom ROS message is preferable later, particularly for explicit gear typing and timestamps. A bare `Float32MultiArray` has no header, so receive-time freshness must be checked at the adapter.
+
+### Controller behavior
+- Treat `linear.x` as desired **signed longitudinal velocity in m/s**, not normalized throttle.
+- Treat `angular.z` as desired yaw rate in rad/s, not normalized steering.
+- Read measured **body-frame longitudinal** velocity. Check `Odometry.child_frame_id` and twist frame semantics; transform if necessary. Do not use world-frame speed magnitude.
+- Use PI control with `e = v_cmd - v_measured`, configurable `Kp`, `Ki`, output saturation, and anti-windup.
+- Separate acceleration and braking requests; avoid simultaneous throttle and service brake under normal operation. Include an idle/stop strategy and a configurable minimum braking behavior as appropriate.
+- For initial tests, support **forward motion only**; reject or safely stop on reverse requests until gear-change logic is tested. Subsequently, change gears only near zero speed and explicitly manage stop/shift/resume.
+- Limit command acceleration/deceleration and steering; consider a velocity-command ramp or setpoint filter.
+- Ackermann bicycle model: `delta = atan(L * omega / v)` when speed is sufficiently nonzero. Clamp to physical steering limits and convert to the normalized PhysX steering input using the mapping already established by teleop. Handle near-zero speed without division by zero or requests to rotate in place. Check signs empirically.
+- For PI gains, start conservatively and expose ROS parameters for tuning.
+- On stale `/cmd_vel`, stale feedback, invalid data, or shutdown, command a controlled safe stop rather than retaining the previous accelerator value.
+- The ROS controller may use ground truth for initial testing. Keep the feedback topic configurable for later odometry/EKF experiments.
+
+Illustrative controller core in python (not c++) (NOT a complete ROS node):
+
+```python
+dt = max(1e-3, min(dt, max_control_dt))
+error = target_speed - measured_forward_speed
+integral_candidate = integral + error * dt
+raw = kp * error + ki * integral_candidate
+effort = max(-1.0, min(1.0, raw))
+
+# Simple conditional anti-windup; refine as needed.
+if raw == effort or (raw > 1.0 and error < 0) or (raw < -1.0 and error > 0):
+    integral = integral_candidate
+
+accelerator = max(0.0, effort)
+brake0 = max(0.0, -effort)
+```
+
+This is deliberately simplified: it assumes forward gear, ignores vehicle feedforward and holding brakes, and does not implement a full gear state machine.
+
+### Isaac Sim Python adapter
+- Reuse the **existing teleop launcher's proven PhysX Vehicle 2 actuation path** rather than guessing API method names or attributes.
+- Existing sensor ROS 2 Action Graphs can run simultaneously with a separate Python `rclpy` subscriber in the same Isaac process.
+- If the launcher already has a simulation loop, integrate nonblocking `rclpy.spin_once(..., timeout_sec=0.0)` or an appropriately managed executor into it.
+- Keep callbacks lightweight: validate/cache commands; apply them on the simulation thread at the intended physics-update point.
+- Ensure the ROS 2 bridge and Python node use compatible middleware/domain settings and do not accidentally initialize incompatible `rclpy` installations.
+- Resolve startup, reset, simulation pause, and shutdown lifecycle carefully.
+- If ROS control and teleop both exist, provide a single explicit control-source selection mechanism.
+
+Illustrative adapter pattern (attribute assignment is intentionally delegated to existing working teleop code):
+
+```python
+class VehicleActuationAdapter:
+    def __init__(self, apply_teleop_controls):
+        self.latest = None
+        self.last_received_time = None
+        self.apply_teleop_controls = apply_teleop_controls
+
+    def on_ros_message(self, msg, now):
+        if len(msg.data) != 5:
+            return
+        values = list(msg.data)
+        if not all(math.isfinite(x) for x in values):
+            return
+        self.latest = values
+        self.last_received_time = now
+
+    def on_physics_update(self, now):
+        if (self.latest is None or self.last_received_time is None
+                or now - self.last_received_time > 0.5):
+            # Use the existing teleop/vehicle stop method.
+            self.apply_teleop_controls(
+                accelerator=0.0, brake0=1.0, brake1=0.0,
+                steer=0.0, gear=None
+            )
+            return
+        a, b0, b1, steer, gear = self.latest
+        self.apply_teleop_controls(
+            accelerator=max(0.0, min(1.0, a)),
+            brake0=max(0.0, min(1.0, b0)),
+            brake1=max(0.0, min(1.0, b1)),
+            steer=max(-1.0, min(1.0, steer)),
+            gear=int(gear),
+        )
+```
+
+Here `apply_teleop_controls` is a **placeholder abstraction** for the working Isaac launcher code, not an existing NVIDIA function. The timeout uses a monotonic receive-time clock; decide how to handle paused simulation and reset. Avoid repeatedly forcing gear changes during a timeout.
+
+### Straight-line velocity tracking integration test
+Purpose: isolate longitudinal control from steering, RPP, and route planning. Keep `angular.z = 0` throughout, with the tractor initially on a long flat road and sufficient runout distance. Use forward gear only.
+
+Suggested profile (simulation elapsed seconds):
+- 0-2: 0 m/s
+- 2-10: 1 m/s
+- 10-18: 0.5 m/s
+- 18-20: 0 m/s
+- At completion: command 0 and continue until the tractor is stopped; do not simply exit at 2 m/s.
+
+Publish `/cmd_vel` at approximately 20 Hz. Prefer ROS simulation time (`use_sim_time=true`) consistently for profile timing and recorded samples, and handle `/clock` pause/reset. For watchdog timeouts, use a clock strategy that also handles stalled ROS traffic safely. This test is presumable written in python and is run via the system ros2 (using the venv via activate_venv.sh).
+
+Collect time-aligned samples of:
+- commanded speed (`cmd_vel.linear.x`)
+- measured body-frame longitudinal speed (`/ground_truth/odom`)
+- throttle and brake commands
+- optionally PI error/integral and gear
+
+Use the "open" farm defined in debug_out/farms/open_seed_1_road for testing. This is a 120m^2 quite flat farm with a center at (60,60). This should give ample room for tractor navigation.
+
+Generate plots of (at least):
+1. Commanded vs measured velocity (m/s) against elapsed simulation time.
+2. Accelerator and brake0 versus time.
+
+Compute RMSE, steady-state errors during constant-speed holds, overshoot, and approximate rise/settling times. Include the gain values and test settings with the results.
+
+### Acceptance criteria
+1. Existing Isaac Sim sensor Action Graphs remain functional.
+2. Isaac teleop still works when selected; ROS and teleop never command the same controller concurrently.
+3. `/cmd_vel` produces stable closed-loop forward velocity through the external ROS node and Isaac Python adapter.
+4. `/vehicle/actuation` has a documented, validated field layout and a working timeout behavior.
+5. Straight-line test generates reproducible plots (and or data) showing commanded vs ground-truth speed, plus throttle/brake behavior.
+6. Controller and simulator stop safely on test completion, stale commands, and shutdown.
+7. No Nav2 planner or RPP is needed to run the initial test; later integration will use Nav2 `FollowPath` -> RPP -> `/cmd_vel`.
+
+### Implementation approach for Codex
+Inspect the existing packages, Isaac launcher, teleop code, vehicle prim/controller API setup, ROS 2 bridge setup, and ground-truth odometry publisher first. Reuse established conventions, existing ROS workspace/venv, and any available tests
+
+Keep the initial milestone tightly focused on **forward-only longitudinal velocity tracking**. Steering and reverse gear behavior can be implemented behind the same interface and tested separately after the first velocity plots look sensible.
+
+Documentation can be placed in a new section of the README.md file, just before the last section on "AI assistance". Call this section "Physx vehicle control adapter".

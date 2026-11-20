@@ -1,0 +1,51 @@
+{
+  "field_friction_range": [
+    0.04999999999999999,
+    0.95
+  ],
+  "field_height_range_m": [
+    -0.25,
+    0.25
+  ],
+  "wheel_order": [
+    "rear_left",
+    "rear_right",
+    "front_left",
+    "front_right"
+  ],
+  "time_8s": {
+    "sim_s": 8.0,
+    "station_m": 3.3466932672273155,
+    "speed_mps": 0.4955923468621164,
+    "command_mps": 0.5,
+    "rear_axle_xy_m": [
+      62.43790054321289,
+      61.93243408203125
+    ],
+    "wheel_friction_samples": [
+      0.4003588960083308,
+      0.5074247487127528,
+      0.511646935701284,
+      0.4993981214449882
+    ],
+    "grade_along_heading_pct": 1.1216692251683158
+  },
+  "speed_peak": {
+    "sim_s": 15.016666666999999,
+    "station_m": 7.021983317114026,
+    "speed_mps": 0.6594988391231864,
+    "command_mps": 0.5,
+    "rear_axle_xy_m": [
+      60.7978630065918,
+      64.87705993652344
+    ],
+    "wheel_friction_samples": [
+      0.37982908591867104,
+      0.42065593010659313,
+      0.3405633640968559,
+      0.4208113960945747
+    ],
+    "grade_along_heading_pct": -3.814333963190374
+  },
+  "note": "Bilinear samples of generated fields at approximate wheel centers; USD mesh friction is face-quantized and wheel slip was not measured."
+}

@@ -50,6 +50,8 @@ def _wheel_link(robot, name, radius, width):
 def write_tractor_urdf(config: TractorConfig, path: str | Path) -> Path:
     robot = ET.Element("robot", name="farm_tractor")
     base = ET.SubElement(robot, "link", name=BASE_LINK)
+    body_x = -config.rear_axle_x
+    body_z = config.body_center_z - config.rear_axle_z
     body_parts = [
         (
             DENSITY * length * width * config.tractor_body_height,
@@ -66,19 +68,19 @@ def write_tractor_urdf(config: TractorConfig, path: str | Path) -> Path:
         inertia[1] += mass * (length * length + height * height) / 12 + mass * (center_x-body_com_x)**2
         inertia[2] += mass * (length * length + width * width) / 12 + mass * (center_x-body_com_x)**2
     inertial = ET.SubElement(base, "inertial")
-    ET.SubElement(inertial, "origin", xyz=f"{body_com_x} 0 0", rpy="0 0 0")
+    ET.SubElement(inertial, "origin", xyz=f"{body_com_x + body_x} 0 {body_z}", rpy="0 0 0")
     ET.SubElement(inertial, "mass", value=f"{body_mass:.9g}")
     ET.SubElement(
         inertial, "inertia", ixx=f"{inertia[0]:.9g}", ixy="0", ixz="0",
         iyy=f"{inertia[1]:.9g}", iyz="0", izz=f"{inertia[2]:.9g}",
     )
-    # base_link is the body-center frame in both URDF and USD. Compound boxes
+    # base_link is the rear axle center in both URDF and USD. Compound boxes
     # leave actual empty wheel wells instead of overlapping tire geometry.
     for center_x, length, width in config.body_segments:
         before = len(base)
         _box(base, (length, width, config.tractor_body_height), ("tractor_green", "0.08 0.32 0.10 1"))
         for node in list(base)[before:]:
-            ET.SubElement(node, "origin", xyz=f"{center_x} 0 0", rpy="0 0 0")
+            ET.SubElement(node, "origin", xyz=f"{center_x + body_x} 0 {body_z}", rpy="0 0 0")
 
     pod = ET.SubElement(robot, "link", name=SENSOR_POD_LINK)
     pod_size = (config.sensor_pod_length, config.sensor_pod_width, config.sensor_pod_height)
@@ -86,8 +88,8 @@ def write_tractor_urdf(config: TractorConfig, path: str | Path) -> Path:
     _box(pod, pod_size, ("pod_black", "0.04 0.05 0.04 1"))
     joint = ET.SubElement(robot, "joint", name="sensor_pod_joint", type="fixed")
     ET.SubElement(joint, "parent", link=BASE_LINK); ET.SubElement(joint, "child", link=SENSOR_POD_LINK)
-    pod_local_z = config.sensor_pod_height_above_ground - config.body_center_z
-    ET.SubElement(joint, "origin", xyz=f"0 0 {pod_local_z}", rpy="0 0 0")
+    pod_local_z = config.sensor_pod_height_above_ground - config.rear_axle_z
+    ET.SubElement(joint, "origin", xyz=f"{body_x} 0 {pod_local_z}", rpy="0 0 0")
     if config.center_gps:
         # gps_link is halfway up the visible 10 cm hemispherical dome.
         gps = ET.SubElement(robot, "link", name=GPS_LINK)
@@ -114,13 +116,13 @@ def write_tractor_urdf(config: TractorConfig, path: str | Path) -> Path:
             steer_link = ET.SubElement(robot, "link", name=STEERING_LINKS[index])
             steer_joint = ET.SubElement(robot, "joint", name=STEERING_JOINTS[index], type="revolute")
             ET.SubElement(steer_joint, "parent", link=BASE_LINK); ET.SubElement(steer_joint, "child", link=STEERING_LINKS[index])
-            ET.SubElement(steer_joint, "origin", xyz=f"{x} {y} {radius-config.body_center_z}", rpy="0 0 0")
+            ET.SubElement(steer_joint, "origin", xyz=f"{x-config.rear_axle_x} {y} {radius-config.rear_axle_z}", rpy="0 0 0")
             ET.SubElement(steer_joint, "axis", xyz="0 0 1")
             ET.SubElement(steer_joint, "limit", lower=f"{-config.max_steer_angle_rad}", upper=f"{config.max_steer_angle_rad}", effort="10000", velocity="1.5")
             parent = STEERING_LINKS[index]
             wheel_origin = "0 0 0"
         else:
-            wheel_origin = f"{x} {y} {radius-config.body_center_z}"
+            wheel_origin = f"{x-config.rear_axle_x} {y} {radius-config.rear_axle_z}"
         _wheel_link(robot, WHEELS[index], radius, width)
         wheel_joint = ET.SubElement(robot, "joint", name=WHEEL_JOINTS[index], type="continuous")
         ET.SubElement(wheel_joint, "parent", link=parent); ET.SubElement(wheel_joint, "child", link=WHEELS[index])

@@ -14,7 +14,7 @@ def test_default_tractor_geometry_and_config_file():
     assert config.rear_axle_x == pytest.approx(-1.25)
     assert config.front_axle_x - config.rear_axle_x == pytest.approx(config.wheelbase)
     assert config.body_center_z == pytest.approx(0.8)
-    assert config.max_steer_angle_rad == pytest.approx(math.pi / 4)
+    assert config.max_steer_angle_rad == pytest.approx(math.atan2(config.wheelbase, 2.2))
     assert config.enabled_cameras == ("front",)
 
 
@@ -27,10 +27,12 @@ def test_config_rejects_unknown_and_impossible_values(tmp_path):
         TractorConfig(wheelbase=4.0)
     with pytest.raises(ValueError, match="sensor pod"):
         TractorConfig(sensor_pod_height_above_ground=1.0)
+    with pytest.raises(ValueError, match="front track width"):
+        TractorConfig(turning_radius=0.5)
 
 
 def test_urdf_uses_canonical_names_and_water_density(tmp_path):
-    config = TractorConfig(front_camera=True, rear_camera=True)
+    config = TractorConfig(front_camera=True, rear_camera=True, rear_tire_dia=1.4)
     path = write_tractor_urdf(config, tmp_path / "tractor.urdf")
     root = ET.parse(path).getroot()
     links = {node.attrib["name"] for node in root.findall("link")}
@@ -43,6 +45,16 @@ def test_urdf_uses_canonical_names_and_water_density(tmp_path):
         for _, length, width in config.body_segments
     )
     assert float(base.find("inertial/mass").attrib["value"]) == pytest.approx(expected_mass)
+    rear_joint = next(j for j in root.findall("joint") if j.attrib["name"] == "rear_left_wheel_joint")
+    assert tuple(map(float, rear_joint.find("origin").attrib["xyz"].split())) == pytest.approx((0, config.rear_track_width / 2, 0))
+    front_joint = next(j for j in root.findall("joint") if j.attrib["name"] == "front_left_steering_joint")
+    assert tuple(map(float, front_joint.find("origin").attrib["xyz"].split())) == pytest.approx(
+        (config.wheelbase, config.front_track_width / 2, config.front_tire_dia / 2 - config.rear_axle_z))
+    pod_joint = next(j for j in root.findall("joint") if j.attrib["name"] == "sensor_pod_joint")
+    assert tuple(map(float, pod_joint.find("origin").attrib["xyz"].split())) == pytest.approx(
+        (-config.rear_axle_x, 0, config.sensor_pod_height_above_ground - config.rear_axle_z))
+    inertial_origin = tuple(map(float, base.find("inertial/origin").attrib["xyz"].split()))
+    assert inertial_origin[2] == pytest.approx(config.body_center_z - config.rear_axle_z)
 
 
 def test_body_segments_clear_tire_inner_sidewalls():

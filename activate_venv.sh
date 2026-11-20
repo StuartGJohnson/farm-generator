@@ -5,6 +5,7 @@ export PYTHONNOUSERSITE=1
 
 # Activate Python environment
 source "$(dirname "${BASH_SOURCE[0]}")/venv/bin/activate"
+export PYTHONPATH="$(dirname "${BASH_SOURCE[0]}"):${PYTHONPATH:-}"
 
 # Activate ROS2 Humble
 source /opt/ros/humble/setup.bash

@@ -1,41 +1,41 @@
 {
-  "source": "debug_out/vehicle_calibration/road_run_1/samples.csv",
+  "source": "debug_out/vehicle_calibration/road_sim_time_20hz/samples.csv",
   "model": "a_along_gear = coast0 + coast1*speed_abs + throttle_gain*accelerator - brake_gain*brake0",
   "gears": {
     "1": {
-      "samples": 983,
-      "rmse_mps2": 0.04400388971100593,
+      "samples": 555,
+      "rmse_mps2": 0.03602715643057124,
       "held_out_levels": [
         "throttle_0.12",
         "brake_0.06"
       ],
-      "held_out_samples": 130,
-      "held_out_rmse_mps2": 0.040421906458342295,
-      "coast0_mps2": -0.039627824057783735,
-      "coast1_per_s": 0.034093097862665234,
-      "throttle_gain_mps2": 2.1732085740597067,
-      "brake_gain_mps2": 14.702594127775816,
+      "held_out_samples": 74,
+      "held_out_rmse_mps2": 0.052093888733537805,
+      "coast0_mps2": -0.041597754631954885,
+      "coast1_per_s": 0.03721888478068913,
+      "throttle_gain_mps2": 2.1669322494414054,
+      "brake_gain_mps2": 14.576110725997053,
       "speed_range_mps": [
-        0.1219230717393021,
-        1.4830743240309614
+        0.12043613308174037,
+        1.4821839507851362
       ]
     },
     "-1": {
-      "samples": 1005,
-      "rmse_mps2": 0.041611790459399264,
+      "samples": 568,
+      "rmse_mps2": 0.03302069301058002,
       "held_out_levels": [
         "throttle_0.12",
         "brake_0.06"
       ],
-      "held_out_samples": 129,
-      "held_out_rmse_mps2": 0.04397717890188555,
-      "coast0_mps2": -0.010650364675389962,
-      "coast1_per_s": -0.0006672480204060749,
-      "throttle_gain_mps2": 2.1210973904551818,
-      "brake_gain_mps2": 14.79695996025535,
+      "held_out_samples": 77,
+      "held_out_rmse_mps2": 0.04239298132139597,
+      "coast0_mps2": -0.00126799170949623,
+      "coast1_per_s": -0.004749739678630349,
+      "throttle_gain_mps2": 2.018648920066612,
+      "brake_gain_mps2": 14.818374128179341,
       "speed_range_mps": [
-        0.12059128854094392,
-        1.4304517862651176
+        0.12216341739792898,
+        1.4663320956947419
       ]
     }
   }

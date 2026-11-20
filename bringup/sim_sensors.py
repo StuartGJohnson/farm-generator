@@ -28,15 +28,15 @@ def _rotate(q: np.ndarray, v: np.ndarray) -> np.ndarray:
 
 
 def _velocity_at_origin(v_com, omega_world, orientation, com_local) -> np.ndarray:
-    """Shift PhysX's world-space COM velocity to the base_link origin."""
+    """Shift PhysX's world-space COM velocity to the rigid-body origin."""
     return np.asarray(v_com, dtype=float) - np.cross(omega_world, _rotate(orientation, com_local))
 
 
 @dataclass(frozen=True)
 class RigidState:
-    position: np.ndarray  # world position of the base_link rigid-body origin
+    position: np.ndarray  # world position of the published ROS base_link origin
     orientation: np.ndarray  # wxyz, base_link to world
-    linear_velocity: np.ndarray  # world-space velocity at the base_link origin
+    linear_velocity: np.ndarray  # world-space velocity at the published origin
     angular_velocity: np.ndarray  # PhysX world-space radians/second
 
 
@@ -147,8 +147,10 @@ def load_sensor_config(path: str | Path, farm_path: str | Path) -> tuple[dict, G
 class TractorStateStreams:
     """Owns one ROS node and one post-physics subscription for this launcher."""
 
-    def __init__(self, stage, config: dict, reference: GeoReference, tractor_path="/World/Tractor"):
+    def __init__(self, stage, config: dict, reference: GeoReference,
+                 tractor_path="/World/Tractor"):
         import rclpy
+        from rclpy.parameter import Parameter
         from isaacsim.core.experimental.prims import RigidPrim
         from isaacsim.core.simulation_manager import SimulationEvent, SimulationManager
         from pxr import UsdGeom, UsdPhysics
@@ -159,7 +161,8 @@ class TractorStateStreams:
         self._owns_rclpy = not rclpy.ok()
         if self._owns_rclpy:
             rclpy.init()
-        self.node = rclpy.create_node("tractor_sim_state")
+        self.node = rclpy.create_node("tractor_sim_state", parameter_overrides=[
+            Parameter("use_sim_time", value=True)])
         self.rigid = RigidPrim(f"{tractor_path}/{BASE_LINK}")
         base = stage.GetPrimAtPath(f"{tractor_path}/{BASE_LINK}")
         center_of_mass = UsdPhysics.MassAPI(base).GetCenterOfMassAttr().Get()
@@ -171,7 +174,7 @@ class TractorStateStreams:
             gps = stage.GetPrimAtPath(gps_path)
             relative = (UsdGeom.Xformable(gps).ComputeLocalToWorldTransform(0) *
                         UsdGeom.Xformable(base).ComputeLocalToWorldTransform(0).GetInverse())
-            antenna_base_xyz = relative.ExtractTranslation()
+            antenna_base_xyz = np.asarray(relative.ExtractTranslation(), dtype=float)
             self.gnss = GnssSimulator(self.node, config["gnss"], reference, antenna_base_xyz)
         elif config["gnss"]["enabled"]:
             print(f"GNSS disabled: no {gps_path} in tractor asset")
@@ -194,8 +197,8 @@ class TractorStateStreams:
         orientation = np.asarray(orientations.numpy()[0], dtype=float)
         angular_world = np.asarray(angular.numpy()[0], dtype=float)
         # omni.physics.tensors RigidBodyView.get_velocities documents global
-        # axes and linear velocity at the COM. Shift it to base_link's origin:
-        # v_base = v_com - omega x R_world_base * com_local.
+        # axes and linear velocity at the COM. Recover velocity at the
+        # rigid-body base_link origin, which is the rear axle center.
         base_velocity = _velocity_at_origin(linear.numpy()[0], angular_world, orientation, self._com_local)
         state = RigidState(
             np.asarray(positions.numpy()[0], dtype=float),

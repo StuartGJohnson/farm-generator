@@ -8,6 +8,10 @@
 
   <buildtool_depend>ament_python</buildtool_depend>
   <exec_depend>ground_truth_localization</exec_depend>
+  <exec_depend>tractor_control_adapter</exec_depend>
+  <exec_depend>farm_mission_processor</exec_depend>
+  <exec_depend>nav2_controller</exec_depend>
+  <exec_depend>nav2_lifecycle_manager</exec_depend>
   <exec_depend>mapviz</exec_depend>
   <exec_depend>tile_map</exec_depend>
   <exec_depend>mapviz_plugins</exec_depend>
